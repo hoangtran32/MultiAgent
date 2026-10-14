@@ -8,7 +8,9 @@ if (args.FirstOrDefault() == "--fixture")
 {
     if (args.Contains("pipe-holder")) { await Task.Delay(6000); return; }
     if (args.Contains("background-pipe")) {
-        var child = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true };
+        // Keep inherited stdout/stderr, but do not retain the temporary workspace as the child's cwd.
+        // Windows cannot remove that directory while the intentionally surviving pipe-holder is running.
+        var child = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = AppContext.BaseDirectory };
         child.ArgumentList.Add("--fixture"); child.ArgumentList.Add("pipe-holder");
         System.Diagnostics.Process.Start(child)?.Dispose();
         Console.WriteLine("root-complete"); await Console.Out.FlushAsync(); return;
