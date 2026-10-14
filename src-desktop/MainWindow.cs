@@ -435,14 +435,14 @@ internal sealed class MainWindow : Form
     private void StartJob() => Protect(() => {
         if (!runner.Busy && config.Agents.Count == 0) { OpenAgents(); status.Text = "Thêm agent và cấu hình kết nối trước khi gửi yêu cầu."; return; }
         if (runner.Busy) {
-            if (displayed?.Mode == "team") { runner.AddTeamInstruction(prompt.Text.Trim()); prompt.Clear(); status.Text = "Đã nhận bổ sung; áp dụng tại ranh giới bước tiếp theo."; }
+            if (displayed?.Mode == "team") { runner.AddTeamInstruction(prompt.Text.Trim()); prompt.Clear(); canvas.ScrollToEnd(); status.Text = "Đã nhận bổ sung; áp dụng tại ranh giới bước tiếp theo."; }
             return;
         }
         config.Project = Path.GetFullPath(project.Text.Trim()); if (!Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
         config.RecentProjects = new[] { config.Project }.Concat(config.RecentProjects).Distinct(StringComparer.OrdinalIgnoreCase).ToList(); Save(); LoadProjects();
         string context = contextFile == null ? "" : ProjectContext.Read(config.Project, contextFile);
         runner.Start(config, prompt.Text.Trim(), context, continueFrom, topic.Text.Trim()); prompt.Clear(); ClearResults(); displayed = null;
-        if (runner.Snapshot() is { } job) { selectedConversationId = job.ConversationId; config.LastConversationId = job.ConversationId; Protect(Save); topic.Text = job.Title; RenderJob(job); }
+        if (runner.Snapshot() is { } job) { selectedConversationId = job.ConversationId; config.LastConversationId = job.ConversationId; Protect(Save); topic.Text = job.Title; RenderJob(job); canvas.ScrollToEnd(); }
     });
     private void ClearResults()
     {

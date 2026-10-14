@@ -6,7 +6,7 @@
 
 ## Bắt đầu
 
-Tải bản Windows x64 từ mục Releases của repository, giải nén toàn bộ rồi mở `MultiAgentHub.exe`. Bản đóng gói có sẵn .NET runtime.
+Tải `MultiAgentHub-<version>-win-x64.exe` từ mục Releases của repository rồi mở trực tiếp. Bản EXE có sẵn .NET runtime, không cần cài đặt. Nếu dùng bản ZIP, giải nén toàn bộ rồi mở `MultiAgentHub.exe`.
 
 1. Lần đầu app không có agent được cài sẵn. Bấm **Thêm agent của bạn** hoặc **Agent & model**.
 2. Chọn công cụ AI, kiểu kết nối và số lượng, rồi thêm agent.
@@ -55,13 +55,15 @@ Cần Windows x64 và .NET 10 SDK. Không có NuGet dependencies bên ngoài.
 
 ```powershell
 dotnet build MultiAgentHub.slnx -c Release
+# Build một EXE có runtime để tải lên GitHub Releases, không test chức năng:
+./scripts/build-release.ps1 -SkipTests
 # Chỉ biên dịch/đóng gói, không test chức năng, không thay app đang chạy:
 ./scripts/build-desktop.ps1 -PackageOnly -SkipTests
 # Cài bản build vào app-bin và tạo shortcut (đóng Hub trước):
 ./scripts/build-desktop.ps1 -Zip -CreateShortcut -SkipTests
 ```
 
-ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.1.10 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình.
+EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.1.11 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình.
 
 ## Dữ liệu và Git
 

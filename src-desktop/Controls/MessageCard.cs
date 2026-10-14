@@ -114,6 +114,11 @@ internal sealed class MessageCard : Panel
         return (User ? D(14 + 16 + 8 + 14) : D(18 + 22 + 32 + 14 + 16)) + (HasBody ? bodyHeight : 0) + (ShowActions ? D(46) : 0);
     }
     protected override void OnLayout(LayoutEventArgs e) { base.OnLayout(e); PlaceContent(); }
+    protected override void OnMouseWheel(MouseEventArgs e)
+    {
+        if (e is HandledMouseEventArgs handled) handled.Handled = true;
+        Wheel?.Invoke(e.Delta);
+    }
     private void PlaceContent()
     {
         if (placing || copy == null) return; placing = true;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.1.11 — 2026-10-15
+
+- Hoàn tất layout và cập nhật giới hạn cuộn native trước khi khôi phục điểm đọc. Tin mới/streaming không còn nằm ngoài giới hạn cuộn cũ; tính vị trí cuối theo viewport thực tế.
+- Lăn chuột trên phần nền/khung/thao tác tin nhắn đi vào cùng vùng cuộn hội thoại. Gửi tin hoặc bổ sung yêu cầu chủ động chuyển về cuối; khi cuộn lên đọc, các cập nhật tiếp theo giữ điểm đọc.
+- Thêm script build EXE Windows x64 duy nhất có runtime, tên theo phiên bản và SHA-256 để tải lên GitHub Releases.
+
 ## 5.1.10 — 2026-10-15
 
 - Ô nhập xử lý đo chiều cao sau khi native TextBox nhận xong phím, gộp yêu cầu layout và chỉ cập nhật hàng bố cục khi chiều cao thực sự đổi. Bỏ gán chiều cao trực tiếp cho panel đang dock, giữ hàng toolbar/đính kèm trong vùng của chúng; yêu cầu dài cuộn bên trong ô nhập.

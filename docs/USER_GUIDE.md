@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.1.10
+# Hướng dẫn Multi-Agent Hub 5.1.11
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
@@ -31,6 +31,8 @@ Từ 5.1.7, tin nhắn của bạn và phần bổ sung yêu cầu hiện bên p
 Từ 5.1.8, tin của bạn có bong bóng xanh nhạt; AI có khung riêng, ngăn cách metadata/nội dung/thao tác bằng đường mờ. Nút **Sao chép** lấy toàn bộ nội dung tin, **Chi tiết** mở nội dung đầy đủ và nhật ký/prompt agent trong phiên nếu có. Nhấp phải tin để sao chép phần chọn hoặc mở Chi tiết. Nhật ký và prompt gần nhất được ghi nhãn theo agent/phiên, không giả lập log riêng cho lượt cũ.
 
 Hội thoại dài tải 80 tin gần nhất trước; bấm **Hiển thị tin nhắn cũ** để tải thêm. Một tin quá dài hiển thị trích tối đa 24.000 ký tự trong khung; mở Chi tiết để đọc đầy đủ. Giới hạn này chỉ áp dụng giao diện, không cắt dữ liệu JSON/TXT hay bản sao chép. Cuộn chuột và Page Up/Page Down đi qua toàn bộ khung tin; Ctrl+Home/Ctrl+End đến đầu/cuối. Đang đọc phần cũ thì streaming giữ điểm đọc; bấm mũi tên xuống để theo cuối.
+
+Gửi tin mới hoặc bổ sung yêu cầu sẽ đưa đến cuối hội thoại. Có thể lăn chuột trên nội dung, phần nền hoặc thao tác của khung tin để đọc tiếp; giới hạn thanh cuộn được cập nhật khi tin mới xuất hiện hoặc nội dung tăng chiều cao.
 
 Ô nhập bo góc chứa luôn nút **+**, cách phối hợp, thiết lập phiên, chọn agent/model và nút gửi hình mũi tên. Bấm **⚙ → Phân vai & giới hạn…** để cấu hình bàn tròn, hoặc giới hạn thảo luận khi dùng chế độ Bàn luận. Nút **⋯** trên đầu hội thoại mở chi tiết/nhật ký, sao chép, TXT và quản lý topic. Nút danh sách ở góc phải mở **Công việc & đầu ra** thành khu vực phụ; cửa sổ hẹp mở thành hộp riêng. Markdown cơ bản (tiêu đề, chữ đậm/nghiêng, liên kết, danh sách, code) được hiển thị bằng RichEdit native.
 
