@@ -1,0 +1,41 @@
+# Environment & API Keys
+.env
+.env.*
+!.env.example
+config.local.json
+config.json
+history.json
+*.log
+*.tmp
+
+# Desktop build output and legacy browser profiles
+app-bin/
+.build/
+release/
+**/bin/
+**/obj/
+native-config.json
+native-history.json
+native-active-discussion.json
+conversations/
+handoffs/
+TestResults/
+*.dmp
+*.pfx
+*.p12
+*.pem
+*.key
+*.exe.WebView2/
+
+# Operating System
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# IDEs
+.idea/
+.vscode/
+*.suo
+.vs/
+*.user
+*.sw?
