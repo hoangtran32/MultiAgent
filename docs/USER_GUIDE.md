@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.3.1
+# Hướng dẫn Multi-Agent Hub 5.3.2
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
@@ -39,6 +39,8 @@ Hội thoại dài tải 32 tin gần nhất trước; bấm **Hiển thị tin 
 Nhấp phải folder project (hoặc Shift+F10/phím Menu) để **Ghim**, **Chỉnh sửa** tên hiển thị, chọn/tạo **Mục**, **Mở trong File Explorer**, **Lưu trữ các cuộc trò chuyện** và **Gỡ dự án**. Tên hiển thị không đổi tên folder trên ổ đĩa; Mục chỉ tổ chức sidebar. Project ghim nằm trong nhóm riêng. Lưu trữ toàn bộ chat của project giữ nguyên JSON/TXT; bật Hội thoại đã lưu trữ rồi dùng menu project để khôi phục. Gỡ chỉ ẩn khỏi thư viện, giữ nguyên thư mục/chat và các tùy chọn tổ chức. Thêm lại cùng đường dẫn để khôi phục project. Hội thoại đang mở vẫn có thể đọc sau khi lưu trữ.
 
 Gửi tin mới hoặc bổ sung yêu cầu sẽ đưa đến cuối hội thoại. Có thể lăn chuột trên nội dung, phần nền hoặc thao tác của khung tin để đọc tiếp; giới hạn thanh cuộn được cập nhật khi tin mới xuất hiện hoặc nội dung tăng chiều cao.
+
+Khung nhập luôn hiển thị **Project: đường dẫn folder** ở phía trên ô gõ, cập nhật khi chọn folder hoặc mở hội thoại cũ. Đường dẫn dài rút gọn bằng dấu …; rê chuột để xem đầy đủ. Dòng này tách khỏi nội dung yêu cầu và vẫn hiện khi đang gõ/chạy agent.
 
 Ô nhập bo góc chứa nút **+** để đính kèm/thay/bỏ file, cách phối hợp, chọn agent tham gia và nút gửi hình mũi tên. Chỉ giữ **Agent & model** ở cuối sidebar để quản lý agent, phân vai/giới hạn bàn tròn và giới hạn bàn luận. Rê chuột trên cách phối hợp đang chọn hoặc từng mục trong menu để đọc mô tả cơ chế và ví dụ. Khi bàn tròn đang chạy, **⋯ → Dừng sau bước hiện tại** kết thúc sau bước đang làm; nút Dừng cạnh ô nhập hủy ngay. Nút **⋯** trên đầu hội thoại mở chi tiết/nhật ký, sao chép, TXT và quản lý topic. Nút danh sách ở góc phải mở **Công việc & đầu ra** thành khu vực phụ; cửa sổ hẹp mở thành hộp riêng. Markdown cơ bản (tiêu đề, chữ đậm/nghiêng, liên kết, danh sách, code) được hiển thị bằng RichEdit native.
 

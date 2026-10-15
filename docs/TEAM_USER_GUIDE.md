@@ -1,6 +1,6 @@
 # Dùng nhóm AI trong Hub 5.1
 
-Giao diện 5.3.1: **Hub Code / Hub Chat** ở đầu thanh bên là Làm việc / Trò chuyện. Chọn **Bàn tròn** trong ô nhập, mở **Agent & model → Phân vai & giới hạn bàn tròn…** ở cuối sidebar. Rê chuột trên cách phối hợp hoặc từng mục menu để đọc giải thích. **Công việc & đầu ra** mở bằng biểu tượng danh sách ở góc trên phải. **Chi tiết**, TXT và quản lý topic nằm trong menu **⋯**. Các chỉ dẫn tên chế độ đầy đủ bên dưới vẫn chỉ cùng chức năng, không đổi dữ liệu hội thoại hoặc phân vai.
+Giao diện 5.3.2: **Hub Code / Hub Chat** ở đầu thanh bên là Làm việc / Trò chuyện. Chọn **Bàn tròn** trong ô nhập, mở **Agent & model → Phân vai & giới hạn bàn tròn…** ở cuối sidebar. Rê chuột trên cách phối hợp hoặc từng mục menu để đọc giải thích. **Công việc & đầu ra** mở bằng biểu tượng danh sách ở góc trên phải. **Chi tiết**, TXT và quản lý topic nằm trong menu **⋯**. Các chỉ dẫn tên chế độ đầy đủ bên dưới vẫn chỉ cùng chức năng, không đổi dữ liệu hội thoại hoặc phân vai.
 
 ## Bắt đầu
 

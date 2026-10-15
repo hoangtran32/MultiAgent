@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.3.2 — 2026-10-15
+
+- Hiển thị đường dẫn thư mục project ngay trên ô nhập, trong khung chat. Cập nhật theo folder đã chọn, chat mới và hội thoại cũ; tên hiển thị riêng của project không che mất đường dẫn thật.
+- Đường dẫn dài thu gọn bằng dấu …, rê chuột để xem đầy đủ. Hàng đường dẫn có chiều cao riêng theo DPI, không nằm trong nội dung nhập hoặc mất khi gõ yêu cầu.
+- Chỉ biên dịch/đóng gói cục bộ; không chạy kiểm tra màn hình hoặc test chức năng theo yêu cầu.
+
 ## 5.3.1 — 2026-10-15
 
 - Giữ một nơi quản lý Agent & model ở cuối sidebar; bỏ nút thiết lập trong ô chat, thanh icon ngoài cùng và lối tắt quản lý trùng trong các menu. Bộ chọn agent cạnh nút gửi chỉ bật/tắt thành viên.

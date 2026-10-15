@@ -41,7 +41,7 @@ internal sealed partial class MainWindow : Form
     private readonly Button teamButton = Ui.Button("Chọn agent");
     private readonly ContextMenuStrip teamMenu = new() { BackColor = Ui.Surface, ForeColor = Ui.Ink };
     private readonly ComboBox surface = Ui.Combo(200);
-    private readonly Label breadcrumb = Ui.Label("");
+    private readonly Label workspacePath = Ui.Label("");
     private readonly System.Windows.Forms.Timer refresh = new() { Interval = 200 };
     private volatile JobRecord? latest;
     private JobRecord? displayed;
@@ -70,7 +70,7 @@ internal sealed partial class MainWindow : Form
         };
         var root = Ui.Table(); root.Padding = new Padding(0, 0, 0, 4); root.RowCount = 4;
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 150)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 174)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         var shell = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, Size = new Size(1380, 900), SplitterDistance = 286, SplitterWidth = 1, BackColor = Ui.Border };
         var rail = new NavigationRail(); rail.NewRequested += NewConversation; rail.SearchRequested += () => sidebar.FocusSearch(); rail.ProjectRequested += BrowseProject;
         shell.Panel1.Controls.Add(sidebar); shell.Panel1.Controls.Add(rail); shell.Panel2.Controls.Add(root); Controls.Add(shell); locked.Add(sidebar); locked.Add(rail);
@@ -191,12 +191,18 @@ internal sealed partial class MainWindow : Form
         Ui.Hint(discussionSettings, "Đặt số lượt, thời lượng, nhịp trao đổi và tổng hợp của chế độ Bàn luận qua lại.");
 
 
-        var composer = new Panel { Dock = DockStyle.Fill, Height = 150, Padding = new Padding(24, 6, 24, 10) };
+        var composer = new Panel { Dock = DockStyle.Fill, Height = 174, Padding = new Padding(24, 6, 24, 10) };
         var input = new ComposerPanel { Dock = DockStyle.Fill, Padding = new Padding(14, 12, 14, 8), BackColor = Ui.Background };
-        var inputLayout = Ui.Table(); inputLayout.RowCount = 3; inputLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); inputLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); inputLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        var inputLayout = Ui.Table(); inputLayout.RowCount = 4;
+        inputLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); inputLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        inputLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 0)); inputLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         input.Controls.Add(inputLayout); composer.Controls.Add(input);
+        workspacePath.AutoSize = false; workspacePath.AutoEllipsis = true; workspacePath.Dock = DockStyle.Fill;
+        workspacePath.Margin = new Padding(0, 0, 0, 4); workspacePath.TextAlign = ContentAlignment.MiddleLeft;
+        workspacePath.AccessibleName = "Thư mục project hiện tại"; workspacePath.UseMnemonic = false;
+        inputLayout.Controls.Add(workspacePath, 0, 0);
         prompt.BorderStyle = BorderStyle.None; prompt.ScrollBars = ScrollBars.Vertical; prompt.AcceptsReturn = true; prompt.AccessibleName = "Tin nhắn cho agent"; prompt.PlaceholderText = "Hỏi điều gì đó hoặc mô tả việc cần làm…"; prompt.Tag = "composer-input";
-        prompt.Font = new Font("Segoe UI", 9.5f); prompt.Margin = new Padding(0, 2, 0, 4); inputLayout.Controls.Add(prompt, 0, 0); locked.Add(prompt);
+        prompt.Font = new Font("Segoe UI", 9.5f); prompt.Margin = new Padding(0, 2, 0, 4); inputLayout.Controls.Add(prompt, 0, 1); locked.Add(prompt);
         prompt.KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; StartJob(); } };
         var toolbar = Ui.Table(2); toolbar.Margin = Padding.Empty; toolbar.RowCount = 1; toolbar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -210,7 +216,7 @@ internal sealed partial class MainWindow : Form
         stop = Ui.IconButton("stop", "Dừng tác vụ", (_, _) => runner.Cancel()); stop.Enabled = false; stop.Visible = false;
         send.Controls.AddRange([teamButton, stop, run]); toolbar.Controls.Add(send, 1, 0); locked.Add(run);
         attachment.AutoEllipsis = true; attachment.AutoSize = false; attachment.Height = 22; attachment.Dock = DockStyle.Top; attachment.Visible = false;
-        inputLayout.Controls.Add(attachment, 0, 1); inputLayout.Controls.Add(toolbar, 0, 2);
+        inputLayout.Controls.Add(attachment, 0, 2); inputLayout.Controls.Add(toolbar, 0, 3);
         root.Controls.Add(composer, 0, 2);
         bool adjustingComposer = false, composerLayoutQueued = false;
         int measuredPromptWidth = -1;
@@ -237,17 +243,20 @@ internal sealed partial class MainWindow : Form
                 int textHeight = (int)Math.Clamp((long)Math.Max(1, lines) * lineHeight + D(8), D(58), D(150));
                 int attachmentHeight = contextFile != null ? D(24) : 0;
                 int toolbarHeight = D(36);
+                int workspaceHeight = D(24);
                 // The parent row owns the height of its docked child. Setting composer.Height
                 // first causes an immediate competing dock/layout pass during native text input.
-                int desiredHeight = textHeight + prompt.Margin.Vertical + input.Padding.Vertical + padding.Vertical + toolbarHeight + attachmentHeight;
-                bool attachmentChanged = Math.Abs(inputLayout.RowStyles[1].Height - attachmentHeight) > 0.5f;
-                bool toolbarChanged = Math.Abs(inputLayout.RowStyles[2].Height - toolbarHeight) > 0.5f;
+                int desiredHeight = textHeight + prompt.Margin.Vertical + input.Padding.Vertical + padding.Vertical + toolbarHeight + attachmentHeight + workspaceHeight;
+                bool workspaceChanged = Math.Abs(inputLayout.RowStyles[0].Height - workspaceHeight) > 0.5f;
+                bool attachmentChanged = Math.Abs(inputLayout.RowStyles[2].Height - attachmentHeight) > 0.5f;
+                bool toolbarChanged = Math.Abs(inputLayout.RowStyles[3].Height - toolbarHeight) > 0.5f;
                 bool heightChanged = Math.Abs(root.RowStyles[2].Height - desiredHeight) > 0.5f;
-                if (attachmentChanged || toolbarChanged || heightChanged) {
+                if (workspaceChanged || attachmentChanged || toolbarChanged || heightChanged) {
                     root.SuspendLayout(); inputLayout.SuspendLayout();
                     try {
-                        if (attachmentChanged) inputLayout.RowStyles[1].Height = attachmentHeight;
-                        if (toolbarChanged) inputLayout.RowStyles[2].Height = toolbarHeight;
+                        if (workspaceChanged) inputLayout.RowStyles[0].Height = workspaceHeight;
+                        if (attachmentChanged) inputLayout.RowStyles[2].Height = attachmentHeight;
+                        if (toolbarChanged) inputLayout.RowStyles[3].Height = toolbarHeight;
                         if (heightChanged) root.RowStyles[2].Height = desiredHeight;
                     } finally { inputLayout.ResumeLayout(true); root.ResumeLayout(true); }
                 }
@@ -399,7 +408,8 @@ internal sealed partial class MainWindow : Form
     {
         canvas.SetAgentAvailability(config.Agents.Count > 0);
         var chosen = config.Agents.Where(a => a.Enabled).ToList(); info.Text = $"{chosen.Count}/{config.Agents.Count} chọn • tối đa {Catalog.MaxAgents}";
-        breadcrumb.Text = (config.Surface == "chat" ? "Trò chuyện" : "Làm việc") + "  /  " + (config.Projects.FirstOrDefault(p => !p.Removed && string.Equals(p.Path, config.Project, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? (Path.GetFileName(config.Project.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : config.Project));
+        string pathCaption = string.IsNullOrWhiteSpace(config.Project) ? "Chưa chọn thư mục project" : "Project: " + config.Project;
+        if (workspacePath.Text != pathCaption) { workspacePath.Text = pathCaption; Ui.Hint(workspacePath, pathCaption); }
         teamButton.Text = chosen.Count == 0 ? "Chọn agent ▾" : chosen.Count == 1 ? chosen[0].Name + " ▾" : $"{chosen[0].Name} + {chosen.Count-1} ▾";
         teamButton.AccessibleName = "Chọn agent tham gia: " + string.Join(" + ", chosen.Select(a => a.Name));
         teamSettings.Enabled = !runner.Busy;
