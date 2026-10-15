@@ -1,12 +1,16 @@
-# Hướng dẫn Multi-Agent Hub 5.3.4
+# Hướng dẫn Multi-Agent Hub 5.4.0
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
 Ứng dụng Windows bằng **C# / .NET 10 WinForms** để phối hợp các công cụ AI, với model, vai trò và quyền riêng cho từng agent. Desktop không dùng Node.js, JavaScript, web server hay WebView2.
 
+## Chốt từng ý
+
+Chọn **Chốt từng ý** để A nêu một ý ngắn, B phản hồi ngay và hai bên chốt cùng phiên bản trước khi thực hiện/review phần đó rồi mới mở ý tiếp. Sửa ý làm hết hiệu lực xác nhận cũ. Không ép đồng ý khi hết giới hạn. Xem [hướng dẫn Chốt từng ý](CONSENSUS_USER_GUIDE.md). Giới hạn nằm tại **Agent & model → Phân vai & giới hạn nhóm…**.
+
 ## Bàn tròn & thực hiện
 
-Chọn **Bàn tròn & thực hiện** dưới ô nhập, mở **Agent & model → Phân vai & giới hạn bàn tròn…**, rồi gửi yêu cầu. Các model trao đổi ngang hàng: phát triển ý tưởng của nhau, giữ bất đồng có lý do, đề xuất task có tiêu chí và phụ thuộc. Một task cần được thành viên khác chấp nhận trước khi thực hiện; khi chỉ còn một kết nối, nó tự rà soát và kết quả ghi rõ thiếu review độc lập. Chọn người nói tiếp theo bằng đề xuất của model trong các thành viên chưa phát biểu của vòng, tránh một model chiếm hết lượt.
+Chọn **Bàn tròn & thực hiện** dưới ô nhập, mở **Agent & model → Phân vai & giới hạn nhóm…**, rồi gửi yêu cầu. Các model trao đổi ngang hàng: phát triển ý tưởng của nhau, giữ bất đồng có lý do, đề xuất task có tiêu chí và phụ thuộc. Một task cần được thành viên khác chấp nhận trước khi thực hiện; khi chỉ còn một kết nối, nó tự rà soát và kết quả ghi rõ thiếu review độc lập. Chọn người nói tiếp theo bằng đề xuất của model trong các thành viên chưa phát biểu của vòng, tránh một model chiếm hết lượt.
 
 Năm chuyên môn **Product Manager / Architect / Coder / Tester / Reviewer** không phải năm cấp bậc và không đòi hỏi năm tài khoản. Mỗi vai chọn kết nối/model ưu tiên; để Tự phân công để chia chuyên môn trong nhóm. Hub luân phiên góc nhìn khi một kết nối đảm nhiệm nhiều vai. Sau thực hiện, Tester phân tích kiểm chứng, Reviewer phản biện rồi kết quả được đưa lại ra bàn tròn; không khóa toàn phiên vào chuỗi chức danh.
 
@@ -14,7 +18,7 @@ Năm chuyên môn **Product Manager / Architect / Coder / Tester / Reviewer** kh
 
 Coder sửa file cần CLI có quyền **workspace-write/full**; Hub không tự nâng quyền. API thuần văn bản tham gia bàn tròn, tài liệu và review, không tự có công cụ sửa file. Antigravity ở quyền `default` cần được đặt `workspace-write` nếu bạn muốn nó nhận task sửa code. Chế độ Trò chuyện chỉ bàn luận/lập kế hoạch. Kết nối dán kết quả thủ công không tham gia phiên nhóm tự động.
 
-Mặc định **bạn tự kiểm tra**: Hub không chạy lệnh build/test, ghi trạng thái **Chưa kiểm chứng** cho kết quả sửa code. Trong **Agent & model → Phân vai & giới hạn bàn tròn… → Lệnh kiểm tra**, có thể cấu hình executable, mảng đối số JSON và timeout, rồi bật tự kiểm tra cho project hiện tại. Hub chạy đúng lệnh đã cấu hình; model không được tự thêm lệnh vào danh sách thực thi. Tester/Reviewer giữ quyền CLI đã chọn, tập trung đối chiếu bằng chứng và chuyển đề xuất sửa về task thực hiện. CLI tùy chỉnh tự quản lý quyền. Lệnh build/test có thể thực thi script project, nên chỉ cấu hình lệnh bạn tin cậy.
+Mặc định **bạn tự kiểm tra**: Hub không chạy lệnh build/test, ghi trạng thái **Chưa kiểm chứng** cho kết quả sửa code. Trong **Agent & model → Phân vai & giới hạn nhóm… → Lệnh kiểm tra**, có thể cấu hình executable, mảng đối số JSON và timeout, rồi bật tự kiểm tra cho project hiện tại. Hub chạy đúng lệnh đã cấu hình; model không được tự thêm lệnh vào danh sách thực thi. Tester/Reviewer giữ quyền CLI đã chọn, tập trung đối chiếu bằng chứng và chuyển đề xuất sửa về task thực hiện. CLI tùy chỉnh tự quản lý quyền. Lệnh build/test có thể thực thi script project, nên chỉ cấu hình lệnh bạn tin cậy.
 
 Bằng chứng lưu exit code, log và fingerprint source (ngoài các thư mục sinh tự động). Sửa source làm hết hiệu lực kết quả trước; lệnh đạt không đồng nghĩa tất cả tiêu chí đã được bao phủ. Khi không xác minh được fingerprint, Hub không ghi thành đã kiểm chứng. Nhóm dùng một writer tại một thời điểm và khóa workspace giữa các phiên nhóm; chưa chạy nhiều coder trong các worktree riêng.
 

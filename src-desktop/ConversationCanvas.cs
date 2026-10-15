@@ -64,7 +64,7 @@ internal sealed class ConversationCanvas : UserControl
         foreach (var job in records) {
             string Key(string part) => job.Id + ":" + part;
             next.Add(new("Bạn", job.Timestamp.LocalDateTime.ToString("dd/MM HH:mm"), job.Prompt, true, Key("user")));
-            if (job.Mode is "discussion" or "collaboration" or "team") {
+            if (job.Mode is "discussion" or "collaboration" or "team" or "consensus") {
                 foreach (var turn in job.Turns.Where(t => t.Kind != "summary")) {
                     if (turn.Kind == "user") {
                         string meta = turn.Timestamp.LocalDateTime.ToString("dd/MM HH:mm") + (turn.State == "queued" ? " · Chờ lượt kế tiếp" : $" · Đã gửi vào lượt {turn.Number}");
@@ -75,7 +75,7 @@ internal sealed class ConversationCanvas : UserControl
                         turn.Text + (turn.Error.Length > 0 ? "\n" + turn.Error : ""), Key: Key("turn:" + turn.Number), Logs: result?.Logs ?? "", Prompt: result?.SentPrompt ?? ""));
                 }
                 foreach (var queued in job.Results.Where(r => r.State == "queued")) next.Add(new(queued.Name, Ui.AgentState(job, queued), "", Key: Key("queued:" + queued.AgentId)));
-                if (job.Mode is "discussion" or "team" && job.Report.Length > 0) next.Add(new("Tổng hợp", job.ReportByModel ? "Từ model" : "Bản ghi tự động", job.Report, Key: Key("report")));
+                if (job.Mode is "discussion" or "team" or "consensus" && job.Report.Length > 0) next.Add(new("Tổng hợp", job.ReportByModel ? "Từ model" : "Bản ghi tự động", job.Report, Key: Key("report")));
                 if (job.Team is { } team && team.Directives.Count + team.PendingDirectives.Count > 0)
                     next.Add(new("Bạn bổ sung", "Áp dụng tại ranh giới bước", string.Join("\n\n", team.Directives.Concat(team.PendingDirectives.Select(d => "[Đang chờ áp dụng] " + d))), true, Key("directives")));
             } else {

@@ -171,7 +171,7 @@ internal sealed partial class MainWindow : Form
         var remove = Ui.Button("Xóa agent", (_, _) => Remove()); var up = Ui.Button("↑", (_, _) => MoveAgent(-1)); var down = Ui.Button("↓", (_, _) => MoveAgent(1));
         up.AccessibleName = "Đưa agent lên"; down.AccessibleName = "Đưa agent xuống";
         up.MinimumSize = new Size(36, 32); down.MinimumSize = new Size(36, 32);
-        Ui.Choices(mode, [new("team", "Bàn tròn & thực hiện"), new("parallel", "Song song"), new("pipeline", "Lần lượt / phản biện"), new("collaboration", "Cùng làm việc"), new("discussion", "Bàn luận qua lại")], config.Mode); mode.AccessibleName = "Điều phối";
+        Ui.Choices(mode, [new("consensus", "Chốt từng ý"), new("team", "Bàn tròn & thực hiện"), new("parallel", "Song song"), new("pipeline", "Lần lượt / phản biện"), new("collaboration", "Cùng làm việc"), new("discussion", "Bàn luận qua lại")], config.Mode); mode.AccessibleName = "Điều phối";
         mode.SelectedIndexChanged += (_, _) => { if (updating) return; config.Mode = Ui.Value(mode); if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode; Protect(Save); UpdateSummary(); };
         discussionSettings = Ui.Button("Giới hạn bàn luận…", (_, _) => Protect(() => {
             using var dialog = new DiscussionDialog(config.Discussion, config.Agents.Count(a => a.Enabled));
@@ -180,14 +180,14 @@ internal sealed partial class MainWindow : Form
         }));
         var accounts = Ui.Button("Tài khoản / kết nối", (_, _) => { using var dialog = new AgentConnectionsDialog(config.Agents, secrets); dialog.ShowDialog(this); });
         actions.Controls.AddRange([edit, duplicate, remove, up, down, accounts, info]); agents.Controls.Add(actions, 0, 2); locked.AddRange([edit, duplicate, remove, up, down, accounts, mode, discussionSettings]);
-        teamSettings = Ui.Button("Phân vai & giới hạn bàn tròn…", (_, _) => Protect(() => {
-            using var dialog = new TeamDialog(config.Team, config.Agents, config.Project);
+        teamSettings = Ui.Button("Phân vai & giới hạn nhóm…", (_, _) => Protect(() => {
+            using var dialog = new TeamDialog(config.Team, config.Agents, config.Project, config.Mode == "consensus");
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
             var next = CopyConfig(); next.Team = dialog.Result; Commit(next, Selected?.Id);
         })); locked.Add(teamSettings);
         var sessionSettings = Ui.Flow();
         sessionSettings.Controls.AddRange([teamSettings, discussionSettings]); agents.Controls.Add(sessionSettings, 0, 3);
-        Ui.Hint(teamSettings, "Chọn model cho từng vai, giới hạn task/lượt và lệnh kiểm tra của chế độ Bàn tròn & thực hiện.");
+        Ui.Hint(teamSettings, "Chọn model cho từng vai, giới hạn ý/task, lần gọi và lệnh kiểm tra của Chốt từng ý hoặc Bàn tròn & thực hiện.");
         Ui.Hint(discussionSettings, "Đặt số lượt, thời lượng, nhịp trao đổi và tổng hợp của chế độ Bàn luận qua lại.");
 
 
@@ -208,7 +208,7 @@ internal sealed partial class MainWindow : Form
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         var choices = Ui.Flow(); choices.WrapContents = false;
         var attach = Ui.IconButton("plus", "Đính kèm, thay hoặc bỏ file", (_, _) => OpenAttachmentMenu()); attachmentMenu.Tag = attach; locked.Add(attach);
-        var modeChoice = Ui.ChoiceButton(mode, "Cách phối hợp agent", c => c.Id switch { "team" => "Bàn tròn", "collaboration" => "Cùng làm", "pipeline" => "Lần lượt", "discussion" => "Bàn luận", _ => "Song song" }, c => ModeExplanation(c.Id));
+        var modeChoice = Ui.ChoiceButton(mode, "Cách phối hợp agent", c => c.Id switch { "consensus" => "Chốt từng ý", "team" => "Bàn tròn", "collaboration" => "Cùng làm", "pipeline" => "Lần lượt", "discussion" => "Bàn luận", _ => "Song song" }, c => ModeExplanation(c.Id));
         choices.Controls.AddRange([attach, modeChoice]); toolbar.Controls.Add(choices, 0, 0);
         teamButton.Click += (_, _) => ChooseTeam(); ((ModernButton)teamButton).Appearance = "ghost"; teamButton.MaximumSize = new Size(220, 34); teamButton.MinimumSize = new Size(80, 30); locked.Add(teamButton);
         var send = Ui.Flow(); send.WrapContents = false; send.Dock = DockStyle.Right;
@@ -325,9 +325,9 @@ internal sealed partial class MainWindow : Form
         headerMenu.Items.Add("Sao chép hội thoại", null, (_, _) => canvas.CopyAll());
         var text = headerMenu.Items.Add("Mở bản .txt", null, (_, _) => OpenConversationText()); text.Enabled = selectedConversationId != null;
         var manage = headerMenu.Items.Add("Ghim / đổi tên / lưu trữ…", null, (_, _) => { if (headerMenu.Tag is Control anchor) sidebar.ShowTopicMenu(anchor, selectedConversationId); }); manage.Enabled = selectedConversationId != null && !runner.Busy;
-        if (runner.Busy && displayed?.Mode == "team") {
+        if (runner.Busy && Catalog.IsTeamMode(displayed?.Mode)) {
             headerMenu.Items.Add(new ToolStripSeparator());
-            headerMenu.Items.Add("Dừng sau bước hiện tại", null, (_, _) => Protect(runner.StopTeamAfterStep)).Enabled = displayed.Team?.StopAfterStep != true;
+            headerMenu.Items.Add("Dừng sau bước hiện tại", null, (_, _) => Protect(runner.StopTeamAfterStep)).Enabled = displayed?.Team?.StopAfterStep != true;
         }
         if (runner.Busy && displayed?.Mode == "discussion") {
             headerMenu.Items.Add(new ToolStripSeparator());
@@ -347,6 +347,7 @@ internal sealed partial class MainWindow : Form
         if (attachmentMenu.Tag is Control button) attachmentMenu.Show(button, new Point(0, -attachmentMenu.PreferredSize.Height));
     }
     private static string ModeExplanation(string id) => id switch {
+        "consensus" => "Chốt từng ý: A nêu một ý ngắn, B phản hồi ngay; hai bên sửa và xác nhận cùng phiên bản trước khi thực hiện/review phần đó rồi mở ý tiếp.\nKhông tự coi im lặng là đồng ý; hết giới hạn vẫn chưa chốt thì giữ lại bất đồng. Cấu hình trong Agent & model → Phân vai & giới hạn nhóm.",
         "parallel" => "Song song: các agent cùng nhận yêu cầu và trả lời độc lập.\nPhù hợp để so sánh nhiều phương án; không truyền kết quả cho nhau trong lượt này.",
         "pipeline" => "Lần lượt / phản biện: chạy theo thứ tự trong danh sách agent.\nAgent sau nhận kết quả của các agent trước để bổ sung hoặc phản biện; mỗi agent một lượt.",
         "collaboration" => "Cùng làm việc: agent đầu thực hiện, các agent còn lại rà soát, rồi agent khả dụng đầu tiên hoàn thiện.\nVí dụ: viết code → review → sửa theo góp ý. Chỉ chọn một agent thì chạy một lượt.",
@@ -419,11 +420,11 @@ internal sealed partial class MainWindow : Form
         teamButton.Text = chosen.Count == 0 ? "Chọn agent ▾" : chosen.Count == 1 ? chosen[0].Name + " ▾" : $"{chosen[0].Name} + {chosen.Count-1} ▾";
         teamButton.AccessibleName = "Chọn agent tham gia: " + string.Join(" + ", chosen.Select(a => a.Name));
         teamSettings.Enabled = !runner.Busy;
-        boardToggle.Visible = config.Mode == "team" || displayed?.Mode == "team";
+        boardToggle.Visible = Catalog.IsTeamMode(config.Mode) || Catalog.IsTeamMode(displayed?.Mode);
         if (!boardToggle.Visible) boardPanel.Visible = false;
-        summary.Text = config.Mode == "team" ? $"Ngang hàng • ≤{config.Team.MaxCalls} lần gọi • {(config.Team.RunVerification ? "có lệnh kiểm tra" : "bạn tự kiểm tra")}" : config.Mode == "discussion" ? $"{chosen.Count} model • ≤{config.Discussion.MaxTurns} lượt • ≤{config.Discussion.DurationMinutes} phút" : config.Mode == "collaboration" ? "Thực hiện → rà soát → hoàn thiện" : config.Mode == "pipeline" ? string.Join(" → ", chosen.Select(a => a.Name)) : $"{chosen.Count} agent cùng nhận yêu cầu"; summary.MaximumSize = new Size(420, 32);
+        summary.Text = Catalog.IsTeamMode(config.Mode) ? $"{(config.Mode == "consensus" ? "Chốt một ý mỗi lần" : "Ngang hàng")} • ≤{config.Team.MaxCalls} lần gọi • {(config.Team.RunVerification ? "có lệnh kiểm tra" : "bạn tự kiểm tra")}" : config.Mode == "discussion" ? $"{chosen.Count} model • ≤{config.Discussion.MaxTurns} lượt • ≤{config.Discussion.DurationMinutes} phút" : config.Mode == "collaboration" ? "Thực hiện → rà soát → hoàn thiện" : config.Mode == "pipeline" ? string.Join(" → ", chosen.Select(a => a.Name)) : $"{chosen.Count} agent cùng nhận yêu cầu"; summary.MaximumSize = new Size(420, 32);
         discussionSettings.Enabled = !runner.Busy;
-        run.Text = ""; run.AccessibleName = runner.Busy && displayed?.Mode is "team" or "discussion" ? "Gửi bổ sung" : "Gửi yêu cầu"; Ui.Hint(run, run.AccessibleName);
+        run.Text = ""; run.AccessibleName = runner.Busy && displayed?.Mode is "team" or "consensus" or "discussion" ? "Gửi bổ sung" : "Gửi yêu cầu"; Ui.Hint(run, run.AccessibleName);
         Ui.Hint(teamButton, string.Join("\n", chosen.Select(a => $"{a.Name} • {a.Model}"))); Ui.Hint(status, summary.Text);
         prompt.PlaceholderText = config.Surface == "chat" ? "Hỏi bất cứ điều gì… Ctrl + Enter để gửi" : config.Mode == "discussion" ? "Chủ đề và điều bạn muốn các model cùng khám phá…" : "Mô tả việc cần làm… Ctrl + Enter để gửi";
     }
@@ -493,7 +494,7 @@ internal sealed partial class MainWindow : Form
         if (conversationLoading || projectMutation) { status.Text = "Đang mở hội thoại/cập nhật thư viện, đợi hoàn tất rồi gửi yêu cầu."; return; }
         if (!runner.Busy && config.Agents.Count == 0) { OpenAgents(); status.Text = "Thêm agent và cấu hình kết nối trước khi gửi yêu cầu."; return; }
         if (runner.Busy) {
-            if (displayed?.Mode == "team") { runner.AddTeamInstruction(prompt.Text.Trim()); prompt.Clear(); canvas.ScrollToEnd(); status.Text = "Đã nhận bổ sung; áp dụng tại ranh giới bước tiếp theo."; }
+            if (Catalog.IsTeamMode(displayed?.Mode)) { runner.AddTeamInstruction(prompt.Text.Trim()); prompt.Clear(); canvas.ScrollToEnd(); status.Text = "Đã nhận bổ sung; áp dụng tại ranh giới bước tiếp theo."; }
             else if (displayed?.Mode == "discussion") { runner.AddDiscussionInstruction(prompt.Text.Trim()); prompt.Clear(); canvas.ScrollToEnd(); status.Text = "Đã nhận bổ sung; bỏ thời gian nghỉ và gửi vào lượt tiếp theo. Lượt đang chạy được giữ nguyên."; }
             return;
         }
@@ -570,7 +571,7 @@ internal sealed partial class MainWindow : Form
         }
         catch (OperationCanceledException) { }
         catch (Exception e) { if (!IsDisposed && version == conversationLoadVersion) { status.Text = "Không mở được hội thoại: " + e.Message; if (selectedConversationId != null) sidebar.SelectConversation(selectedConversationId, config.Project); } }
-        finally { if (!IsDisposed && version == conversationLoadVersion) { conversationLoad = null; conversationLoading = false; run.Enabled = !runner.Busy || displayed?.Mode == "team"; } }
+        finally { if (!IsDisposed && version == conversationLoadVersion) { conversationLoad = null; conversationLoading = false; run.Enabled = !runner.Busy || Catalog.IsTeamMode(displayed?.Mode); } }
     }
     private void OpenConversationText() => Protect(() => {
         if (selectedConversationId == null) { status.Text = "Chọn cuộc trò chuyện ở thanh bên trước."; return; }
@@ -586,8 +587,8 @@ internal sealed partial class MainWindow : Form
     {
         canvas.Update(conversationJobs.Where(j => j.Id != job.Id).Append(job));
         bool busy = runner.Busy;
-        bool liveComposer = job.Mode is "team" or "discussion";
-        bool canSend = job.Mode == "team" || job.Mode == "discussion" && !job.DiscussionFinishRequested && job.DiscussionPhase is not ("summarizing" or "finished");
+        bool liveComposer = job.Mode is "team" or "consensus" or "discussion";
+        bool canSend = Catalog.IsTeamMode(job.Mode) && job.State == "running" || job.Mode == "discussion" && !job.DiscussionFinishRequested && job.DiscussionPhase is not ("summarizing" or "finished");
         foreach (var control in locked) {
             bool enabled = !busy || liveComposer && control == prompt || canSend && control == run;
             // Keep the live composer focused while snapshots arrive; drafts also survive summarizing.
@@ -597,7 +598,7 @@ internal sealed partial class MainWindow : Form
         string sendAction = busy && liveComposer ? "Gửi bổ sung" : "Gửi yêu cầu";
         if (run.AccessibleName != sendAction) { run.AccessibleName = sendAction; Ui.Hint(run, sendAction); }
         if (busy && job.Mode == "discussion") prompt.PlaceholderText = canSend ? "Bổ sung ý kiến… Ctrl + Enter để gửi vào lượt tiếp theo" : "Đang kết thúc bàn luận… Bạn có thể soạn yêu cầu tiếp theo tại đây";
-        if (job.Mode == "team") {
+        if (Catalog.IsTeamMode(job.Mode)) {
             boardToggle.Visible = true;
             teamBoard.Update(job); run.Text = ""; run.AccessibleName = busy ? "Gửi bổ sung" : "Gửi yêu cầu";
         }

@@ -57,6 +57,8 @@ public sealed class TeamOptions
 
 public sealed class TeamTask
 {
+    public int ProposalVersion { get; set; } = 1;
+    public List<string> AgreedBy { get; set; } = [];
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";

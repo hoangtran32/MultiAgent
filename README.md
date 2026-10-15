@@ -33,6 +33,7 @@ Danh sách trên là các adapter có sẵn để lựa chọn. CLI tùy chỉnh
 ## Cách làm việc
 
 - **Hub Code** dùng project và giữ nguyên quyền CLI đã chọn trong mọi lượt. **Hub Chat** chỉ trao đổi văn bản.
+- **Chốt từng ý**: một ý nhỏ → phản biện/sửa đến khi cùng chốt phiên bản → thực hiện/review → ý kế tiếp. [Hướng dẫn](docs/CONSENSUS_USER_GUIDE.md).
 - **Song song**: cùng nhận yêu cầu. **Lần lượt / phản biện**: kết quả trước chuyển cho agent sau. **Cùng làm việc**: thực hiện → rà soát → hoàn thiện.
 - **Bàn luận qua lại**: các model phát triển, phản biện ý tưởng theo giới hạn lượt/thời gian, có bản tổng hợp cuối.
 - **Bàn tròn & thực hiện**: trao đổi ngang hàng, đề xuất task có phụ thuộc/tiêu chí, thực hiện tuần tự và review. PM, Architect, Coder, Tester, Reviewer là chuyên môn, không phải năm tài khoản bắt buộc.
@@ -66,7 +67,7 @@ dotnet build MultiAgentHub.slnx -c Release
 ./scripts/build-desktop.ps1 -Zip -CreateShortcut -SkipTests
 ```
 
-EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.3.4 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình hoặc đo hiệu năng chuyển chat.
+EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.4.0 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình hoặc đo hiệu năng chuyển chat.
 
 ## Dữ liệu và Git
 

@@ -5,6 +5,7 @@ namespace MultiAgentHub.Core;
 
 public sealed class TaskProposal
 {
+    public int Version { get; set; } = 1;
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";
@@ -15,6 +16,7 @@ public sealed class TaskProposal
 
 public sealed class TaskReview
 {
+    public int Version { get; set; }
     public string TaskId { get; set; } = "";
     public bool Accept { get; set; }
     public string Reason { get; set; } = "";
@@ -27,6 +29,7 @@ public sealed class TeamReply
     public bool Finished { get; set; }
     public string Outcome { get; set; } = "";
     public List<TaskProposal> Tasks { get; set; } = [];
+    public List<TaskProposal> TaskAmendments { get; set; } = [];
     public List<TaskReview> TaskReviews { get; set; } = [];
     public List<TeamArtifact> Artifacts { get; set; } = [];
     public List<string> Decisions { get; set; } = [];
@@ -69,11 +72,11 @@ public static class TeamProtocol
         } else if (json.StartsWith("```json", StringComparison.OrdinalIgnoreCase) && json.EndsWith("```")) json = json[7..^3].Trim();
         var reply = JsonSerializer.Deserialize<TeamReply>(json, Json.Options) ?? throw new InvalidDataException("Đầu ra hub rỗng.");
         if (string.IsNullOrWhiteSpace(reply.Message) || reply.Message.Length > 48000 || reply.NextAgentId == null || reply.Outcome == null ||
-            reply.Tasks == null || reply.TaskReviews == null || reply.Artifacts == null || reply.Decisions == null || reply.Files == null)
+            reply.Tasks == null || reply.TaskAmendments == null || reply.TaskReviews == null || reply.Artifacts == null || reply.Decisions == null || reply.Files == null)
             throw new InvalidDataException("Thiếu message hoặc trường dữ liệu nhóm không hợp lệ.");
-        if (reply.Tasks.Count > 12 || reply.TaskReviews.Count > 50 || reply.Artifacts.Count > 6 || reply.Decisions.Count > 12 || reply.Files.Count > 30) throw new InvalidDataException("Đầu ra nhóm vượt giới hạn.");
+        if (reply.Tasks.Count > 12 || reply.TaskAmendments.Count > 1 || reply.TaskReviews.Count > 50 || reply.Artifacts.Count > 6 || reply.Decisions.Count > 12 || reply.Files.Count > 30) throw new InvalidDataException("Đầu ra nhóm vượt giới hạn.");
         if (phase == "work" && reply.Outcome is not ("done" or "blocked") || phase == "review" && reply.Outcome is not ("approve" or "revise" or "blocked")) throw new InvalidDataException("Thiếu outcome hợp lệ cho bước đang chạy.");
-        if (reply.Tasks.Any(t => t == null || !Regex.IsMatch(t.Id ?? "", "^[a-zA-Z0-9_-]{1,40}$") || string.IsNullOrWhiteSpace(t.Title) || t.Title.Length > 160 ||
+        if (reply.Tasks.Concat(reply.TaskAmendments).Any(t => t == null || !Regex.IsMatch(t.Id ?? "", "^[a-zA-Z0-9_-]{1,40}$") || string.IsNullOrWhiteSpace(t.Title) || t.Title.Length > 160 ||
             string.IsNullOrWhiteSpace(t.Description) || t.Description.Length > 6000 || string.IsNullOrWhiteSpace(t.Acceptance) || t.Acceptance.Length > 3000 ||
             t.DependsOn == null || t.DependsOn.Count > 50 || t.DependsOn.Any(d => d == null))) throw new InvalidDataException("Task thiếu ID, mô tả hoặc tiêu chí nghiệm thu.");
         if (reply.TaskReviews.Any(r => r == null || r.TaskId == null || r.Reason == null || r.Reason.Length > 3000) ||

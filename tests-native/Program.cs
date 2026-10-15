@@ -516,6 +516,7 @@ try
         store.UpdateConversation(job.ConversationId, archived:false); Assert(!store.Conversations().Single().Archived);
         Throws(() => store.UpdateConversation("../outside", "bad")); return Task.CompletedTask;
     });
+    await ConsensusTests.Run(Test, root);
     Console.WriteLine($"{passed} native tests passed");
 }
 catch (Exception e) { Console.Error.WriteLine(e); Environment.ExitCode = 1; }

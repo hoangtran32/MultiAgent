@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.4.0 — 2026-10-16
+
+- Thêm Chốt từng ý: chỉ một ý mở, phản hồi ngắn 100–200 từ; mọi thành viên khả dụng phải xác nhận cùng phiên bản trước khi thực hiện và review phần đó rồi mở ý tiếp. Cùng làm, Bàn luận và Bàn tròn vẫn giữ cách phối hợp riêng.
+- Phương án sửa tăng phiên bản và xóa xác nhận cũ; xác nhận sai phiên bản, mở ý tiếp quá sớm hoặc tuyên bố kết thúc khi còn ý mở bị từ chối. Không dừng sau ba vòng phản biện; tiếp tục trong ngân sách đã đặt, hết giới hạn lưu ý chưa chốt.
+- Hub Chat/chỉ lập kế hoạch chốt từng ý thành kế hoạch, không chạy bước thực hiện. Bổ sung yêu cầu hoặc tiếp tục ý chưa xong cần xác nhận lại. Agent lỗi thường giữ phiên dang dở thay vì loại bên phản biện để giả đồng thuận; quota cho phép chạy đơn, ghi rõ thiếu đồng thuận/review độc lập.
+- Bảng Công việc & đầu ra có phiên bản và số thành viên đã chốt; JSON/TXT/Markdown lưu xác nhận. Quản lý nhóm dùng chung tại Agent & model → Phân vai & giới hạn nhóm. Checkpoint và nhận bổ sung cùng khóa snapshot.
+- Thêm 8 ca hồi quy về phiên bản, quorum nhiều agent, phản đối, nhiều ý liên tiếp, lỗi, quota, chỉ lập kế hoạch và tiếp tục. Chỉ biên dịch/đóng gói cục bộ; không chạy test UI hoặc chức năng cục bộ theo yêu cầu.
+
 ## 5.3.4 — 2026-10-16
 
 - Bàn luận mặc định chạy liên tục (nghỉ 0 giây), tự chuyển model/lượt sau khi có kết quả; không cần người dùng gửi bổ sung. Mẫu 8 giờ cũng không chèn nghỉ. Giới hạn lượt/thời gian và quota vẫn có hiệu lực.

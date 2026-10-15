@@ -12,9 +12,11 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
     private readonly Dictionary<string, int> roleParticipation = [];
     private static string Clip(string value, int max) => value.Length <= max ? value : value[..max] + "\n[…rút gọn]";
 
-    public async Task Run(JobRecord job, List<AgentConfig> agents, string context, Action<Action> change, Action<string> quota, CancellationToken token)
+    public async Task Run(JobRecord job, List<AgentConfig> agents, string context, Action<Action> change, Action<string> quota, CancellationToken token, Action? checkpoint = null)
     {
         var team = job.Team!; var options = team.Options;
+        bool consensus = job.Mode == "consensus";
+        var failedParticipants = new HashSet<string>();
         var deadline = DateTimeOffset.UtcNow.AddMinutes(options.DurationMinutes);
         change(() => job.Deadline = deadline);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -22,7 +24,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         var runToken = budget.Token;
         bool Capacity() => team.Calls < options.MaxCalls && !runToken.IsCancellationRequested;
         List<AgentConfig> Available() => agents.Where(a => !unavailable.Contains(a.Id)).ToList();
-        void Save() => storage.Checkpoint(job);
+        void Save() { if (checkpoint != null) checkpoint(); else storage.Checkpoint(job); }
         void Directives() {
             bool added = false;
             while (instructions.TryDequeue(out string? directive)) {
@@ -30,7 +32,10 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             }
             if (!added) return;
             change(() => {
-                foreach (var task in team.Tasks.Where(t => t.State == "done")) { task.State = "proposed"; task.Feedback = "Yêu cầu vừa thay đổi: cần rà soát lại phạm vi và tiêu chí trước khi thực hiện."; }
+                foreach (var task in team.Tasks.Where(t => consensus || t.State == "done")) {
+                    if (consensus) IdeaConsensus.Invalidate(task); else task.State = "proposed";
+                    task.Feedback = "Yêu cầu vừa thay đổi: cần rà soát lại phạm vi và tiêu chí trước khi thực hiện.";
+                }
                 foreach (var evidence in team.Evidence) evidence.Current = false;
                 foreach (var task in team.Tasks.Where(t => t.Verification == "passed")) task.Verification = "stale";
                 team.NextAgentId = "";
@@ -51,7 +56,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         string Expertise(AgentConfig agent) => string.Join(", ", ExpertiseRoles(agent).Select(r => TeamRoles.Name(r.Role)));
         string Prompt(AgentConfig agent, string phase, string role, TeamTask? task, string extra) {
             var peers = agents.Select(a => new { a.Id, a.Name, a.Model, expertise = Expertise(a), available = !unavailable.Contains(a.Id), canEdit = TeamRoles.CanWrite(a) });
-            var board = team.Tasks.Select(t => new { t.Id, t.Title, description = Clip(t.Description, 600), acceptance = Clip(t.Acceptance, 1000), t.DependsOn, t.RequiresWorkspace, t.State, feedback = Clip(t.Feedback, 1000), t.Verification });
+            var board = team.Tasks.Select(t => new { t.Id, t.Title, t.ProposalVersion, t.AgreedBy, description = Clip(t.Description, consensus ? 2000 : 600), acceptance = Clip(t.Acceptance, consensus ? 1500 : 1000), t.DependsOn, t.RequiresWorkspace, t.State, feedback = Clip(t.Feedback, 1000), t.Verification });
             string artifacts = string.Join("\n\n", team.Artifacts.TakeLast(8).Select(a => $"{a.Title} / {a.Kind}\n{Clip(a.Content, 2400)}"));
             string history = string.Join("\n\n", job.Turns.Where(t => t.State == "success").TakeLast(8).Select(t => $"[{t.Name} / {t.Role} / {t.TaskId}]\n{Clip(t.Text, 4500)}"));
             string mode = phase == "work" ? "Đây là lượt THỰC HIỆN task. Đọc lại workspace vì agent khác hoặc người dùng có thể đã sửa. Chỉ xử lý task được giao; giữ thay đổi sẵn có. Không commit/push/deploy. Nếu không đủ quyền thì báo blocked." :
@@ -63,7 +68,8 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 $"YÊU CẦU GỐC:\n{Clip(job.Prompt, 24000)}\nNGỮ CẢNH:\n{Clip(context, 18000)}\nBỔ SUNG TỪ NGƯỜI DÙNG:\n{Clip(string.Join("\n", team.Directives.TakeLast(10)), 18000)}\n" +
                 $"THÀNH VIÊN:\n{JsonSerializer.Serialize(peers, Json.Options)}\nBẢNG TASK:\n{JsonSerializer.Serialize(board, Json.Options)}\n" +
                 $"TÀI LIỆU GẦN ĐÂY:\n{artifacts}\nGHI NHẬN CHUNG:\n{Clip(string.Join("\n", team.Decisions.TakeLast(30)), 12000)}\nTRAO ĐỔI GẦN ĐÂY:\n{history}\n" +
-                (task == null ? "" : $"TASK ĐANG XỬ LÝ:\n{Clip(JsonSerializer.Serialize(task, Json.Options), 24000)}\n") + extra + "\n\n" + TeamProtocol.Contract;
+                (task == null ? "" : $"TASK ĐANG XỬ LÝ:\n{Clip(JsonSerializer.Serialize(task, Json.Options), 24000)}\n") + extra + "\n\n" + TeamProtocol.Contract +
+                (consensus ? "\n\n" + IdeaConsensus.Contract + "\nÝ đang bàn: " + (IdeaConsensus.Active(team)?.Id ?? "Chưa có; chỉ đề xuất MỘT ý kế tiếp hoặc xác nhận kết thúc.") : "");
         }
         async Task<TeamReply?> Call(AgentConfig original, string phase, string role, TeamTask? task = null, string extra = "") {
             string correction = "";
@@ -89,19 +95,26 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                         log => change(() => { string value = result.Logs + log; result.Logs = value.Length > 64000 ? value[^64000..] : value; }), timeout.Token);
                 } catch (AgentQuotaException e) {
                     unavailable.Add(agent.Id); quota(agent.Id);
+                    if (consensus) change(() => team.Decisions.Add(agent.Name + " hết quota; nhóm còn " + Available().Count + " thành viên. Một thành viên tự rà soát không phải đồng thuận độc lập."));
                     change(() => { turn.State = result.State = "quota"; turn.Error = result.Error = e.Message + " Đã bỏ chọn; nhóm sẽ tìm kết nối còn lại."; }); Save(); return null;
                 } catch (OperationCanceledException) {
                     change(() => { turn.State = result.State = "cancelled"; turn.Error = result.Error = "Lượt bị dừng hoặc quá thời gian."; });
-                    Save(); runToken.ThrowIfCancellationRequested(); unavailable.Add(agent.Id); return null;
+                    Save(); runToken.ThrowIfCancellationRequested(); unavailable.Add(agent.Id); failedParticipants.Add(agent.Id); return null;
                 } catch (Exception e) {
-                    unavailable.Add(agent.Id); change(() => { turn.State = result.State = "error"; turn.Error = result.Error = e.Message; }); Save(); return null;
+                    unavailable.Add(agent.Id); failedParticipants.Add(agent.Id); change(() => { turn.State = result.State = "error"; turn.Error = result.Error = e.Message; }); Save(); return null;
                 }
                 try {
                     var reply = TeamProtocol.Parse(answer, phase);
                     if (phase == "roundtable") {
-                        TeamProtocol.ValidateProposals(team, reply.Tasks);
-                        if (reply.TaskReviews.Any(r => !team.Tasks.Any(t => t.Id == r.TaskId))) throw new InvalidDataException("Chỉ review task có sẵn trước lượt này.");
+                        if (consensus) IdeaConsensus.Validate(team, reply);
+                        else {
+                            if (reply.TaskAmendments.Count > 0) throw new InvalidDataException("Sửa phiên bản ý chỉ dùng trong Chốt từng ý.");
+                            TeamProtocol.ValidateProposals(team, reply.Tasks);
+                            if (reply.TaskReviews.Any(r => !team.Tasks.Any(t => t.Id == r.TaskId))) throw new InvalidDataException("Chỉ review task có sẵn trước lượt này.");
+                        }
                     }
+                    else if (consensus && reply.Tasks.Count + reply.TaskAmendments.Count + reply.TaskReviews.Count > 0)
+                        throw new InvalidDataException("Thực hiện/review không được mở hoặc thay đổi ý khác; chỉ xử lý task được giao.");
                     change(() => { turn.ProtocolData = Clip(answer, 100000); turn.Text = result.Text = reply.Message; turn.State = result.State = "success"; });
                     change(() => {
                         foreach (var artifact in reply.Artifacts) {
@@ -117,10 +130,11 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     correction = "\nLượt trước không hợp lệ: " + e.Message + ". Chỉ sửa định dạng JSON dựa trên câu trả lời dưới; KHÔNG chạy lại công cụ hoặc sửa code lần nữa.\n" + Clip(answer, 24000);
                 }
             }
-            unavailable.Add(original.Id); return null;
+            unavailable.Add(original.Id); failedParticipants.Add(original.Id); return null;
         }
         void ApplyDiscussion(TeamReply reply, AgentConfig speaker) {
             change(() => {
+                if (consensus) { IdeaConsensus.Apply(team, reply, speaker.Id, Available().Select(a => a.Id).ToList()); team.NextAgentId = reply.NextAgentId; return; }
                 foreach (var proposed in reply.Tasks) team.Tasks.Add(new() { Id = proposed.Id, Title = proposed.Title, Description = proposed.Description,
                     Acceptance = proposed.Acceptance, DependsOn = proposed.DependsOn.Distinct().ToList(), RequiresWorkspace = proposed.RequiresWorkspace, ProposedBy = speaker.Id });
                 foreach (var review in reply.TaskReviews) {
@@ -136,7 +150,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             change(() => { team.Phase = "roundtable"; team.ActiveTaskId = ""; });
             var heard = new HashSet<string>(); var finished = new HashSet<string>();
             int maximum = Available().Count;
-            for (int i = 0; i < maximum && Capacity(); i++) {
+            for (int i = 0; i < maximum && Capacity() && (!consensus || failedParticipants.Count == 0); i++) {
                 Directives();
                 var candidates = Available().Where(a => !heard.Contains(a.Id)).ToList(); if (candidates.Count == 0) break;
                 var speaker = candidates.FirstOrDefault(a => a.Id == team.NextAgentId) ?? candidates.OrderBy(a => participation.GetValueOrDefault(a.Id)).First();
@@ -146,12 +160,14 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 if (reply == null) continue;
                 ApplyDiscussion(reply, speaker);
                 if (reply.Finished) finished.Add(speaker.Id);
+                if (consensus && IdeaConsensus.Active(team)?.State is "ready" or "blocked") break;
             }
             return Available().Count > 0 && Available().All(a => finished.Contains(a.Id));
         }
         async Task<bool> Review(TeamTask task, string files) {
             while (Capacity()) {
                 Directives();
+                if (consensus && (failedParticipants.Count > 0 || task.State == "proposed")) return false;
                 var reviewer = Select("reviewer", task.AssignedTo); if (reviewer == null) return false;
                 change(() => { task.State = "reviewing"; task.IndependentReview = reviewer.Id != task.AssignedTo; });
                 string evidence = JsonSerializer.Serialize(team.Evidence.Where(e => e.TaskId == task.Id).TakeLast(8), Json.Options);
@@ -169,6 +185,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         async Task Execute(TeamTask task) {
             while (Capacity()) {
                 Directives(); if (task.State != "ready") return;
+                if (consensus && failedParticipants.Count > 0) return;
                 var coder = Select("coder", writer: task.RequiresWorkspace);
                 if (coder == null) { change(() => { task.State = "blocked"; task.Feedback = "Không còn CLI có quyền ghi workspace. Chọn workspace-write trong Agent & model hoặc phân lại vai."; }); Save(); return; }
                 change(() => { task.State = "running"; task.AssignedTo = coder.Id;
@@ -218,15 +235,27 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             using var writer = options.ExecuteTasks && job.Surface == "work" ? TeamWorkspace.AcquireWriter(job.Project) : null;
             var recovered = storage.History().FirstOrDefault(j => j.State == "interrupted"); if (recovered != null) storage.SaveJob(recovered);
             Save(); int idleRounds = 0; bool agreed = false;
-            while (Capacity() && Available().Count > 0 && !team.StopAfterStep) {
-                Directives(); agreed = await Round();
+            if (consensus && Available().Count == 1) change(() => team.Decisions.Add("Chỉ có một agent: tự rà soát; chưa có đồng thuận/review độc lập."));
+            while (Capacity() && Available().Count > 0 && !team.StopAfterStep && (!consensus || failedParticipants.Count == 0)) {
+                Directives();
+                if (consensus && options.ExecuteTasks && job.Surface == "work" && IdeaConsensus.Active(team) is { State: "ready" } ready) { await Execute(ready); continue; }
+                if (consensus && IdeaConsensus.Active(team)?.State == "blocked") break;
+                agreed = await Round();
                 if (!Capacity() || team.StopAfterStep) break;
-                if (!options.ExecuteTasks || job.Surface == "chat") { if (agreed || ++idleRounds >= 3) break; continue; }
+                if (consensus && failedParticipants.Count > 0) break;
+                if (consensus && !instructions.IsEmpty) { Directives(); agreed = false; continue; }
+                if (!options.ExecuteTasks || job.Surface == "chat") {
+                    if (consensus) {
+                        change(() => { foreach (var planned in team.Tasks.Where(t => t.State == "ready")) planned.State = "planned"; }); Save();
+                        if (agreed && IdeaConsensus.Active(team) == null) break;
+                    } else if (agreed || ++idleRounds >= 3) break;
+                    continue;
+                }
                 var task = team.Tasks.FirstOrDefault(t => t.State == "ready" && t.DependsOn.All(d => team.Tasks.Any(p => p.Id == d && p.State == "done")));
                 if (task != null) { idleRounds = 0; await Execute(task); continue; }
                 if (!instructions.IsEmpty) continue;
                 if (team.Tasks.Count > 0 && team.Tasks.All(t => t.State == "done") && agreed) break;
-                if (++idleRounds >= 3) break;
+                if (!consensus && ++idleRounds >= 3) break;
             }
             // A final source change invalidates old check results, even if it came from outside this workflow.
             var currentEvidence = team.Evidence.Where(e => e.Current).ToList();
@@ -237,8 +266,10 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             change(() => {
                 bool implemented = team.Tasks.Count > 0 && team.Tasks.All(t => t.State == "done");
                 bool verified = !team.Tasks.Any(t => t.RequiresWorkspace) || options.RunVerification && options.Checks.All(c => team.Evidence.Any(e => e.Name == c.Name && e.Current && e.State == "passed"));
-                job.State = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "cancelled" : "partial" : !options.ExecuteTasks || job.Surface == "chat" ? "planned" : !implemented || team.PendingDirectives.Count > 0 ? "partial" : !agreed || !verified || team.Tasks.Any(t => !t.IndependentReview) ? "unverified" : "completed";
+                job.State = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "cancelled" : "partial" : consensus && (failedParticipants.Count > 0 || team.PendingDirectives.Count > 0 || (!options.ExecuteTasks || job.Surface == "chat") && (!agreed || IdeaConsensus.Active(team) != null)) ? "partial" : !options.ExecuteTasks || job.Surface == "chat" ? "planned" : !implemented || team.PendingDirectives.Count > 0 ? "partial" : !agreed || !verified || team.Tasks.Any(t => !t.IndependentReview || consensus && t.AgreedBy.Count < 2) ? "unverified" : "completed";
                 job.StopReason = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "Người dùng dừng phiên." : "Đã đạt giới hạn thời gian." : team.StopAfterStep ? "Đã dừng sau bước hiện tại theo yêu cầu. Có thể tiếp tục từ hội thoại này." : Available().Count == 0 ? "Không còn agent khả dụng." : team.Calls >= options.MaxCalls ? "Đã đạt giới hạn gọi model." :
+                    consensus && failedParticipants.Count > 0 ? "Agent bị lỗi; giữ ý chưa chốt, không loại bên phản biện để giả đồng thuận." :
+                    consensus && IdeaConsensus.Active(team) is { } unresolved ? $"Ý {unresolved.Id} v{unresolved.ProposalVersion} chưa xong; không chuyển sang ý khác." :
                     !options.ExecuteTasks || job.Surface == "chat" ? "Đã lưu kế hoạch / bàn tròn; chưa thực hiện task." : implemented ? "Các task đã được review; xem bằng chứng kiểm tra và ghi chú tự review." : "Chưa đủ điều kiện thực hiện tiếp; xem task và phản biện.";
             });
         } catch (OperationCanceledException) {
@@ -256,6 +287,10 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         if (job.Team is not { } team) return "";
         var report = new StringBuilder($"BẢN GHI NHÓM • {job.State}\n{job.StopReason}\n{team.Calls}/{team.Options.MaxCalls} lần gọi\n\n");
         foreach (var task in team.Tasks) report.AppendLine($"{task.Id} • {task.Title} • {task.State}\nTiêu chí: {task.Acceptance}\nKiểm tra: {task.Verification} • {(task.IndependentReview ? "review chéo" : "chưa có review độc lập")}\n{task.Feedback}\n");
+        if (job.Mode == "consensus") {
+            report.AppendLine("CHỐT TỪNG Ý — XÁC NHẬN THEO PHIÊN BẢN");
+            foreach (var task in team.Tasks) report.AppendLine($"{task.Id} v{task.ProposalVersion}: {string.Join(", ", task.AgreedBy.Select(id => job.Results.FirstOrDefault(r => r.AgentId == id)?.Name ?? id))}");
+        }
         report.AppendLine("BẰNG CHỨNG LỆNH (exit code 0 không chứng minh bao phủ đủ yêu cầu)");
         foreach (var evidence in team.Evidence) report.AppendLine($"{evidence.Name}: {evidence.State}, exit={evidence.ExitCode}, {(evidence.Current ? "đúng fingerprint được ghi nhận" : "hết hiệu lực / chưa xác minh fingerprint")}");
         if (team.Evidence.Count == 0) report.AppendLine("Chưa chạy lệnh kiểm tra do Hub quản lý. Cần người dùng kiểm chứng.");

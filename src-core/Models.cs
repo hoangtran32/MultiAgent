@@ -10,7 +10,8 @@ public record Choice(string Id, string Name)
 
 public static class Catalog
 {
-    public static readonly string[] Modes = ["parallel", "pipeline", "collaboration", "discussion", "team"];
+    public static readonly string[] Modes = ["parallel", "pipeline", "collaboration", "discussion", "team", "consensus"];
+    public static bool IsTeamMode(string? mode) => mode is "team" or "consensus";
     public const int MaxAgents = 32;
     public static readonly Choice[] Providers = [new("codex", "Codex"), new("claude", "Claude / Anthropic"),
         new("antigravity", "Google Antigravity"), new("gemini", "Google Gemini"),

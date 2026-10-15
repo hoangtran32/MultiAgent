@@ -6,17 +6,17 @@ namespace MultiAgentHubApp;
 internal sealed class TeamDialog : Form
 {
     public TeamOptions Result { get; private set; }
-    public TeamDialog(TeamOptions current, IReadOnlyList<AgentConfig> agents, string project)
+    public TeamDialog(TeamOptions current, IReadOnlyList<AgentConfig> agents, string project, bool consensus = false)
     {
         Result = current.Copy(); SuspendLayout(); AutoScaleMode = AutoScaleMode.None;
-        Text = "Bàn tròn & thực hiện • phân vai và giới hạn"; Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterParent;
+        Text = (consensus ? "Chốt từng ý" : "Bàn tròn & thực hiện") + " • phân vai và giới hạn"; Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterParent;
         ShowInTaskbar = false; Icon = Ui.AppIcon;
         var root = Ui.Table(); root.Padding = new Padding(14); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); Controls.Add(root);
         var tabs = new TabControl { Dock = DockStyle.Fill }; root.Controls.Add(tabs, 0, 0);
         var rolesPage = new TabPage("Nhóm & giới hạn"); var checksPage = new TabPage("Lệnh kiểm tra"); tabs.TabPages.AddRange([rolesPage, checksPage]);
         var roles = Ui.Table(3); roles.Padding = new Padding(10); roles.AutoScroll = true;
         roles.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160)); roles.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); roles.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); rolesPage.Controls.Add(roles);
-        var note = Ui.Label("Các vai ngang hàng. Một model có thể đảm nhiệm nhiều vai. Để Tự phân công để Hub chia chuyên môn; khi quota/lỗi sẽ chọn kết nối còn lại phù hợp.");
+        var note = Ui.Label(consensus ? "Một ý tại một thời điểm. Tất cả thành viên khả dụng xác nhận cùng phiên bản trước khi thực hiện/review rồi chuyển ý. Sửa ý làm hết hiệu lực xác nhận cũ; không ép đồng ý khi hết giới hạn." : "Các vai ngang hàng. Một model có thể đảm nhiệm nhiều vai. Để Tự phân công để Hub chia chuyên môn; khi quota/lỗi sẽ chọn kết nối còn lại phù hợp.");
         note.MaximumSize = new Size(760, 0); roles.Controls.Add(note, 0, 0); roles.SetColumnSpan(note, 3);
         roles.Controls.Add(Ui.Label("Chuyên môn", true), 0, 1); roles.Controls.Add(Ui.Label("Kết nối ưu tiên", true), 1, 1); roles.Controls.Add(Ui.Label("Model riêng (trống = theo agent)", true), 2, 1);
         var fields = new List<(string role, ComboBox agent, TextBox model)>(); int row = 2;
@@ -35,7 +35,7 @@ internal sealed class TeamDialog : Form
         var minutes = Number("Thời gian tối đa (phút)", 1, 1440, current.DurationMinutes);
         var tasks = Number("Số task tối đa", 1, 50, current.MaxTasks);
         var revisions = Number("Số vòng sửa tối đa / task", 0, 5, current.MaxRevisions);
-        var execute = new CheckBox { Text = "Thực hiện task sau khi bàn tròn thống nhất", Checked = current.ExecuteTasks, AutoSize = true, Margin = new Padding(4, 12, 4, 4) };
+        var execute = new CheckBox { Text = consensus ? "Thực hiện từng ý sau khi tất cả thành viên chốt" : "Thực hiện task sau khi bàn tròn thống nhất", Checked = current.ExecuteTasks, AutoSize = true, Margin = new Padding(4, 12, 4, 4) };
         roles.Controls.Add(execute, 0, row++); roles.SetColumnSpan(execute, 3);
         var permission = Ui.Label("Coder sửa project cần CLI và quyền workspace-write/full trong Agent & model. Hub không tự tăng quyền. API trả lời văn bản vẫn tham gia bàn tròn, tài liệu và review. Trong Trò chuyện, task không được thực thi.");
         permission.MaximumSize = new Size(760, 0); roles.Controls.Add(permission, 0, row); roles.SetColumnSpan(permission, 3);

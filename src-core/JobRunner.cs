@@ -71,9 +71,9 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         var agents = config.Agents.Where(a => a.Enabled).Select(a => a.Copy()).ToList();
         if (config.Surface == "chat") foreach (var agent in agents) agent.Permission = "read-only";
         if (agents.Count == 0) throw new ArgumentException("Chọn ít nhất một agent.");
-        if (config.Mode is "discussion" or "team") DiscussionEngine.ValidateAgents(agents);
-        if (config.Mode == "team" && config.Team.RunVerification && config.Surface == "work" && !string.Equals(Path.GetFullPath(config.Team.VerificationProject.Length > 0 ? config.Team.VerificationProject : "."), Path.GetFullPath(config.Project), StringComparison.OrdinalIgnoreCase))
-            throw new ArgumentException("Lệnh kiểm tra chưa được cấu hình cho project này. Mở Nhóm & giới hạn để kiểm tra và lưu lại.");
+        if (config.Mode is "discussion" or "team" or "consensus") DiscussionEngine.ValidateAgents(agents);
+        if (Catalog.IsTeamMode(config.Mode) && config.Team.RunVerification && config.Surface == "work" && !string.Equals(Path.GetFullPath(config.Team.VerificationProject.Length > 0 ? config.Team.VerificationProject : "."), Path.GetFullPath(config.Project), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Lệnh kiểm tra chưa được cấu hình cho project này. Mở Agent & model → Phân vai & giới hạn nhóm để kiểm tra và lưu lại.");
         foreach (var agent in agents.Where(a => !Catalog.IsManual(a.Connection))) executor.Validate(agent);
         if (previous != null) {
             if (!string.Equals(Path.GetFullPath(previous.Project), Path.GetFullPath(config.Project), StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Chọn đúng project của cuộc trò chuyện trước khi tiếp tục.");
@@ -88,14 +88,17 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
             teamInstructions.Clear();
             discussionControl = config.Mode == "discussion" ? new() : null;
             current = new() { Surface = config.Surface, Prompt = prompt, Project = config.Project, Mode = config.Mode, Discussion = config.Mode == "discussion" ? config.Discussion.Copy() : null,
-                Team = config.Mode == "team" ? new() { Options = config.Team.Copy() } : null,
+                Team = Catalog.IsTeamMode(config.Mode) ? new() { Options = config.Team.Copy() } : null,
                 ConversationId = previous == null ? Guid.NewGuid().ToString("N") : previous.ConversationId.Length > 0 ? previous.ConversationId : previous.Id,
                 Title = previous == null ? Storage.Topic(title.Length > 0 ? title : prompt) : previous.Title.Length > 0 ? previous.Title : Storage.Topic(previous.Prompt), PreviousJobId = previous?.Id ?? "",
                 Results = agents.Select(a => new AgentResult { AgentId = a.Id, Name = a.Name, Provider = a.Provider, Connection = a.Connection, Model = a.Model }).ToList() };
-            if (config.Mode == "team" && previous?.Team is { } earlier) {
+            if (Catalog.IsTeamMode(config.Mode) && previous?.Team is { } earlier) {
                 var resumed = JsonSerializer.Deserialize<TeamRun>(JsonSerializer.Serialize(earlier, Json.Options), Json.Options)!;
                 resumed.Options = config.Team.Copy(); resumed.Calls = 0; resumed.Phase = "roundtable"; resumed.ActiveTaskId = resumed.NextAgentId = ""; resumed.StopAfterStep = false;
-                foreach (var task in resumed.Tasks.Where(t => t.State != "done")) { task.State = "proposed"; task.Revisions = 0; task.Feedback += "\nTiếp tục phiên: cần xác nhận lại task và đọc workspace hiện tại."; }
+                foreach (var task in resumed.Tasks.Where(t => t.State != "done")) {
+                    if (config.Mode == "consensus") IdeaConsensus.Invalidate(task); else task.State = "proposed";
+                    task.Revisions = 0; task.Feedback += "\nTiếp tục phiên: cần xác nhận lại task và đọc workspace hiện tại.";
+                }
                 foreach (var evidence in resumed.Evidence) evidence.Current = false;
                 foreach (var task in resumed.Tasks.Where(t => t.Verification == "passed")) task.Verification = "stale";
                 resumed.Directives.Add("Yêu cầu khi tiếp tục: " + prompt); current.Team = resumed;
@@ -156,8 +159,8 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         {
             try {
             storage.SaveConversationJob(Snapshot()!);
-            if (job.Mode == "team") await Task.Run(() => new TeamEngine(executor, storage, teamInstructions).Run(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token));
-            else if (job.Mode == "discussion") await new DiscussionEngine(executor, storage, time).RunInteractive(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token, discussionControl!, () => Snapshot()!, CheckpointDiscussion);
+            if (Catalog.IsTeamMode(job.Mode)) await Task.Run(() => new TeamEngine(executor, storage, teamInstructions).Run(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token, CheckpointCurrent));
+            else if (job.Mode == "discussion") await new DiscussionEngine(executor, storage, time).RunInteractive(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token, discussionControl!, () => Snapshot()!, CheckpointCurrent);
             else if (job.Mode == "parallel") await Task.WhenAll(agents.Select((a, index) => Stage(index, "")));
             else
             {
@@ -178,17 +181,17 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 }
             }
             } catch (Exception e) {
-                if (job.Mode == "team") Change(() => { job.State = "failed"; if (job.Team != null) job.Team.Phase = "finished"; });
+                if (Catalog.IsTeamMode(job.Mode)) Change(() => { job.State = "failed"; if (job.Team != null) job.Team.Phase = "finished"; });
                 Change(() => { job.Results[0].State = "error"; job.Results[0].Error = "Phiên bị gián đoạn: " + e.Message; job.StopReason = e.Message;
                     if (job.Mode == "discussion" && job.Report.Length == 0) job.Report = DiscussionEngine.LocalReport(job); });
             }
             Change(() => {
-                if (job.Mode != "team") job.State = token.IsCancellationRequested ? "cancelled" : job.Results.Any(r => r.State == "error") ? "failed" :
+                if (!Catalog.IsTeamMode(job.Mode)) job.State = token.IsCancellationRequested ? "cancelled" : job.Results.Any(r => r.State == "error") ? "failed" :
                     job.Results.Any(r => r.State == "quota") ? job.Results.Any(r => r.State == "success") || job.Turns.Any(t => t.State == "success") ? "partial" : "quota" : "completed";
                 job.Seconds = watch.Elapsed.TotalSeconds;
                 foreach (var result in job.Results) { if (result.State == "queued") result.State = token.IsCancellationRequested ? "cancelled" : "skipped"; result.HandoffPrompt = ""; }
             });
-            try { storage.SaveJob(Snapshot()!); if (job.Mode is "discussion" or "team") storage.ClearCheckpoint(job.Id); }
+            try { storage.SaveJob(Snapshot()!); if (job.Mode is "discussion" or "team" or "consensus") storage.ClearCheckpoint(job.Id); }
             catch (Exception e) { Change(() => job.Results[0].Logs += "\nKhông lưu được lịch sử: " + e.Message); }
         }
         finally
@@ -209,7 +212,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         if (!replies.TryGetValue(agentId, out var reply) || !reply.TrySetException(new AgentQuotaException())) throw new InvalidOperationException("Agent không chờ kết quả.");
     }
     public void Cancel() { lock (gate) cancellation?.Cancel(); }
-    private void CheckpointDiscussion() { lock (gate) storage.Checkpoint(Snapshot()!); }
+    private void CheckpointCurrent() { lock (gate) storage.Checkpoint(Snapshot()!); }
     private void RequireDiscussion()
     {
         if (cancellation == null || cancellation.IsCancellationRequested || current?.Mode != "discussion" || discussionControl == null ||
@@ -245,13 +248,14 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
     public void AddTeamInstruction(string text)
     {
         if (string.IsNullOrWhiteSpace(text) || text.Length > 12000) throw new ArgumentException("Bổ sung cần có 1–12.000 ký tự.");
-        Change(() => {
-            if (cancellation == null || current?.Mode != "team" || current.Team?.Phase == "finished") throw new InvalidOperationException("Không có bàn tròn đang chạy.");
+        lock (gate) {
+            if (cancellation == null || current == null || current.State != "running" || !Catalog.IsTeamMode(current.Mode) || current.Team == null || current.Team.Phase == "finished") throw new InvalidOperationException("Phiên nhóm đã kết thúc hoặc không còn chạy. Giữ yêu cầu để gửi tiếp.");
             if (teamInstructions.Count >= 20 || current.Team!.Directives.Count + teamInstructions.Count >= 100) throw new InvalidOperationException("Đã đạt giới hạn bổ sung của phiên.");
+            var accepted = Snapshot()!; accepted.Team!.PendingDirectives.Add(text.Trim()); storage.Checkpoint(accepted);
             current.Team.PendingDirectives.Add(text.Trim());
             teamInstructions.Enqueue(text.Trim());
-        });
-        storage.Checkpoint(Snapshot()!);
+        }
+        Notify();
     }
     public void StopTeamAfterStep() => Change(() => {
         if (cancellation == null || current?.Team == null) throw new InvalidOperationException("Không có nhóm đang chạy.");

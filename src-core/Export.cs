@@ -7,7 +7,7 @@ public static class Export
     public static string PlainText(JobRecord job)
     {
         var text = new StringBuilder($"{job.Timestamp.LocalDateTime:dd/MM/yyyy HH:mm:ss} • {job.Mode} • {job.State}\n\nBẠN\n{job.Prompt}\n");
-        if (job.Mode is "collaboration" or "team") {
+        if (job.Mode is "collaboration" or "team" or "consensus") {
             foreach (var turn in job.Turns) text.Append($"\nLƯỢT {turn.Number} • {turn.Name} • {turn.Model} • {turn.Role} • {turn.TaskId} • {turn.State}\n{turn.Text}\n{turn.Error}\n");
             if (job.Team != null) text.Append("\n" + TeamText(job));
         } else if (job.Mode == "discussion") {
@@ -22,7 +22,7 @@ public static class Export
     public static string Markdown(JobRecord job)
     {
         var text = new StringBuilder($"# Multi-Agent Hub\n\n{job.Timestamp:O}\n\nProject: {job.Project}\n\nChế độ: {job.Mode} • Trạng thái: {job.State} • {job.Seconds:F1}s\n\n## Yêu cầu\n\n{job.Prompt}\n");
-        if (job.Mode is "collaboration" or "team") {
+        if (job.Mode is "collaboration" or "team" or "consensus") {
             foreach (var turn in job.Turns) text.Append($"\n## Lượt {turn.Number} • {turn.Name} • {turn.Model} • {turn.Role} • {turn.TaskId} • {turn.State}\n\n{turn.Text}\n\n{turn.Error}\n");
             if (job.Team != null) text.Append("\n## Công việc và đầu ra\n\n" + TeamText(job));
             return text.ToString();
