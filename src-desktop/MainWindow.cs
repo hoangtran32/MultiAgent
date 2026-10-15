@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text.Json;
 using MultiAgentHub.Core;
 namespace MultiAgentHubApp;
-internal sealed class MainWindow : Form
+internal sealed partial class MainWindow : Form
 {
     private readonly Storage storage;
     private readonly ISecretStore secrets = new CredentialSecrets();
@@ -48,6 +48,11 @@ internal sealed class MainWindow : Form
     private JobRecord? displayed;
     private string lastLoadedJob = "";
     private string? contextFile;
+    private readonly Dictionary<string, (long Stamp, List<JobRecord> Jobs, long Access)> loadedConversations = [];
+    private CancellationTokenSource? conversationLoad;
+    private int conversationLoadVersion;
+    private bool conversationLoading, projectMutation;
+    private string detailJobId = "";
     private bool updating, closing;
     public MainWindow(string? dataDir = null)
     {
@@ -72,8 +77,16 @@ internal sealed class MainWindow : Form
         shell.Panel1.Controls.Add(sidebar); shell.Panel1.Controls.Add(rail); shell.Panel2.Controls.Add(root); Controls.Add(shell); locked.Add(sidebar); locked.Add(rail);
         sidebar.NewRequested += NewConversation; sidebar.AddProjectRequested += BrowseProject;
         sidebar.ProjectSelected += path => { if (!runner.Busy && !string.Equals(path, config.Project, StringComparison.OrdinalIgnoreCase)) SetProject(path); };
-        sidebar.ConversationSelected += OpenConversation; sidebar.ContinueRequested += ContinueConversation; sidebar.OpenTextRequested += OpenConversationText;
+        sidebar.ConversationSelected += OpenConversation;
+        sidebar.ContinueInfoRequested += info => _ = OpenConversationAsync(info, true);
+        sidebar.OpenTextInfoRequested += info => Protect(() => OpenTextFor(info));
         sidebar.SettingsRequested += OpenAgents;
+        sidebar.ChangeProject += UpdateProject;
+        sidebar.ArchiveProjectRequested += (path, archived) => _ = ArchiveProjectAsync(path, archived);
+        sidebar.ExploreProjectRequested += path => Protect(() => {
+            if (!Directory.Exists(path)) throw new DirectoryNotFoundException("Thư mục project không còn tồn tại.");
+            var explorer = new ProcessStartInfo("explorer.exe") { UseShellExecute = false }; explorer.ArgumentList.Add(path); Process.Start(explorer)?.Dispose();
+        });
         Ui.Choices(surface, [new("work", "Làm việc"), new("chat", "Trò chuyện")], config.Surface); surface.AccessibleName = "Không gian Làm việc hoặc Trò chuyện";
         sidebar.SetSurfaceControl(Ui.ChoiceButton(surface, "Làm việc hoặc Trò chuyện", c => c.Id == "chat" ? "Hub Chat" : "Hub Code")); locked.Add(surface);
         surface.SelectedIndexChanged += (_, _) => {
@@ -265,14 +278,9 @@ internal sealed class MainWindow : Form
         Ui.Theme(this); Ui.Theme(agentPanel); Ui.Theme(detailPanel); sidebar.ApplyTheme(); rail.ApplyTheme(); canvas.ApplyTheme(); canvas.ShowWelcome(config.Surface); canvas.SetAgentAvailability(config.Agents.Count > 0); topic.BackColor = Ui.Background;
         AutoScaleDimensions = new SizeF(DeviceDpi, DeviceDpi); AutoScaleMode = AutoScaleMode.Dpi; ResumeLayout(true);
         Size = new Size(Math.Min((int)(1380 * scale), (int)(area.Width * 0.95)), Math.Min((int)(960 * scale), (int)(area.Height * 0.95)));
-        if (config.LastConversationId.Length > 0 && storage.Conversations().FirstOrDefault(c => c.Id == config.LastConversationId) is { } previousChat) OpenConversation(previousChat);
+        if (config.LastConversationId.Length > 0 && storage.Conversations().FirstOrDefault(c => c.Id == config.LastConversationId) is { } previousChat) Shown += (_, _) => OpenConversation(previousChat);
     }
     private AgentConfig? Selected => grid.CurrentRow == null ? null : config.Agents.ElementAtOrDefault(grid.CurrentRow.Index);
-    private void RestoreSurface(JobRecord job)
-    {
-        updating = true; config.Surface = job.Surface;
-        surface.SelectedItem = surface.Items.Cast<Choice>().First(c => c.Id == config.Surface); updating = false;
-    }
     private void ShowPanel(Panel panel, string title, int width, int height)
     {
         using var dialog = new Form { Text = title, Font = Font, StartPosition = FormStartPosition.CenterParent,
@@ -287,7 +295,11 @@ internal sealed class MainWindow : Form
         if (config.Agents.Count == 0 && !runner.Busy) DiscoverAgents();
         ShowPanel(agentPanel, "Agent & model", 1220, 640);
     }
-    private void OpenDetails() => ShowPanel(detailPanel, "Chi tiết phiên • câu trả lời / nhật ký / prompt", 1200, 760);
+    private void OpenDetails()
+    {
+        if (displayed != null) RenderDetails(displayed); else ClearResults();
+        ShowPanel(detailPanel, "Chi tiết phiên • câu trả lời / nhật ký / prompt", 1200, 760);
+    }
     private void OpenBoard()
     {
         if (conversationHost.Width >= 1020 * DeviceDpi / 96f) { boardPanel.Visible = !boardPanel.Visible; return; }
@@ -379,7 +391,7 @@ internal sealed class MainWindow : Form
     {
         canvas.SetAgentAvailability(config.Agents.Count > 0);
         var chosen = config.Agents.Where(a => a.Enabled).ToList(); info.Text = $"{chosen.Count}/{config.Agents.Count} chọn • tối đa {Catalog.MaxAgents}";
-        breadcrumb.Text = (config.Surface == "chat" ? "Trò chuyện" : "Làm việc") + "  /  " + (Path.GetFileName(config.Project.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : config.Project);
+        breadcrumb.Text = (config.Surface == "chat" ? "Trò chuyện" : "Làm việc") + "  /  " + (config.Projects.FirstOrDefault(p => !p.Removed && string.Equals(p.Path, config.Project, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? (Path.GetFileName(config.Project.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name ? name : config.Project));
         teamButton.Text = chosen.Count == 0 ? "Chọn agent ▾" : chosen.Count == 1 ? chosen[0].Name + " ▾" : $"{chosen[0].Name} + {chosen.Count-1} ▾";
         teamButton.AccessibleName = "Chọn agent và model: " + string.Join(" + ", chosen.Select(a => a.Name));
         discussionSettings.Visible = config.Mode == "discussion";
@@ -439,9 +451,11 @@ internal sealed class MainWindow : Form
     }
     private void SetProject(string value) => Protect(() => {
         string path = Path.GetFullPath(value.Trim()); if (!Directory.Exists(path)) throw new DirectoryNotFoundException("Project không tồn tại.");
+        CancelConversationLoad(); run.Enabled = !runner.Busy;
         if (path != config.Project) { contextFile = null; attachment.Text = "Không đính kèm file"; }
         bool changed = !string.Equals(path, config.Project, StringComparison.OrdinalIgnoreCase);
         var next = CopyConfig(); next.Project = path; next.RecentProjects = new[] { path }.Concat(next.RecentProjects).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        ProjectCatalog.Ensure(next, path);
         Commit(next, Selected?.Id); project.Text = path; LoadProjects(); if (changed) NewConversation(); else ReloadLibrary();
     });
     private void LoadProjects()
@@ -453,13 +467,15 @@ internal sealed class MainWindow : Form
         if (dialog.ShowDialog(this) == DialogResult.OK) { ProjectContext.Read(project.Text, dialog.FileName); contextFile = dialog.FileName; attachment.Text = Path.GetFileName(contextFile); }
     });
     private void StartJob() => Protect(() => {
+        if (conversationLoading || projectMutation) { status.Text = "Đang mở hội thoại/cập nhật thư viện, đợi hoàn tất rồi gửi yêu cầu."; return; }
         if (!runner.Busy && config.Agents.Count == 0) { OpenAgents(); status.Text = "Thêm agent và cấu hình kết nối trước khi gửi yêu cầu."; return; }
         if (runner.Busy) {
             if (displayed?.Mode == "team") { runner.AddTeamInstruction(prompt.Text.Trim()); prompt.Clear(); canvas.ScrollToEnd(); status.Text = "Đã nhận bổ sung; áp dụng tại ranh giới bước tiếp theo."; }
             return;
         }
         config.Project = Path.GetFullPath(project.Text.Trim()); if (!Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
-        config.RecentProjects = new[] { config.Project }.Concat(config.RecentProjects).Distinct(StringComparer.OrdinalIgnoreCase).ToList(); Save(); LoadProjects();
+        config.RecentProjects = new[] { config.Project }.Concat(config.RecentProjects).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        ProjectCatalog.Ensure(config, config.Project); Save(); LoadProjects();
         string context = contextFile == null ? "" : ProjectContext.Read(config.Project, contextFile);
         runner.Start(config, prompt.Text.Trim(), context, continueFrom, topic.Text.Trim()); prompt.Clear(); ClearResults(); displayed = null;
         if (runner.Snapshot() is { } job) { selectedConversationId = job.ConversationId; config.LastConversationId = job.ConversationId; Protect(Save); topic.Text = job.Title; RenderJob(job); canvas.ScrollToEnd(); }
@@ -467,56 +483,75 @@ internal sealed class MainWindow : Form
     private void ClearResults()
     {
         var pages = results.TabPages.Cast<TabPage>().ToArray(); results.TabPages.Clear(); foreach (var page in pages) page.Dispose();
-        views.Clear(); discussionView = null; conversationView = null; teamBoard.Clear();
+        views.Clear(); discussionView = null; conversationView = null; detailJobId = "";
     }
     private void ReloadLibrary()
     {
-        try { sidebar.Reload(config.RecentProjects, storage.Conversations(), config.Project, selectedConversationId); }
+        try {
+            var conversations = storage.Conversations(); int previousCount = config.Projects.Count;
+            ProjectCatalog.Merge(config, conversations); if (previousCount != config.Projects.Count) Save();
+            sidebar.Reload(config.Projects, config.ProjectSections, conversations, config.Project, selectedConversationId);
+        }
         catch (Exception e) { status.Text = "Không đọc được thư viện: " + e.Message; }
     }
     private void NewConversation()
     {
         if (runner.Busy) return;
+        CancelConversationLoad();
         selectedConversationId = null; continueFrom = null; conversationJobs = []; latest = null; displayed = null;
         config.LastConversationId = ""; contextFile = null; attachment.Text = "Không đính kèm file"; Protect(Save);
-        topic.ReadOnly = false; topic.Clear(); prompt.Clear(); ClearResults(); canvas.ShowWelcome(config.Surface); UpdateSummary(); ReloadLibrary();
+        topic.ReadOnly = false; topic.Clear(); prompt.Clear(); teamBoard.Clear(); canvas.ShowWelcome(config.Surface); UpdateSummary(); ReloadLibrary(); run.Enabled = true;
         status.Text = "Cuộc trò chuyện mới. Đặt tên topic hoặc để Hub lấy tên từ yêu cầu đầu tiên."; prompt.Focus();
     }
-    private void OpenConversation(ConversationInfo info) => Protect(() => {
-        if (runner.Busy) return;
-        var jobs = storage.ReadConversationJobs(info.Id); if (jobs.Count == 0) throw new InvalidDataException("Cuộc trò chuyện chưa có nội dung.");
-        bool changedProject = Directory.Exists(info.Project) && !string.Equals(config.Project, info.Project, StringComparison.OrdinalIgnoreCase);
-        if (changedProject) SetProject(info.Project);
-        selectedConversationId = info.Id; continueFrom = jobs[^1]; conversationJobs = jobs; latest = null; displayed = jobs[^1];
-        config.LastConversationId = info.Id;
-        topic.ReadOnly = true; topic.Text = info.Title; prompt.Clear(); ClearResults(); RenderJob(displayed);
-        if (conversationView != null) results.SelectedTab = conversationView.Page;
-        config.Discussion = continueFrom.Discussion?.Copy() ?? config.Discussion;
-        config.Team = continueFrom.Team?.Options.Copy() ?? config.Team;
-        RestoreSurface(continueFrom); mode.SelectedItem = mode.Items.Cast<Choice>().FirstOrDefault(c => c.Id == continueFrom.Mode) ?? mode.Items[0]; Save();
-        UpdateSummary(); if (changedProject) ReloadLibrary(); sidebar.SelectConversation(info.Id); status.Text = $"{info.Title} • {jobs.Count} lần trao đổi • Nhập yêu cầu mới để tiếp tục.";
-    });
-    private void ContinueConversation() => Protect(() => {
-        if (runner.Busy) return;
-        if (selectedConversationId == null) { status.Text = "Chọn cuộc trò chuyện ở thanh bên trước."; return; }
-        var info = storage.Conversations().First(c => c.Id == selectedConversationId);
-        if (!Directory.Exists(info.Project)) throw new DirectoryNotFoundException("Project cũ không còn tồn tại. Khôi phục thư mục project để tiếp tục; bản hội thoại vẫn xem được.");
-        var jobs = storage.ReadConversationJobs(info.Id); if (jobs.Count == 0) return;
-        if (!string.Equals(config.Project, info.Project, StringComparison.OrdinalIgnoreCase)) SetProject(info.Project);
-        selectedConversationId = info.Id; conversationJobs = jobs; continueFrom = jobs[^1];
-        topic.Text = info.Title; topic.ReadOnly = true; prompt.Clear();
-        config.Discussion = continueFrom.Discussion?.Copy() ?? config.Discussion;
-        config.Team = continueFrom.Team?.Options.Copy() ?? config.Team;
-        RestoreSurface(continueFrom); mode.SelectedItem = mode.Items.Cast<Choice>().FirstOrDefault(c => c.Id == continueFrom.Mode) ?? mode.Items[0]; Save(); UpdateSummary();
-        status.Text = "Đang tiếp tục: " + info.Title + ". Nhập yêu cầu mới; Hub sẽ gửi kèm ngữ cảnh cũ đã rút gọn."; prompt.Focus();
-    });
+    private void CancelConversationLoad() { conversationLoadVersion++; conversationLoad?.Cancel(); conversationLoad = null; conversationLoading = false; }
+    private void OpenConversation(ConversationInfo info) => _ = OpenConversationAsync(info);
+    private async Task OpenConversationAsync(ConversationInfo info, bool focus = false)
+    {
+        if (runner.Busy || closing) return;
+        if (selectedConversationId == info.Id && displayed != null && !conversationLoading) { if (focus) prompt.Focus(); return; }
+        CancelConversationLoad(); int version = conversationLoadVersion;
+        using var request = new CancellationTokenSource(); conversationLoad = request; conversationLoading = true;
+        run.Enabled = false; status.Text = "Đang mở: " + info.Title;
+        try {
+            long stamp = await Task.Run(() => storage.ConversationStamp(info.Id), request.Token);
+            List<JobRecord> jobs;
+            if (loadedConversations.TryGetValue(info.Id, out var cached) && cached.Stamp == stamp) jobs = cached.Jobs;
+            else jobs = await Task.Run(() => storage.ReadConversationJobs(info.Id, token: request.Token), request.Token);
+            if (request.IsCancellationRequested || version != conversationLoadVersion || runner.Busy || closing || IsDisposed) return;
+            if (jobs.Count == 0) throw new InvalidDataException("Cuộc trò chuyện chưa có nội dung.");
+            loadedConversations[info.Id] = (stamp, jobs, Environment.TickCount64);
+            while (loadedConversations.Count > 4) loadedConversations.Remove(loadedConversations.MinBy(p => p.Value.Access).Key);
+            selectedConversationId = info.Id; continueFrom = jobs[^1]; conversationJobs = jobs; latest = null; displayed = jobs[^1];
+            config.LastConversationId = info.Id; config.Project = info.Project; project.Text = info.Project;
+            contextFile = null; attachment.Text = "Không đính kèm file";
+            updating = true;
+            try {
+                config.Discussion = continueFrom.Discussion?.Copy() ?? config.Discussion; config.Team = continueFrom.Team?.Options.Copy() ?? config.Team;
+                config.Surface = continueFrom.Surface; config.Mode = continueFrom.Mode;
+                if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode;
+                surface.SelectedItem = surface.Items.Cast<Choice>().First(c => c.Id == config.Surface);
+                mode.SelectedItem = mode.Items.Cast<Choice>().First(c => c.Id == config.Mode);
+                topic.ReadOnly = true; topic.Text = info.Title; prompt.Clear();
+            } finally { updating = false; }
+            RenderJob(displayed, false); Save(); UpdateSummary(); sidebar.SelectConversation(info.Id, info.Project);
+            status.Text = $"{info.Title} • {jobs.Count} lần trao đổi • Nhập yêu cầu mới để tiếp tục.";
+            if (focus) { if (!Directory.Exists(info.Project)) throw new DirectoryNotFoundException("Thư mục project không còn tồn tại; hội thoại vẫn đọc được."); prompt.Focus(); }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception e) { if (!IsDisposed && version == conversationLoadVersion) { status.Text = "Không mở được hội thoại: " + e.Message; if (selectedConversationId != null) sidebar.SelectConversation(selectedConversationId, config.Project); } }
+        finally { if (!IsDisposed && version == conversationLoadVersion) { conversationLoad = null; conversationLoading = false; run.Enabled = !runner.Busy || displayed?.Mode == "team"; } }
+    }
     private void OpenConversationText() => Protect(() => {
         if (selectedConversationId == null) { status.Text = "Chọn cuộc trò chuyện ở thanh bên trước."; return; }
-        var info = storage.Conversations().First(c => c.Id == selectedConversationId); string path = storage.ConversationTextPath(info);
+        var info = storage.Conversations().First(c => c.Id == selectedConversationId); OpenTextFor(info);
+    });
+    private void OpenTextFor(ConversationInfo info)
+    {
+        string path = storage.ConversationTextPath(info);
         if (!File.Exists(path)) throw new FileNotFoundException("Chưa có bản text của cuộc trò chuyện.");
         Process.Start(new ProcessStartInfo("notepad.exe") { UseShellExecute = false, ArgumentList = { path } })?.Dispose(); status.Text = "File hội thoại: " + path;
-    });
-    private void RenderJob(JobRecord job)
+    }
+    private void RenderJob(JobRecord job, bool live = true)
     {
         canvas.Update(conversationJobs.Where(j => j.Id != job.Id).Append(job));
         bool busy = runner.Busy;
@@ -532,6 +567,19 @@ internal sealed class MainWindow : Form
             teamBoard.Update(job); run.Text = ""; run.AccessibleName = busy ? "Gửi bổ sung" : "Gửi yêu cầu";
         }
         UpdateAddAvailability(); discussionSettings.Enabled = !busy && config.Mode == "discussion"; ShowJobStatus(job);
+        if (detailPanel.FindForm() != null) RenderDetails(job);
+        if (live && !busy && lastLoadedJob != job.Id) {
+            lastLoadedJob = job.Id; LoadHistory(); ReloadLibrary();
+            if (selectedConversationId != null) {
+                loadedConversations.Remove(selectedConversationId); continueFrom = job; topic.ReadOnly = true;
+                conversationJobs = conversationJobs.Where(j => j.Id != job.Id).Append(job).ToList(); UpdateSummary();
+            }
+        }
+    }
+    private void RenderDetails(JobRecord job)
+    {
+        if (detailJobId != job.Id) { ClearResults(); detailJobId = job.Id; }
+        bool busy = runner.Busy;
         if (selectedConversationId != null) {
             if (conversationView == null) { conversationView = new(); results.TabPages.Add(conversationView.Page); Ui.Theme(conversationView.Page); }
             conversationView.Update(conversationJobs.Where(j => j.Id != job.Id).Append(job));
@@ -549,15 +597,6 @@ internal sealed class MainWindow : Form
         if (busy && job.Results.Any(r => r.State == "quota" && views[r.AgentId].Page == results.SelectedTab)) {
             var remaining = job.Results.FirstOrDefault(r => r.State is "waiting" or "running");
             if (remaining != null) results.SelectedTab = views[remaining.AgentId].Page;
-        }
-        if (!busy && lastLoadedJob != job.Id) {
-            lastLoadedJob = job.Id; LoadHistory(); ReloadLibrary();
-            if (selectedConversationId != null) {
-                continueFrom = job; topic.ReadOnly = true;
-                try { conversationJobs = storage.ReadConversationJobs(selectedConversationId); }
-                catch (Exception e) { status.Text = "Không đọc được bản lưu hội thoại: " + e.Message; }
-                UpdateSummary();
-            }
         }
     }
     private void ShowJobStatus(JobRecord job)
@@ -601,10 +640,11 @@ internal sealed class MainWindow : Form
         if (runner.Busy || history.SelectedItem is not JobRecord job) return;
         var info = storage.Conversations().FirstOrDefault(c => c.Id == job.ConversationId || job.ConversationId.Length == 0 && c.Id == job.Id);
         if (info != null) { OpenConversation(info); return; }
-        selectedConversationId = null; continueFrom = null; conversationJobs = []; ClearResults(); latest = null; displayed = job; RenderJob(job);
+        CancelConversationLoad(); selectedConversationId = null; continueFrom = null; conversationJobs = []; ClearResults(); latest = null; displayed = job; RenderJob(job, false);
     });
     private void Reuse() => Protect(() => {
         if (runner.Busy) return; var job = displayed ?? history.SelectedItem as JobRecord; if (job == null) return;
+        CancelConversationLoad();
         if (Directory.Exists(job.Project)) SetProject(job.Project); prompt.Text = job.Prompt; prompt.Focus();
         if (job.Mode == "discussion") { config.Discussion = job.Discussion?.Copy() ?? new(); mode.SelectedItem = mode.Items.Cast<Choice>().First(c => c.Id == "discussion"); Save(); UpdateSummary(); }
         status.Text = "Đã điền lại yêu cầu. Kiểm tra agent/model và file đính kèm trước khi chạy.";
@@ -616,7 +656,7 @@ internal sealed class MainWindow : Form
     });
     private async void OnClosing(object? sender, FormClosingEventArgs e)
     {
-        if (closing) return; e.Cancel = true; closing = true; refresh.Stop(); Enabled = false; runner.Cancel();
+        if (closing) return; e.Cancel = true; closing = true; CancelConversationLoad(); refresh.Stop(); Enabled = false; runner.Cancel();
         if (runner.Completion != null) try { await runner.Completion; } catch (Exception) { }
         ApplyQuotaChanges(true);
         try { if (Directory.Exists(project.Text)) { config.Project = Path.GetFullPath(project.Text); Save(); } } catch (Exception) { }

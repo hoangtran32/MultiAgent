@@ -3,6 +3,7 @@ namespace MultiAgentHubApp;
 /// <summary>Native scroll host with stable cards and viewport anchors during streaming.</summary>
 internal sealed class MessageFeed : Panel
 {
+    private const int BatchSize = 32;
     private readonly Dictionary<string, MessageCard> cards = [];
     private readonly List<MessageCard> ordered = [];
     private readonly Button older;
@@ -15,7 +16,7 @@ internal sealed class MessageFeed : Panel
     public MessageFeed()
     {
         Dock = DockStyle.Fill; AutoScroll = true; DoubleBuffered = true; ResizeRedraw = true; BackColor = Ui.Background;
-        older = Ui.Button("Hiển thị tin nhắn cũ", (_, _) => { follow = false; first = Math.Max(0, first - 80); Sync(); SetScroll(0); });
+        older = Ui.Button("Hiển thị tin nhắn cũ", (_, _) => { follow = false; first = Math.Max(0, first - BatchSize); Sync(); SetScroll(0); });
         Controls.Add(older); older.Visible = false;
     }
     public void ClearMessages()
@@ -27,7 +28,7 @@ internal sealed class MessageFeed : Panel
     public void Apply(IReadOnlyList<ChatSection> value)
     {
         string nextTopic = value.FirstOrDefault()?.Key ?? "";
-        if (topic != nextTopic) { ClearMessages(); topic = nextTopic; first = Math.Max(0, value.Count - 80); }
+        if (topic != nextTopic) { ClearMessages(); topic = nextTopic; first = Math.Max(0, value.Count - BatchSize); }
         sections = value; Sync();
     }
     private ViewportMark? CaptureAnchor() => ordered.FirstOrDefault(c => c.Bottom > 0 && c.Top < ClientSize.Height) is { } card ? new(card.Key, card.Top) : null;
@@ -43,6 +44,7 @@ internal sealed class MessageFeed : Panel
             foreach (var section in visible) {
                 if (!cards.TryGetValue(section.Key, out var card)) {
                     card = new MessageCard(); cards.Add(section.Key, card); Controls.Add(card);
+                    int width = Math.Min(D(780), Math.Max(D(160), ClientSize.Width - D(48))); card.Width = section.User ? (int)(width * 0.72) : width;
                     card.HeightRequested += ScheduleArrange; card.Interacting += () => follow = false;
                     card.Wheel += ScrollWheel; card.Navigate += Navigate;
                 }

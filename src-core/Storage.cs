@@ -35,6 +35,12 @@ public sealed partial class Storage
         if (new[] { config.WorkMode, config.ChatMode }.Any(m => !Catalog.Modes.Contains(m))) throw new InvalidDataException("Cách phối hợp không hợp lệ.");
         config.Discussion.Validate();
         config.Team.Validate();
+        if (config.Projects.Select(p => p.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != config.Projects.Count) throw new InvalidDataException("Project bị trùng đường dẫn.");
+        foreach (var project in config.Projects) {
+            if (!Path.IsPathFullyQualified(project.Path)) throw new InvalidDataException("Đường dẫn project cần là đường dẫn tuyệt đối.");
+            ProjectCatalog.ValidateText(project.Name, 100); ProjectCatalog.ValidateText(project.Section, 60);
+        }
+        foreach (string section in config.ProjectSections) ProjectCatalog.ValidateText(section, 60);
         foreach (var agent in config.Agents) Catalog.Validate(agent);
     }
     private HubConfig Migrate()

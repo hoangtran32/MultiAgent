@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.2.0
+# Hướng dẫn Multi-Agent Hub 5.3.0
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
@@ -34,7 +34,9 @@ Từ 5.1.7, tin nhắn của bạn và phần bổ sung yêu cầu hiện bên p
 
 Từ 5.1.8, tin của bạn có bong bóng xanh nhạt; AI có khung riêng, ngăn cách metadata/nội dung/thao tác bằng đường mờ. Nút **Sao chép** lấy toàn bộ nội dung tin, **Chi tiết** mở nội dung đầy đủ và nhật ký/prompt agent trong phiên nếu có. Nhấp phải tin để sao chép phần chọn hoặc mở Chi tiết. Nhật ký và prompt gần nhất được ghi nhãn theo agent/phiên, không giả lập log riêng cho lượt cũ.
 
-Hội thoại dài tải 80 tin gần nhất trước; bấm **Hiển thị tin nhắn cũ** để tải thêm. Một tin quá dài hiển thị trích tối đa 24.000 ký tự trong khung; mở Chi tiết để đọc đầy đủ. Giới hạn này chỉ áp dụng giao diện, không cắt dữ liệu JSON/TXT hay bản sao chép. Cuộn chuột và Page Up/Page Down đi qua toàn bộ khung tin; Ctrl+Home/Ctrl+End đến đầu/cuối. Đang đọc phần cũ thì streaming giữ điểm đọc; bấm mũi tên xuống để theo cuối.
+Hội thoại dài tải 32 tin gần nhất trước; bấm **Hiển thị tin nhắn cũ** để tải thêm mỗi đợt 32 tin. Một tin quá dài hiển thị trích tối đa 24.000 ký tự trong khung; mở Chi tiết để đọc đầy đủ. Giới hạn này chỉ áp dụng giao diện, không cắt dữ liệu JSON/TXT hay bản sao chép. Cuộn chuột và Page Up/Page Down đi qua toàn bộ khung tin; Ctrl+Home/Ctrl+End đến đầu/cuối. Đang đọc phần cũ thì streaming giữ điểm đọc; bấm mũi tên xuống để theo cuối. Ba chat gần nhất giữ lại khung native và vị trí đọc khi chuyển qua lại; chọn chat khác hủy lượt tải cũ, không tự chạy lại model.
+
+Nhấp phải folder project (hoặc Shift+F10/phím Menu) để **Ghim**, **Chỉnh sửa** tên hiển thị, chọn/tạo **Mục**, **Mở trong File Explorer**, **Lưu trữ các cuộc trò chuyện** và **Gỡ dự án**. Tên hiển thị không đổi tên folder trên ổ đĩa; Mục chỉ tổ chức sidebar. Project ghim nằm trong nhóm riêng. Lưu trữ toàn bộ chat của project giữ nguyên JSON/TXT; bật Hội thoại đã lưu trữ rồi dùng menu project để khôi phục. Gỡ chỉ ẩn khỏi thư viện, giữ nguyên thư mục/chat và các tùy chọn tổ chức. Thêm lại cùng đường dẫn để khôi phục project. Hội thoại đang mở vẫn có thể đọc sau khi lưu trữ.
 
 Gửi tin mới hoặc bổ sung yêu cầu sẽ đưa đến cuối hội thoại. Có thể lăn chuột trên nội dung, phần nền hoặc thao tác của khung tin để đọc tiếp; giới hạn thanh cuộn được cập nhật khi tin mới xuất hiện hoặc nội dung tăng chiều cao.
 

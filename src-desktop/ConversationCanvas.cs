@@ -4,7 +4,9 @@ namespace MultiAgentHubApp;
 /// <summary>Persistent native message cards with independent bodies and actions.</summary>
 internal sealed class ConversationCanvas : UserControl
 {
-    private readonly MessageFeed feed = new();
+    private MessageFeed feed = new();
+    private readonly Dictionary<string, MessageFeed> feeds = [];
+    private readonly LinkedList<string> recentFeeds = new();
     private readonly TableLayoutPanel welcome = Ui.Table();
     private readonly Label title = Ui.Label("Bạn muốn làm gì hôm nay?", true), description = Ui.Label("");
     private readonly Button setup = Ui.Button("+ Thêm agent của bạn", primary: true);
@@ -32,7 +34,7 @@ internal sealed class ConversationCanvas : UserControl
     {
         welcomeSurface = surface;
         title.Text = surface == "chat" ? "Cùng nghĩ xa hơn." : "Cùng tạo nên điều tiếp theo.";
-        SetAgentAvailability(hasAgents); sections.Clear(); feed.ClearMessages(); welcome.Visible = true; feed.Visible = false;
+        SetAgentAvailability(hasAgents); sections.Clear(); welcome.Visible = true; feed.Visible = false; welcome.BringToFront();
     }
     public void SetAgentAvailability(bool configured)
     {
@@ -41,7 +43,7 @@ internal sealed class ConversationCanvas : UserControl
             "Một cuộc trò chuyện. Nhiều góc nhìn.\nChọn model để hỏi đáp hoặc cho các agent bàn luận với nhau." :
             "Chọn project và đội agent của bạn.\nCùng triển khai, rà soát và hoàn thiện công việc trong một cuộc hội thoại.";
     }
-    public void ApplyTheme() => feed.ApplyTheme();
+    public void ApplyTheme() { feed.ApplyTheme(); foreach (var cached in feeds.Values) cached.ApplyTheme(); }
     public void ScrollToEnd() => feed.ScrollToEnd();
     public void CopyAll()
     {
@@ -49,8 +51,17 @@ internal sealed class ConversationCanvas : UserControl
     }
     public void Update(IEnumerable<JobRecord> jobs)
     {
+        var records = jobs.ToList();
+        string topicKey = records.FirstOrDefault() is { } first ? first.ConversationId.Length > 0 ? first.ConversationId : first.Id : "";
+        if (!feeds.TryGetValue(topicKey, out var nextFeed)) {
+            nextFeed = feeds.Count == 0 ? feed : new MessageFeed { Bounds = DisplayRectangle }; nextFeed.Visible = false;
+            if (nextFeed.Parent == null) Controls.Add(nextFeed); feeds[topicKey] = nextFeed;
+        }
+        if (feed != nextFeed) feed.Visible = false;
+        feed = nextFeed; recentFeeds.Remove(topicKey); recentFeeds.AddLast(topicKey);
+        while (recentFeeds.Count > 3) { string oldest = recentFeeds.First!.Value; recentFeeds.RemoveFirst(); var unused = feeds[oldest]; feeds.Remove(oldest); Controls.Remove(unused); unused.Dispose(); }
         var next = new List<ChatSection>();
-        foreach (var job in jobs) {
+        foreach (var job in records) {
             string Key(string part) => job.Id + ":" + part;
             next.Add(new("Bạn", job.Timestamp.LocalDateTime.ToString("dd/MM HH:mm"), job.Prompt, true, Key("user")));
             if (job.Mode is "discussion" or "collaboration" or "team") {
@@ -70,6 +81,6 @@ internal sealed class ConversationCanvas : UserControl
                 }
             }
         }
-        sections = next; welcome.Visible = false; feed.Visible = true; feed.Apply(sections);
+        sections = next; feed.Apply(sections); welcome.Visible = false; feed.Visible = true; feed.BringToFront();
     }
 }

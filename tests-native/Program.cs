@@ -50,6 +50,25 @@ try
         Assert(legacy.LoadConfig().Agents.Count == 0);
         return Task.CompletedTask;
     });
+    await Test("project organization survives merge and removal preserves files and history", () => {
+        string path = Path.Combine(root, "project-library"); Directory.CreateDirectory(path); string file = Path.Combine(path, "source.txt"); File.WriteAllText(file, "keep");
+        var config = new HubConfig { RecentProjects = [path] };
+        var conversations = new[] { new ConversationInfo { Project = path } };
+        ProjectCatalog.Merge(config, conversations); ProjectCatalog.Change(config, path, new(Name: "Tên hiển thị", Pinned: true, Section: "Nghiên cứu"));
+        ProjectCatalog.Change(config, path, new(Removed: true)); ProjectCatalog.Merge(config, conversations);
+        Assert(config.Projects.Single().Removed && config.RecentProjects.Count == 0 && File.ReadAllText(file) == "keep");
+        var store = Store(); store.Write("native-config", config); var reloaded = store.LoadConfig();
+        var restored = ProjectCatalog.Ensure(reloaded, path); Assert(!restored.Removed && restored.Pinned && restored.Name == "Tên hiển thị" && restored.Section == "Nghiên cứu");
+        Assert(reloaded.ProjectSections.SequenceEqual(new[] { "Nghiên cứu" })); return Task.CompletedTask;
+    });
+    await Test("bulk project archive changes only matching metadata and can be restored", () => {
+        var store = Store(); var a = new JobRecord { Project = root, Prompt = "A", State = "completed" }; var b = new JobRecord { Project = Path.Combine(root, "other"), Prompt = "B", State = "completed" };
+        store.SaveJob(a); store.SaveJob(b); var info = store.Conversations().Single(c => c.Id == a.ConversationId); string text = File.ReadAllText(store.ConversationTextPath(info));
+        Assert(store.ArchiveProject(root, true) == 1 && store.ArchiveProject(root, true) == 0);
+        var reloaded = new Storage(store.DataDir); Assert(reloaded.Conversations().Single(c => c.Id == a.ConversationId).Archived && !reloaded.Conversations().Single(c => c.Id == b.ConversationId).Archived);
+        Assert(File.ReadAllText(store.ConversationTextPath(info)) == text && reloaded.ReadConversationJobs(a.ConversationId).Single().Prompt == "A");
+        Assert(reloaded.ArchiveProject(root, false) == 1 && !store.Conversations().Single(c => c.Id == a.ConversationId).Archived); return Task.CompletedTask;
+    });
     await Test("catalog separates providers, IDE/2.0/CLI and validates connection", () => {
         Assert(Catalog.Connections("antigravity").Select(c => c.Id).SequenceEqual(new[] { "antigravity-ide", "antigravity-desktop", "agy-cli" }));
         Assert(Catalog.Connections("claude").Any(c => c.Id == "claude-cli"));

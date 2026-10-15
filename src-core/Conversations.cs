@@ -90,11 +90,17 @@ public sealed partial class Storage
             AtomicText(ConversationTextPath(info), Export.ConversationText(info, ReadConversationJobs(id)));
         }
     }
-    public List<JobRecord> ReadConversationJobs(string id, bool recover = true)
+    public List<JobRecord> ReadConversationJobs(string id, bool recover = true, CancellationToken token = default)
     {
         lock (conversationGate) {
-            string dir = ConversationDir(id); if (!Directory.Exists(dir)) return [];
-            return Directory.GetFiles(dir, "job-*.json").Select(file => JsonSerializer.Deserialize<JobRecord>(File.ReadAllText(file), Json.Options) ?? throw new InvalidDataException("Không đọc được lượt hội thoại.")).OrderBy(j => j.Timestamp).Select(job => recover ? Recover(job) : job).ToList();
+            token.ThrowIfCancellationRequested(); string dir = ConversationDir(id); if (!Directory.Exists(dir)) return [];
+            var jobs = new List<JobRecord>();
+            foreach (string file in Directory.GetFiles(dir, "job-*.json")) {
+                token.ThrowIfCancellationRequested();
+                var job = JsonSerializer.Deserialize<JobRecord>(File.ReadAllText(file), Json.Options) ?? throw new InvalidDataException("Không đọc được lượt hội thoại.");
+                jobs.Add(recover ? Recover(job) : job);
+            }
+            token.ThrowIfCancellationRequested(); return jobs.OrderBy(j => j.Timestamp).ToList();
         }
     }
     private static JobRecord Recover(JobRecord job)

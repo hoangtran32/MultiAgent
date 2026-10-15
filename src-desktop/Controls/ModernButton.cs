@@ -95,6 +95,8 @@ internal static class Shapes
             case "panel": g.DrawRectangle(pen, 3, 4, 18, 16); g.DrawLine(pen, 10, 4, 10, 20); break;
             case "more": foreach (int x in new[] { 5, 12, 19 }) g.FillEllipse(fill, x - 1, 11, 2, 2); break;
             case "chat": g.DrawLines(pen, [new(3, 4), new(21, 4), new(21, 17), new(9, 17), new(4, 21), new(4, 17), new(3, 17), new(3, 4)]); break;
+            case "pin": g.DrawLines(pen, [new(14, 3), new(21, 10), new(18, 11), new(14, 15), new(13, 19), new(5, 11), new(9, 10), new(13, 6), new(14, 3)]); g.DrawLine(pen, 9, 15, 3, 21); break;
+            case "archive": g.DrawRectangle(pen, 3, 4, 18, 4); g.DrawLines(pen, [new(5, 8), new(5, 21), new(19, 21), new(19, 8)]); g.DrawLine(pen, 9, 12, 15, 12); break;
         }
         g.Restore(state);
     }

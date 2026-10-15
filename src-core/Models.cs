@@ -78,6 +78,8 @@ public sealed class HubConfig
     public string LastConversationId { get; set; } = "";
     public string Project { get; set; } = Directory.GetCurrentDirectory();
     public List<string> RecentProjects { get; set; } = [];
+    public List<ProjectInfo> Projects { get; set; } = [];
+    public List<string> ProjectSections { get; set; } = [];
     public string Mode { get; set; } = "parallel";
     public string WorkMode { get; set; } = "team";
     public string ChatMode { get; set; } = "parallel";

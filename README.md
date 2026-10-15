@@ -37,6 +37,7 @@ Danh sách trên là các adapter có sẵn để lựa chọn. CLI tùy chỉnh
 - **Bàn luận qua lại**: các model phát triển, phản biện ý tưởng theo giới hạn lượt/thời gian, có bản tổng hợp cuối.
 - **Bàn tròn & thực hiện**: trao đổi ngang hàng, đề xuất task có phụ thuộc/tiêu chí, thực hiện tuần tự và review. PM, Architect, Coder, Tester, Reviewer là chuyên môn, không phải năm tài khoản bắt buộc.
 - Thư viện project và hội thoại hỗ trợ tiếp tục, tìm kiếm, ghim, đổi tên, lưu trữ và bản TXT tự cập nhật.
+- Nhấp phải project để ghim, đổi tên hiển thị, chuyển/tạo mục, mở Explorer, lưu trữ hội thoại hoặc gỡ khỏi thư viện. Gỡ giữ nguyên thư mục và dữ liệu chat; thêm lại cùng đường dẫn để khôi phục. Chuyển chat đọc file ở nền và giữ cache các chat gần nhất cùng vị trí cuộn.
 - Tin nhắn của bạn có bong bóng xanh nhạt bên phải; các AI có khung riêng bên trái, đường phân cách nhẹ và nút Sao chép/Chi tiết. Chỉ tin đang thay đổi được cập nhật khi streaming.
 - Hết quota rõ ràng thì bỏ chọn agent đó và tiếp tục với kết nối còn khả dụng; còn một thì chạy đơn. Không tự bật lại hoặc gửi lại khi mở app.
 
@@ -65,7 +66,7 @@ dotnet build MultiAgentHub.slnx -c Release
 ./scripts/build-desktop.ps1 -Zip -CreateShortcut -SkipTests
 ```
 
-EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.2.0 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình.
+EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.3.0 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình hoặc đo hiệu năng chuyển chat.
 
 ## Dữ liệu và Git
 

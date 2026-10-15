@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.3.0 — 2026-10-15
+
+- Menu chuột phải project: Ghim/Bỏ ghim, Chỉnh sửa tên hiển thị, Mục (chọn/tạo mục), Mở trong File Explorer, Lưu trữ/khôi phục các cuộc trò chuyện và Gỡ dự án. Có icon và đường phân cách; menu dùng được qua Shift+F10/phím Menu.
+- Tên, ghim, mục và dấu gỡ project lưu riêng trong cấu hình Hub. Gỡ không xóa thư mục, job JSON hay TXT; project không tự xuất hiện lại từ lịch sử. Thêm lại cùng đường dẫn khôi phục tổ chức cũ. Lưu trữ hàng loạt chỉ đổi metadata của đúng project.
+- Chuyển hội thoại đọc file ở nền, hủy yêu cầu cũ khi chọn chat khác và bỏ kết quả trễ. Cache tối đa 4 bộ dữ liệu theo thời gian sửa metadata; giữ 3 vùng chat native cùng vị trí đọc để chuyển lại không dựng lại RichEdit.
+- Không xóa/dựng lại sidebar hay màn hình chào khi chỉ chuyển chat khác project. Nhật ký/câu trả lời riêng chỉ dựng khi mở Chi tiết; không cập nhật control chi tiết ẩn theo mỗi snapshot.
+- Tải 32 tin gần nhất trước, bấm Hiển thị tin nhắn cũ để tải thêm; dữ liệu hội thoại/TXT vẫn đầy đủ. Chưa kiểm tra màn hình/chức năng hoặc đo hiệu năng thực tế cục bộ.
+
 ## 5.2.0 — 2026-10-15
 
 - Thêm Dò công cụ & model: tìm CLI thực sự đã cài và liệt kê kết nối API đã cấu hình. Mở lần đầu quản lý agent trống sẽ dẫn vào màn hình dò; kết quả chỉ là lựa chọn, không tự tạo hay bật agent.
