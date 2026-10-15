@@ -121,17 +121,21 @@ internal sealed class MainWindow : Form
 
         var add = Ui.Flow();
         add.Controls.AddRange([Ui.Label("Công cụ AI", true), addProvider, Ui.Label("Kết nối", true), addConnection, Ui.Label("Số lượng", true), count]);
-        addButton = Ui.Button("+ Thêm agent", (_, _) => AddAgents(), true); add.Controls.AddRange([addButton, info]); agents.Controls.Add(add, 0, 0);
+        addButton = Ui.Button("+ Thêm agent", (_, _) => AddAgents(), true);
+        var discover = Ui.Button("Dò công cụ & model", (_, _) => DiscoverAgents());
+        add.Controls.AddRange([discover, addButton, info]); agents.Controls.Add(add, 0, 0);
         addConnection.DropDownWidth = 340; addProvider.DropDownWidth = 220; mode.DropDownWidth = 250;
         Ui.Choices(addProvider, new[] { new Choice("", "Chọn công cụ AI…") }.Concat(Catalog.Providers));
         addProvider.AccessibleName = "Công cụ AI"; addConnection.AccessibleName = "Cách kết nối"; count.AccessibleName = "Số lượng agent";
         void ChooseProvider() {
             string provider = Ui.Value(addProvider);
-            Ui.Choices(addConnection, provider.Length > 0 ? Catalog.Connections(provider) : []);
+            var connections = provider.Length > 0 ? Catalog.Connections(provider) : [];
+            string detected = connections.FirstOrDefault(c => c.Id is "codex-cli" or "claude-cli" or "agy-cli" && AgentDiscovery.FindExecutable(new() { Provider = provider, Connection = c.Id }) != null)?.Id ?? "";
+            Ui.Choices(addConnection, new[] { new Choice("", "Chọn kiểu kết nối…") }.Concat(connections), detected);
             UpdateAddAvailability();
         }
         addProvider.SelectedIndexChanged += (_, _) => ChooseProvider(); ChooseProvider();
-        locked.AddRange([addProvider, addConnection, count, addButton]);
+        locked.AddRange([addProvider, addConnection, count, addButton, discover]);
 
         grid.Dock = DockStyle.Fill; grid.BackgroundColor = Color.White; grid.BorderStyle = BorderStyle.None; grid.RowHeadersVisible = false;
         grid.AllowUserToAddRows = grid.AllowUserToDeleteRows = grid.AllowUserToResizeRows = false; grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
@@ -278,7 +282,11 @@ internal sealed class MainWindow : Form
         dialog.Controls.Add(panel);
         try { dialog.ShowDialog(this); } finally { dialog.Controls.Remove(panel); }
     }
-    private void OpenAgents() => ShowPanel(agentPanel, "Agent & model", 1220, 640);
+    private void OpenAgents()
+    {
+        if (config.Agents.Count == 0 && !runner.Busy) DiscoverAgents();
+        ShowPanel(agentPanel, "Agent & model", 1220, 640);
+    }
     private void OpenDetails() => ShowPanel(detailPanel, "Chi tiết phiên • câu trả lời / nhật ký / prompt", 1200, 760);
     private void OpenBoard()
     {
@@ -400,6 +408,18 @@ internal sealed class MainWindow : Form
         if (runner.Busy || Selected is not { } selected) return; using var dialog = new AgentEditor(selected, secrets);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         var next = CopyConfig(); next.Agents[next.Agents.FindIndex(a => a.Id == selected.Id)] = dialog.Result; Commit(next, selected.Id); status.Text = "Đã lưu cấu hình agent. Đánh dấu Chạy để đưa agent vào tác vụ.";
+    });
+    private void DiscoverAgents() => Protect(() => {
+        if (runner.Busy) return;
+        Form owner = agentPanel.FindForm() ?? this;
+        using var discovery = new AgentDiscoveryDialog(config.Agents, secrets);
+        if (discovery.ShowDialog(owner) != DialogResult.OK || discovery.Selected is not { } found) return;
+        if (!found.Existing && config.Agents.Count >= Catalog.MaxAgents) throw new ArgumentException($"Tối đa {Catalog.MaxAgents} agent.");
+        using var editor = new AgentEditor(found.Agent, secrets, found.Inventory);
+        if (editor.ShowDialog(owner) != DialogResult.OK) return;
+        var next = CopyConfig(); int existing = next.Agents.FindIndex(a => a.Id == editor.Result.Id);
+        if (existing >= 0) next.Agents[existing] = editor.Result; else next.Agents.Add(editor.Result);
+        Commit(next, editor.Result.Id); status.Text = "Đã lưu agent bạn chọn từ kết quả dò. Bật Chạy để sử dụng; agent đang tắt không tự bật lại.";
     });
     private void Duplicate() => Protect(() => {
         if (runner.Busy || Selected is not { } agent) return; if (config.Agents.Count >= Catalog.MaxAgents) throw new ArgumentException("Đã đạt giới hạn agent.");

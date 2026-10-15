@@ -15,11 +15,13 @@ internal sealed class AgentEditor : Form
     private readonly Dictionary<Control, (TableLayoutPanel Table, int Row, int Height)> rows = [];
     private readonly CancellationTokenSource lifetime = new();
     private readonly Dictionary<string, DraftValues> drafts = [];
+    private CancellationTokenSource? inspection;
+    private int inspectionVersion;
     private string activeKey = "";
     private bool initializing = true, loading;
     public AgentConfig Result { get; private set; }
 
-    public AgentEditor(AgentConfig agent, ISecretStore secrets)
+    public AgentEditor(AgentConfig agent, ISecretStore secrets, ModelInventory? discovered = null)
     {
         SuspendLayout(); AutoScaleMode = AutoScaleMode.None;
         original = agent.Copy(); Result = agent.Copy(); this.secrets = secrets;
@@ -29,7 +31,7 @@ internal sealed class AgentEditor : Form
         StartPosition = FormStartPosition.CenterParent; MinimizeBox = MaximizeBox = false;
         if (Ui.AppIcon != null) Icon = Ui.AppIcon;
         var outer = Ui.Table(); outer.Padding = new Padding(16); outer.RowCount = 3;
-        outer.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); outer.RowStyles.Add(new RowStyle(SizeType.Absolute, 54)); outer.RowStyles.Add(new RowStyle(SizeType.AutoSize)); Controls.Add(outer);
+        outer.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); outer.RowStyles.Add(new RowStyle(SizeType.Absolute, 76)); outer.RowStyles.Add(new RowStyle(SizeType.AutoSize)); Controls.Add(outer);
         var tabs = new TabControl { Dock = DockStyle.Fill, Padding = new Point(16, 8) }; outer.Controls.Add(tabs, 0, 0);
         AddTab("Agent & model", fields); AddTab("Cấu hình kết nối", connectionFields);
         void AddTab(string title, TableLayoutPanel table)
@@ -60,13 +62,19 @@ internal sealed class AgentEditor : Form
         RefreshConnection(); initializing = false;
         provider.SelectedIndexChanged += (_, _) => {
             if (initializing) return; StoreDraft(); initializing = true;
-            Ui.Choices(connection, Catalog.Connections(Ui.Value(provider))); initializing = false; RefreshConnection();
+            string selectedProvider = Ui.Value(provider);
+            var choices = Catalog.Connections(selectedProvider);
+            string detected = choices.FirstOrDefault(c => c.Id is "codex-cli" or "claude-cli" or "agy-cli" && AgentDiscovery.FindExecutable(new() { Provider = selectedProvider, Connection = c.Id }) != null)?.Id ?? "";
+            Ui.Choices(connection, new[] { new Choice("", "Chọn cách kết nối…") }.Concat(choices), detected); initializing = false; RefreshConnection();
         };
         connection.SelectedIndexChanged += (_, _) => { if (!initializing && connection.SelectedIndex >= 0) { StoreDraft(); RefreshConnection(); } };
         model.SelectedIndexChanged += (_, _) => RefreshEffort(); model.TextChanged += (_, _) => RefreshEffort();
         showKey.CheckedChanged += (_, _) => key.UseSystemPasswordChar = !showKey.Checked;
         loadModels.Click += async (_, _) => await Inspect(true); check.Click += async (_, _) => await Inspect(false); save.Click += (_, _) => Save();
-        FormClosed += (_, _) => { lifetime.Cancel(); lifetime.Dispose(); };
+        command.Leave += async (_, _) => await AutoModels();
+        endpoint.Leave += async (_, _) => await AutoModels(); key.Leave += async (_, _) => await AutoModels(); variable.Leave += async (_, _) => await AutoModels();
+        Shown += async (_, _) => { if (discovered != null) ApplyModels(discovered); else await AutoModels(); };
+        FormClosed += (_, _) => { CancelInspection(); lifetime.Cancel(); lifetime.Dispose(); };
         float scale = DeviceDpi / 96f;
         outer.Scale(new SizeF(scale, scale)); MinimumSize = new Size((int)(660 * scale), (int)(600 * scale));
         Ui.Theme(this); AutoScaleDimensions = new SizeF(DeviceDpi, DeviceDpi); AutoScaleMode = AutoScaleMode.Dpi; ResumeLayout(true);
@@ -95,9 +103,11 @@ internal sealed class AgentEditor : Form
     }
     private void RefreshConnection()
     {
+        CancelInspection();
         string kind = Ui.Value(connection); activeKey = Ui.Value(provider) + "/" + kind;
-        bool api = Catalog.IsApi(kind), manual = Catalog.IsManual(kind), executable = !api && kind != "manual";
+        bool api = Catalog.IsApi(kind), manual = Catalog.IsManual(kind), executable = kind.Length > 0 && !api && kind != "manual";
         help.Text = kind switch {
+            "" => "Chọn cách kết nối. CLI đã cài được ưu tiên phát hiện; IDE/app dùng luồng dán kết quả thủ công.",
             "codex-cli" => "Codex CLI chạy trên project và trả kết quả trực tiếp. Dùng tài khoản đã đăng nhập. Để model trống để dùng cấu hình CLI.",
             "claude-cli" => "Claude Code chạy trực tiếp. Nhập alias sonnet/opus/haiku hoặc model ID. Plan để phân tích, acceptEdits để sửa file theo quyền CLI.",
             "agy-cli" => "Antigravity CLI (agy) dùng tài khoản đã đăng nhập. Chạy ngầm không hiện hộp xin phép: default/Plan/Accept edits có thể chặn terminal. Đọc file bằng công cụ tích hợp; lệnh cần permissions.allow hoặc Toàn quyền.",
@@ -125,7 +135,11 @@ internal sealed class AgentEditor : Form
         RefreshEffort(values.Effort);
         command.Text = values.Command; arguments.Text = values.Arguments; endpoint.Text = values.Endpoint; variable.Text = values.Variable; key.Text = values.Key; deleteKey.Checked = values.DeleteKey;
         credentialStatus.Text = secrets.Read(original.Id).Length > 0 ? "Có key trong Windows Credential Manager. Để trống API key mới để giữ nguyên." : "Chưa lưu key riêng. Có thể nhập key hoặc dùng biến môi trường.";
-        status.Text = "";
+        status.Text = kind.Length == 0 ? "Chọn cách kết nối để cấu hình." : executable ? AgentDiscovery.FindExecutable(new() { Connection = kind, Command = command.Text.Trim() }) is { } binary ? "Đã tìm thấy: " + binary : "Chưa tìm thấy executable. Chọn file .exe hoặc cài công cụ rồi mở lại thiết lập." : "";
+        if (Visible && !initializing) {
+            string requested = activeKey;
+            BeginInvoke((Action)(async () => { if (!IsDisposed && requested == activeKey) await AutoModels(); }));
+        }
     }
     private void RefreshEffort(string? selected = null)
     {
@@ -136,7 +150,7 @@ internal sealed class AgentEditor : Form
     private void Browse()
     {
         using var dialog = new OpenFileDialog { Filter = "Executable (*.exe)|*.exe", CheckFileExists = true };
-        if (dialog.ShowDialog(this) == DialogResult.OK) command.Text = dialog.FileName;
+        if (dialog.ShowDialog(this) == DialogResult.OK) { command.Text = dialog.FileName; _ = AutoModels(); }
     }
     private AgentConfig Draft()
     {
@@ -147,54 +161,47 @@ internal sealed class AgentEditor : Form
         agent.Endpoint = endpoint.Enabled ? endpoint.Text.Trim() : ""; agent.KeyEnvironment = variable.Enabled ? variable.Text.Trim() : "";
         Catalog.Validate(agent); return agent;
     }
+    private void CancelInspection()
+    {
+        inspectionVersion++; inspection?.Cancel(); inspection = null; loading = false;
+        if (!IsDisposed) { check.Enabled = true; loadModels.Enabled = Catalog.IsApi(Ui.Value(connection)) || Ui.Value(connection) is "codex-cli" or "claude-cli" or "agy-cli"; }
+    }
+    private async Task AutoModels()
+    {
+        if (IsDisposed || Disposing || initializing || loading) return;
+        string kind = Ui.Value(connection);
+        if (kind is "codex-cli" or "claude-cli" or "agy-cli" || Catalog.IsApi(kind)) await Inspect(true);
+    }
+    private void ApplyModels(ModelInventory inventory)
+    {
+        string selected = model.Text;
+        model.BeginUpdate();
+        try { model.Items.Clear(); model.Items.AddRange(inventory.Models.Cast<object>().ToArray()); model.Text = selected; }
+        finally { model.EndUpdate(); }
+        status.Text = $"{inventory.Source} • {inventory.Models.Count} model\n{inventory.Detail}";
+        Ui.Hint(status, status.Text); RefreshEffort();
+    }
     private async Task Inspect(bool populate)
     {
-        if (loading) return;
-        try
-        {
-            var draft = Draft(); loading = true; loadModels.Enabled = check.Enabled = save.Enabled = provider.Enabled = connection.Enabled = false;
-            status.Text = "Đang kiểm tra…";
-            if (Catalog.IsApi(draft.Connection))
-            {
-                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
-                var list = await new ApiTransport(new PreviewSecrets(secrets, draft.Id, key.Text.Trim(), deleteKey.Checked)).Models(draft, timeout.Token);
-                if (populate) { string selected = model.Text; model.Items.Clear(); model.Items.AddRange(list.Cast<object>().ToArray()); model.Text = selected; }
-                status.Text = $"API kết nối thành công • {list.Count} model. Có thể nhập model ID trực tiếp.";
-            }
-            else if (Catalog.IsManual(draft.Connection))
-            {
-                string? binary = ProcessTransport.Find(draft);
-                status.Text = draft.Connection == "manual" ? "Luồng sao chép / dán sẵn sàng." : binary != null ? "Đã tìm thấy: " + binary : "Chưa tìm thấy ứng dụng; có thể chọn .exe hoặc sao chép prompt thủ công.";
-            }
-            else
-            {
-                string binary = ProcessTransport.Find(draft) ?? throw new FileNotFoundException("Chưa tìm thấy CLI. Cài công cụ rồi mở lại Hub hoặc chọn executable .exe.");
-                if (draft.Connection == "agy-cli")
-                {
-                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
-                    var list = await AntigravityModels.Load(draft, timeout.Token);
-                    if (populate) { string selected = model.Text; model.Items.Clear(); model.Items.AddRange(list.Cast<object>().ToArray()); model.Text = selected; }
-                    bool selectedModel = draft.Model.Length == 0 || list.Contains(draft.Model);
-                    status.Text = $"Antigravity trả {list.Count} model • {(selectedModel ? "model hợp lệ" : "model đã chọn không có trong danh sách")}. Chưa kiểm tra quota/quyền công cụ.";
-                }
-                else if (draft.Connection != "custom-cli")
-                {
-                    var output = new System.Text.StringBuilder();
-                    using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(15));
-                    await ProcessTransport.Run(new(binary, ["--version"], ""), Path.GetTempPath(), s => output.Append(s), s => output.Append(s), timeout.Token);
-                    status.Text = "CLI sẵn sàng: " + output.ToString().Trim() + ". Tài khoản cần đăng nhập trước khi chạy.";
-                }
-                else status.Text = "Đã tìm thấy executable: " + binary;
-                if (populate && draft.Connection != "agy-cli") {
-                    var list = LocalModels.Read(draft);
-                    string selected = model.Text; model.Items.Clear(); model.Items.AddRange(list.Cast<object>().ToArray()); model.Text = selected;
-                    status.Text = $"CLI sẵn sàng • {list.Count} model. Có thể nhập model ID trực tiếp.";
-                }
+        CancelInspection(); int version = inspectionVersion;
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(30)); inspection = timeout;
+        try {
+            var draft = Draft(); loading = true; loadModels.Enabled = check.Enabled = false;
+            status.Text = "Đang dò công cụ/model… Bạn vẫn có thể đổi kết nối hoặc lưu cấu hình.";
+            var preview = new PreviewSecrets(secrets, draft.Id, key.Text.Trim(), deleteKey.Checked);
+            if (populate) {
+                if (!Catalog.IsApi(draft.Connection) && !Catalog.IsManual(draft.Connection) && ProcessTransport.Find(draft) == null)
+                    throw new FileNotFoundException("Chưa tìm thấy CLI. Chọn executable .exe hoặc dùng Dò công cụ & model trong Agent & model.");
+                var inventory = await AgentDiscovery.Models(draft, preview, timeout.Token);
+                if (!IsDisposed && version == inspectionVersion) ApplyModels(inventory);
+            } else {
+                var health = await AgentConnections.Inspect(draft, preview, timeout.Token);
+                if (!IsDisposed && version == inspectionVersion) { status.Text = health.Detail; Ui.Hint(status, health.Detail); }
             }
         }
-        catch (OperationCanceledException) { if (!IsDisposed) status.Text = "Kiểm tra đã dừng hoặc quá thời gian."; }
-        catch (Exception e) { if (!IsDisposed) status.Text = e.Message; }
-        finally { if (!IsDisposed) { loading = false; check.Enabled = save.Enabled = provider.Enabled = connection.Enabled = true; loadModels.Enabled = Catalog.IsApi(Ui.Value(connection)) || Ui.Value(connection) is "codex-cli" or "claude-cli" or "agy-cli"; } }
+        catch (OperationCanceledException) { if (!IsDisposed && version == inspectionVersion) status.Text = "Dò model đã dừng hoặc quá 30 giây. Có thể Dò/Tải lại."; }
+        catch (Exception e) { if (!IsDisposed && version == inspectionVersion) status.Text = e.Message; }
+        finally { if (!IsDisposed && version == inspectionVersion) { inspection = null; loading = false; check.Enabled = true; loadModels.Enabled = Catalog.IsApi(Ui.Value(connection)) || Ui.Value(connection) is "codex-cli" or "claude-cli" or "agy-cli"; } }
     }
     private void Save()
     {

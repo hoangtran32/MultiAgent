@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.1.11
+# Hướng dẫn Multi-Agent Hub 5.2.0
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
@@ -23,6 +23,10 @@ Giới hạn mặc định: **30 lần gọi, 120 phút, 12 task, 2 vòng sửa/
 Hướng dẫn nhóm: [TEAM_USER_GUIDE.md](TEAM_USER_GUIDE.md). Kiến trúc và phát triển tiếp: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Giao diện hội thoại
+
+Trong **Agent & model → Dò công cụ & model**, Hub tự tìm CLI đã cài, lấy danh sách model và ghi nguồn. Quản lý agent trống mở màn hình dò trước. Chọn kết quả rồi Lưu để tạo/cập nhật agent; kết quả dò và tài khoản không tự được thêm/bật. Nút Dò lại cập nhật kết quả. API chỉ dò các endpoint đã cấu hình, không tìm tài khoản/API key trên máy. CLI tùy chỉnh không có giao thức model chung nên vẫn nhập ID/đối số nếu cần.
+
+Thiết lập agent tự dò model khi mở/đổi kết nối; vẫn đổi kết nối hoặc lưu trong lúc dò. Antigravity dùng `agy models`; Codex đọc cache model; Claude đọc model khai báo trong cấu hình/biến môi trường thay vì gợi ý sonnet/opus/haiku cố định. Nguồn cục bộ không chứng minh model còn quyền truy cập; không có danh sách thì giữ lựa chọn đã nhập hoặc dùng mặc định CLI. Không gửi prompt suy luận để dò. Agent đang tắt do quota không tự bật lại. Khi phiên đang chạy/chờ dán, cần dừng phiên trước khi thay cấu hình agent; không tự chuyển hoặc chạy lại lượt cũ.
 
 Bản 5.1 dùng giao diện sáng theo bố cục Codex: thanh biểu tượng bên trái, project và hội thoại gần đây, nội dung giữa màn hình không có khung tab. Chuyển **Hub Code / Hub Chat** tại đầu thanh bên. Tìm kiếm mở từ biểu tượng kính lúp hoặc Ctrl+Shift+F. Tiêu đề dài tự rút gọn theo chiều rộng, di chuột để xem đầy đủ.
 

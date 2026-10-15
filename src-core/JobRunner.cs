@@ -271,7 +271,22 @@ public static class LocalModels
     }
     public static List<string> Read(AgentConfig agent)
     {
-        if (agent.Connection == "claude-cli") return ["sonnet", "opus", "haiku"];
+        if (agent.Connection == "claude-cli") {
+            var models = new List<string>();
+            string home = Environment.GetEnvironmentVariable("CLAUDE_CONFIG_DIR") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude");
+            foreach (string name in new[] { "settings.json", "settings.local.json" }) {
+                try {
+                    using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(home, name)));
+                    string model = doc.RootElement.Str("model"); if (model.Length > 0) models.Add(model);
+                    if (doc.RootElement.TryGetProperty("env", out var env) && env.ValueKind == JsonValueKind.Object)
+                        foreach (string key in new[] { "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL" })
+                            if (env.Str(key) is { Length: > 0 } configured) models.Add(configured);
+                } catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { }
+            }
+            foreach (string variable in new[] { "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL" })
+                if (Environment.GetEnvironmentVariable(variable) is { Length: > 0 } configured) models.Add(configured);
+            return models.Where(m => m.Length <= 120 && !m.Any(char.IsControl)).Distinct().Order().ToList();
+        }
         if (agent.Connection != "codex-cli") return [];
         try
         {

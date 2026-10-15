@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.2.0 — 2026-10-15
+
+- Thêm Dò công cụ & model: tìm CLI thực sự đã cài và liệt kê kết nối API đã cấu hình. Mở lần đầu quản lý agent trống sẽ dẫn vào màn hình dò; kết quả chỉ là lựa chọn, không tự tạo hay bật agent.
+- Model lấy từ `agy models`, cache Codex, cấu hình Claude hoặc API `/models`; ghi rõ nguồn và giới hạn xác minh. Bỏ gợi ý model Claude cố định. Không dùng inference để dò model.
+- Thiết lập agent tự dò executable/model khi mở hoặc đổi kết nối. Đổi kết nối hủy truy vấn cũ; bộ chọn và nút lưu vẫn sử dụng được khi dò, giữ model người dùng đang nhập.
+- Khi chọn provider, ưu tiên CLI đã phát hiện thay vì mặc định chọn IDE/thủ công. API/CLI tùy chỉnh và cách chọn executable trực tiếp vẫn được hỗ trợ.
+
 ## 5.1.11 — 2026-10-15
 
 - Hoàn tất layout và cập nhật giới hạn cuộn native trước khi khôi phục điểm đọc. Tin mới/streaming không còn nằm ngoài giới hạn cuộn cũ; tính vị trí cuối theo viewport thực tế.

@@ -8,8 +8,8 @@
 
 Tải `MultiAgentHub-<version>-win-x64.exe` từ mục Releases của repository rồi mở trực tiếp. Bản EXE có sẵn .NET runtime, không cần cài đặt. Nếu dùng bản ZIP, giải nén toàn bộ rồi mở `MultiAgentHub.exe`.
 
-1. Lần đầu app không có agent được cài sẵn. Bấm **Thêm agent của bạn** hoặc **Agent & model**.
-2. Chọn công cụ AI, kiểu kết nối và số lượng, rồi thêm agent.
+1. Lần đầu app không có agent được cài sẵn. Bấm **Thêm agent của bạn** hoặc **Agent & model** để dò công cụ đã cài và model.
+2. Chọn kết quả dò, cấu hình rồi lưu agent. Hoặc chọn công cụ AI, kiểu kết nối và số lượng để thêm thủ công. Kết quả dò không tự tạo/bật agent.
 3. Mở **Thiết lập / model** để chọn model, executable/API endpoint, key và quyền. CLI dùng tài khoản đã đăng nhập trên máy; API key lưu trong Windows Credential Manager.
 4. Bật **Chạy** cho agent đã cấu hình, chọn project và gửi yêu cầu bằng **Ctrl+Enter**.
 
@@ -27,6 +27,8 @@ Chỉ cần **một agent bất kỳ đã cấu hình** để chạy độc lậ
 | Công cụ khác | Executable/script CLI với đối số cấu hình, hoặc sao chép/dán |
 
 Danh sách trên là các adapter có sẵn để lựa chọn. CLI tùy chỉnh và API tương thích dùng được mà không cần sửa source. API thuần văn bản chưa có công cụ tự đọc/sửa filesystem hoặc chạy terminal. IDE/app thủ công cần dán kết quả về Hub và không tham gia phiên bàn luận/nhóm tự động.
+
+**Dò công cụ & model** tìm Codex/Claude/Antigravity CLI đã cài và các kết nối API/CLI tùy chỉnh đã cấu hình. Model có nguồn rõ ràng: `agy models`, cache Codex, cấu hình Claude hoặc API `/models`. Cache/cấu hình cục bộ không xác nhận model còn được cấp quyền; công cụ chưa cung cấp danh sách thì dùng mặc định CLI hoặc nhập ID. Không gợi ý ID model cố định, không gọi inference khi dò. Bộ chọn kết nối vẫn dùng được trong lúc tải model.
 
 ## Cách làm việc
 
@@ -63,7 +65,7 @@ dotnet build MultiAgentHub.slnx -c Release
 ./scripts/build-desktop.ps1 -Zip -CreateShortcut -SkipTests
 ```
 
-EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.1.11 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình.
+EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.2.0 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình.
 
 ## Dữ liệu và Git
 
