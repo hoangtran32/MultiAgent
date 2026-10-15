@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.3.3
+# Hướng dẫn Multi-Agent Hub 5.3.4
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
@@ -58,7 +58,7 @@ Khi **Bàn luận qua lại** đang chạy, bạn vẫn gõ/gửi bổ sung bằ
 
 **⋯ → Chạy lượt tiếp ngay** bỏ thời gian nghỉ. **⋯ → Kết thúc & tổng hợp** đợi lượt hiện tại xong, tổng hợp trong thời gian còn lại rồi mở gửi yêu cầu mới. Nút **Dừng** hủy ngay và giữ kết quả đã có. Trong lúc tổng hợp bạn vẫn soạn bản nháp, nút gửi bật lại khi phiên kết thúc. Không tự đổi các agent được chọn.
 
-Một model trả lời xong chưa kết thúc cả phiên bàn luận: mặc định nghỉ 600 giây giữa lượt để chạy dài. Trạng thái hiện thời gian nghỉ còn lại; sửa trong **Agent & model → Giới hạn bàn luận…** trước phiên mới. Chỉ bật những agent bạn muốn tham gia: tên Codex/Gemini trong câu trả lời không tự gọi thêm hoặc bật lại agent đang tắt.
+Một model trả lời xong chưa kết thúc cả phiên bàn luận: mặc định chạy liên tục, nghỉ 0 giây: model trả lời xong sẽ tự chuyển sang model/lượt kế tiếp mà không cần bạn nhắn thêm. Chỉ nghỉ khi bạn chủ động đặt số giây tại **Agent & model → Giới hạn bàn luận…**; hết nghỉ vẫn tự chạy tiếp. Mở/dùng lại hội thoại cũ giữ nhịp chạy hiện tại, không lấy lại khoảng nghỉ 600 giây từ bản ghi cũ. Chỉ bật những agent bạn muốn tham gia: tên Codex/Gemini trong câu trả lời không tự gọi thêm hoặc bật lại agent đang tắt.
 
 ## Chạy ứng dụng
 
@@ -107,7 +107,7 @@ Song song gửi cùng yêu cầu, kèm vai trò riêng. Pipeline gửi thêm k�
 Chọn các agent dùng **CLI/API**, chọn **Bàn luận qua lại**, mở **Agent & model → Giới hạn bàn luận…**, nhập chủ đề rồi gửi. Có thể dùng Codex CLI + Gemini API, Claude CLI + Antigravity CLI hoặc các model khác đã cấu hình. Codex CLI là một kết nối riêng với tài khoản trên máy; cuộc chat Codex hiện tại không tự tham gia. Model ID phụ thuộc quyền tài khoản, dùng **Tải model** trong thiết lập hoặc nhập ID hợp lệ.
 
 - **Số lượt** tính mỗi lần một model đóng góp, bao gồm lượt lỗi. Các model chạy lần lượt theo thứ tự danh sách, đọc ý kiến trước và phát triển/phản biện ý tưởng. Một model vẫn dùng được để tự phản biện.
-- **Thời gian** là giới hạn cả phiên; dành tối đa 2 phút cuối (10% với phiên ngắn) để tổng hợp. Phiên kết thúc khi chạm số lượt hoặc thời gian, điều kiện nào đến trước. Mẫu **8 giờ**: 48 lượt, tối đa 480 phút, nghỉ 600 giây giữa lượt; có thể kết thúc sớm hơn.
+- **Thời gian** là giới hạn cả phiên; dành tối đa 2 phút cuối (10% với phiên ngắn) để tổng hợp. Phiên kết thúc khi chạm số lượt hoặc thời gian, điều kiện nào đến trước. Mẫu **8 giờ • liên tục**: 48 lượt, tối đa 480 phút, nghỉ 0 giây giữa lượt; có thể kết thúc sớm hơn.
 - Mỗi lượt tối đa 10 phút và được giới hạn bởi thời gian còn lại. Cuối phiên có tối đa một lần thử tổng hợp cho mỗi agent còn khả dụng; tổng số lần gọi không vượt `số lượt + số agent`. Đây không phải giới hạn tiền/token. CLI/API tiêu thụ quota/chi phí theo tài khoản.
 - Hết quota: tự bỏ tích agent và tiếp tục với các model còn lại; còn một thì chạy đơn. Lỗi khác bỏ qua agent đó trong phiên để tránh lặp lỗi, không bỏ tích cấu hình. Hết tất cả agent thì kết thúc, không tự thử lại.
 - Mở tab **Hội thoại & tổng hợp** để xem toàn bộ lượt và **Tổng hợp buổi sáng**: ý tưởng tốt, điểm đồng thuận/bất đồng, giả định, rủi ro và cách kiểm chứng. Nếu dừng hoặc không model nào tổng hợp được, Hub tạo bản ghi trích nội dung đã có, ghi rõ chưa có tổng hợp từ model. Có thể xem lại trong lịch sử hoặc xuất Markdown.

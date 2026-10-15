@@ -23,6 +23,8 @@ tests-native/              Harness kiểm tra native hiện có
 scripts/                   Build/publish/đóng gói
 ```
 
+Bàn luận mặc định liên tục từ 5.3.4 (PauseSeconds=0); preset 8 giờ cũng không thêm nghỉ. RestoreDiscussionLimits giữ nhịp chạy hiện tại khi mở/dùng lại job cũ, chỉ lấy lại giới hạn lượt/thời gian. Các mode CLI/API còn lại chuyển bước sau kết quả mà không chèn timer nghỉ.
+
 Bàn luận 5.3.3: DiscussionControl dùng tín hiệu đồng bộ để đánh thức thời gian nghỉ hoặc yêu cầu kết thúc sau lượt; không hủy token của lượt model. JobRunner nhận bổ sung và ghi checkpoint trong cùng khóa với snapshot engine. DiscussionTurn.Kind=user có ID ổn định, không tăng số lượt model; gửi vào prompt kế tiếp/tổng hợp và lưu trong export/ngữ cảnh tiếp tục. UI giữ composer nhập được, chỉ khóa gửi lúc tổng hợp/kết thúc; không tạo lượt ngoài ngân sách.
 
 Desktop phụ thuộc Core. Core không phụ thuộc WinForms. IAgentExecutor là ranh giới gọi model, cho phép thêm adapter mà không đưa logic nhà cung cấp vào bàn tròn. Chưa thêm framework bên ngoài.

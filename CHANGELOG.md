@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.3.4 — 2026-10-16
+
+- Bàn luận mặc định chạy liên tục (nghỉ 0 giây), tự chuyển model/lượt sau khi có kết quả; không cần người dùng gửi bổ sung. Mẫu 8 giờ cũng không chèn nghỉ. Giới hạn lượt/thời gian và quota vẫn có hiệu lực.
+- Ô nghỉ được ghi rõ là tùy chọn, 0 = liên tục. Khi mở/dùng lại hội thoại cũ, giữ nhịp chạy hiện tại thay vì khôi phục khoảng nghỉ 600 giây từ lịch sử; số lượt/thời gian cũ vẫn khôi phục.
+- Các luồng CLI/API Song song, Lần lượt, Cùng làm và Bàn tròn không chèn thời gian nghỉ giữa các bước. Kết nối dán kết quả thủ công vẫn cần người dùng cung cấp kết quả.
+- Ca hồi quy luân phiên model dùng cấu hình nghỉ mặc định và timeout để phát hiện việc chờ tin nhắn/đợi 600 giây trở lại. Chỉ biên dịch/đóng gói cục bộ, không chạy test màn hình hoặc chức năng theo yêu cầu.
+
 ## 5.3.3 — 2026-10-15
 
 - Bàn luận vẫn nhập/gửi bổ sung được khi model đang chạy hoặc nghỉ giữa lượt. Gửi bổ sung đánh thức thời gian nghỉ, áp dụng từ lượt tiếp theo, không hủy câu trả lời đang chạy; giới hạn 12.000 ký tự/bổ sung và 100 bổ sung/phiên.

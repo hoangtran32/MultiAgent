@@ -300,8 +300,10 @@ try
         var first = Agent("codex", "codex-cli", "Proposer"); first.Model = "alpha"; first.Permission = "full";
         var second = Agent("gemini", "gemini-api", "Critic"); second.Model = "beta";
         var store = Store(); var fixture = new DiscussionFixture(); var runner = new JobRunner(fixture, store);
-        var config = new HubConfig { Project = root, Mode = "discussion", Agents = [first, second], Discussion = new() { MaxTurns = 4, DurationMinutes = 10, PauseSeconds = 0 } };
-        runner.Start(config, "Original topic", "Attached context"); config.Discussion.MaxTurns = 400; await runner.Completion!;
+        var config = new HubConfig { Project = root, Mode = "discussion", Agents = [first, second], Discussion = new() { MaxTurns = 4, DurationMinutes = 10 } };
+        runner.Start(config, "Original topic", "Attached context"); config.Discussion.MaxTurns = 400;
+        try { await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10)); }
+        finally { runner.Cancel(); await runner.Completion!; }
         var job = runner.Snapshot()!;
         Assert(fixture.Calls.Select(c => c.Model).SequenceEqual(new[] { "alpha", "beta", "alpha", "beta", "alpha" }));
         Assert(fixture.Calls.Where(c => c.Model == "alpha").All(c => c.Permission == "full") && first.Permission == "full");

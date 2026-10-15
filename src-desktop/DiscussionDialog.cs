@@ -20,10 +20,13 @@ internal sealed class DiscussionDialog : Form
         }
         var turns = Number("Số lượt thảo luận tối đa", 1, 1, 400, options.MaxTurns);
         var minutes = Number("Thời gian tối đa (phút)", 2, 1, 1440, options.DurationMinutes);
-        var pause = Number("Nghỉ giữa lượt (giây)", 3, 0, 3600, options.PauseSeconds);
+        var pause = Number("Nghỉ tùy chọn (giây, 0 = liên tục)", 3, 0, 3600, options.PauseSeconds);
+        Ui.Hint(pause, "Mặc định 0: model trả lời xong là chuyển ngay sang model kế tiếp, không cần bạn nhắn thêm. Chỉ tăng khi bạn chủ động muốn giãn các lượt.");
         var estimate = Ui.Label(""); estimate.AutoSize = false; estimate.Dock = DockStyle.Fill;
         root.Controls.Add(estimate, 0, 4); root.SetColumnSpan(estimate, 2);
-        void UpdateEstimate() => estimate.Text = $"{agentCount} agent được chọn • tối đa {(int)turns.Value + agentCount} lần gọi (gồm lượt lỗi và thử tổng hợp).\nNghỉ {(int)pause.Value}s sau mỗi lượt; model trả lời xong chưa có nghĩa phiên kết thúc.\nGửi bổ sung để tiếp tục ngay; ⋯ → Kết thúc & tổng hợp để kết thúc sớm.";
+        void UpdateEstimate() => estimate.Text = $"{agentCount} agent được chọn • tối đa {(int)turns.Value + agentCount} lần gọi (gồm lượt lỗi và thử tổng hợp).\n" +
+            (pause.Value == 0 ? "Chạy liên tục: tự chuyển model/lượt kế tiếp, không cần tin nhắn bổ sung." : $"Bạn chọn nghỉ {(int)pause.Value}s sau mỗi lượt; hết nghỉ sẽ tự chạy tiếp.") +
+            "\n⋯ → Kết thúc & tổng hợp để kết thúc sớm.";
         turns.ValueChanged += (_, _) => UpdateEstimate(); pause.ValueChanged += (_, _) => UpdateEstimate(); UpdateEstimate();
         var note = Ui.Label("Model lần lượt đọc ý kiến trước, đề xuất, phản biện và đưa cách kiểm chứng. Khi chỉ còn một model, nó tiếp tục tự phản biện.\n\nHub Code giữ nguyên quyền từng agent, kể cả toàn quyền, trong mọi lượt. Agent dùng công cụ theo yêu cầu; không tự triển khai ý tưởng chưa được yêu cầu. Hub Chat chỉ trao đổi văn bản. API thuần văn bản không tự đọc thư mục trên máy.\n\nCần CLI/API để tự động; CLI tùy chỉnh tự quản lý quyền. IDE/app dán kết quả không tham gia.\n\nGiữ Hub mở và máy không sleep. Lưu sau từng lượt; mở lại thư viện để xem hoặc tiếp tục, không tự chạy lại.\n\nGiới hạn lượt không phải giới hạn tiền/token; dùng quota hoặc chi phí của tài khoản bạn.");
         note.AutoSize = false; note.Dock = DockStyle.Fill; root.Controls.Add(note, 0, 5); root.SetColumnSpan(note, 2);
@@ -31,7 +34,7 @@ internal sealed class DiscussionDialog : Form
             Result = new() { MaxTurns = (int)turns.Value, DurationMinutes = (int)minutes.Value, PauseSeconds = (int)pause.Value };
             Result.Validate(); DialogResult = DialogResult.OK;
         }, true);
-        var preset = Ui.Button("Mẫu 8 giờ", (_, _) => { turns.Value = 48; minutes.Value = 480; pause.Value = 600; });
+        var preset = Ui.Button("Mẫu 8 giờ • liên tục", (_, _) => { turns.Value = 48; minutes.Value = 480; pause.Value = 0; });
         var cancel = Ui.Button("Hủy", (_, _) => DialogResult = DialogResult.Cancel);
         actions.Controls.AddRange([preset, save, cancel]); root.Controls.Add(actions, 0, 6); root.SetColumnSpan(actions, 2); AcceptButton = save; CancelButton = cancel;
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));

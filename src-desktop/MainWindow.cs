@@ -528,6 +528,13 @@ internal sealed partial class MainWindow : Form
         status.Text = "Cuộc trò chuyện mới. Đặt tên topic hoặc để Hub lấy tên từ yêu cầu đầu tiên."; prompt.Focus();
     }
     private void CancelConversationLoad() { conversationLoadVersion++; conversationLoad?.Cancel(); conversationLoad = null; conversationLoading = false; }
+    private DiscussionOptions RestoreDiscussionLimits(DiscussionOptions? saved)
+    {
+        var options = saved?.Copy() ?? config.Discussion.Copy();
+        // Old transcripts describe their earlier schedule; retain the user's current pacing preference.
+        options.PauseSeconds = config.Discussion.PauseSeconds;
+        return options;
+    }
     private void OpenConversation(ConversationInfo info) => _ = OpenConversationAsync(info);
     private async Task OpenConversationAsync(ConversationInfo info, bool focus = false)
     {
@@ -550,7 +557,7 @@ internal sealed partial class MainWindow : Form
             contextFile = null; attachment.Text = "Không đính kèm file";
             updating = true;
             try {
-                config.Discussion = continueFrom.Discussion?.Copy() ?? config.Discussion; config.Team = continueFrom.Team?.Options.Copy() ?? config.Team;
+                config.Discussion = RestoreDiscussionLimits(continueFrom.Discussion); config.Team = continueFrom.Team?.Options.Copy() ?? config.Team;
                 config.Surface = continueFrom.Surface; config.Mode = continueFrom.Mode;
                 if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode;
                 surface.SelectedItem = surface.Items.Cast<Choice>().First(c => c.Id == config.Surface);
@@ -675,7 +682,7 @@ internal sealed partial class MainWindow : Form
         if (runner.Busy) return; var job = displayed ?? history.SelectedItem as JobRecord; if (job == null) return;
         CancelConversationLoad();
         if (Directory.Exists(job.Project)) SetProject(job.Project); prompt.Text = job.Prompt; prompt.Focus();
-        if (job.Mode == "discussion") { config.Discussion = job.Discussion?.Copy() ?? new(); mode.SelectedItem = mode.Items.Cast<Choice>().First(c => c.Id == "discussion"); Save(); UpdateSummary(); }
+        if (job.Mode == "discussion") { config.Discussion = RestoreDiscussionLimits(job.Discussion); mode.SelectedItem = mode.Items.Cast<Choice>().First(c => c.Id == "discussion"); Save(); UpdateSummary(); }
         status.Text = "Đã điền lại yêu cầu. Kiểm tra agent/model và file đính kèm trước khi chạy.";
     });
     private void ExportJob() => Protect(() => {

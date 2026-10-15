@@ -146,7 +146,7 @@ public sealed class DiscussionOptions
 {
     public int MaxTurns { get; set; } = 48;
     public int DurationMinutes { get; set; } = 480;
-    public int PauseSeconds { get; set; } = 600;
+    public int PauseSeconds { get; set; } = 0;
     public void Validate()
     {
         if (MaxTurns is < 1 or > 400 || DurationMinutes is < 1 or > 1440 || PauseSeconds is < 0 or > 3600)
