@@ -23,8 +23,8 @@ internal sealed class DiscussionDialog : Form
         var pause = Number("Nghỉ giữa lượt (giây)", 3, 0, 3600, options.PauseSeconds);
         var estimate = Ui.Label(""); estimate.AutoSize = false; estimate.Dock = DockStyle.Fill;
         root.Controls.Add(estimate, 0, 4); root.SetColumnSpan(estimate, 2);
-        void UpdateEstimate() => estimate.Text = $"{agentCount} agent được chọn • tối đa {(int)turns.Value + agentCount} lần gọi (gồm lượt lỗi và thử tổng hợp).\nDừng khi chạm số lượt hoặc thời gian; dành tối đa 2 phút cuối để tổng hợp.";
-        turns.ValueChanged += (_, _) => UpdateEstimate(); UpdateEstimate();
+        void UpdateEstimate() => estimate.Text = $"{agentCount} agent được chọn • tối đa {(int)turns.Value + agentCount} lần gọi (gồm lượt lỗi và thử tổng hợp).\nNghỉ {(int)pause.Value}s sau mỗi lượt; model trả lời xong chưa có nghĩa phiên kết thúc.\nGửi bổ sung để tiếp tục ngay; ⋯ → Kết thúc & tổng hợp để kết thúc sớm.";
+        turns.ValueChanged += (_, _) => UpdateEstimate(); pause.ValueChanged += (_, _) => UpdateEstimate(); UpdateEstimate();
         var note = Ui.Label("Model lần lượt đọc ý kiến trước, đề xuất, phản biện và đưa cách kiểm chứng. Khi chỉ còn một model, nó tiếp tục tự phản biện.\n\nHub Code giữ nguyên quyền từng agent, kể cả toàn quyền, trong mọi lượt. Agent dùng công cụ theo yêu cầu; không tự triển khai ý tưởng chưa được yêu cầu. Hub Chat chỉ trao đổi văn bản. API thuần văn bản không tự đọc thư mục trên máy.\n\nCần CLI/API để tự động; CLI tùy chỉnh tự quản lý quyền. IDE/app dán kết quả không tham gia.\n\nGiữ Hub mở và máy không sleep. Lưu sau từng lượt; mở lại thư viện để xem hoặc tiếp tục, không tự chạy lại.\n\nGiới hạn lượt không phải giới hạn tiền/token; dùng quota hoặc chi phí của tài khoản bạn.");
         note.AutoSize = false; note.Dock = DockStyle.Fill; root.Controls.Add(note, 0, 5); root.SetColumnSpan(note, 2);
         var actions = Ui.Flow(); var save = Ui.Button("Lưu cài đặt", (_, _) => {
@@ -64,6 +64,8 @@ internal sealed class DiscussionView
     {
         status.Text = $"{job.Turns.Count(t => t.Kind == "discussion")}/{job.Discussion?.MaxTurns} lượt • {(job.ReportByModel ? "Đã có tổng hợp từ model" : "Lưu sau từng lượt")}";
         Replace(report, job.Report.Length > 0 ? job.Report : "Bản tổng hợp sẽ xuất hiện khi kết thúc phiên.\n\nChủ đề: " + job.Prompt + "\n\nMở tab Cuộc trò chuyện để theo dõi từng lượt.");
-        Replace(transcript, string.Join("\n\n────────────────────────\n\n", job.Turns.Select(t => $"Lượt {t.Number} • {t.Name} • {t.Model}{(t.Kind == "summary" ? " • tổng hợp" : "")}\n{t.Timestamp.LocalDateTime:dd/MM HH:mm:ss} • {Ui.State(t.State)}\n\n{t.Text}{(t.Error.Length > 0 ? "\n\n" + t.Error : "")}")));
+        Replace(transcript, string.Join("\n\n────────────────────────\n\n", job.Turns.Select(t => t.Kind == "user" ?
+            $"Bạn bổ sung • {t.Timestamp.LocalDateTime:dd/MM HH:mm:ss} • {(t.State == "queued" ? "Chờ lượt kế tiếp" : "Đã gửi vào lượt " + t.Number)}\n\n{t.Text}" :
+            $"Lượt {t.Number} • {t.Name} • {t.Model}{(t.Kind == "summary" ? " • tổng hợp" : "")}\n{t.Timestamp.LocalDateTime:dd/MM HH:mm:ss} • {Ui.State(t.State)}\n\n{t.Text}{(t.Error.Length > 0 ? "\n\n" + t.Error : "")}")));
     }
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.3.3 — 2026-10-15
+
+- Bàn luận vẫn nhập/gửi bổ sung được khi model đang chạy hoặc nghỉ giữa lượt. Gửi bổ sung đánh thức thời gian nghỉ, áp dụng từ lượt tiếp theo, không hủy câu trả lời đang chạy; giới hạn 12.000 ký tự/bổ sung và 100 bổ sung/phiên.
+- Menu ⋯ có Chạy lượt tiếp ngay và Kết thúc & tổng hợp. Kết thúc sớm đợi lượt hiện tại rồi tổng hợp trong ngân sách đã đặt; nút Dừng vẫn hủy ngay. Khi đang tổng hợp, giữ ô nhập để soạn bản nháp, gửi tiếp khi phiên đã kết thúc.
+- Tin bổ sung có ID riêng, nằm bên phải, lưu JSON/TXT/Markdown và đưa vào ngữ cảnh khi tiếp tục. Chỉ lượt model tính vào số lượt; ghi rõ bổ sung đang chờ hay đã gửi vào lượt nào. Checkpoint bàn luận và nhận bổ sung dùng chung khóa để tránh snapshot cũ ghi đè tin vừa nhận.
+- Trạng thái hiện thời gian nghỉ còn lại và cách gửi để tiếp tục ngay; cài đặt giải thích hoàn tất một lượt khác kết thúc cả phiên. Không tự bật lại Codex hoặc agent hết quota.
+- Thêm 3 ca hồi quy cho gửi khi nghỉ, bỏ nghỉ/kết thúc sớm và giữ kết quả đang chạy khi tổng hợp. Chỉ biên dịch/đóng gói cục bộ; không chạy test chức năng hoặc màn hình theo yêu cầu.
+
 ## 5.3.2 — 2026-10-15
 
 - Hiển thị đường dẫn thư mục project ngay trên ô nhập, trong khung chat. Cập nhật theo folder đã chọn, chat mới và hội thoại cũ; tên hiển thị riêng của project không che mất đường dẫn thật.

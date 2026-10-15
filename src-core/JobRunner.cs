@@ -53,6 +53,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
     private readonly object gate = new();
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> replies = new();
     private readonly ConcurrentQueue<string> teamInstructions = new();
+    private DiscussionControl? discussionControl;
     private CancellationTokenSource? cancellation;
     private JobRecord? current;
     public Task? Completion { get; private set; }
@@ -85,6 +86,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
             if (cancellation != null) throw new InvalidOperationException("Đang có tác vụ chạy.");
             cancellation = new(); token = cancellation.Token;
             teamInstructions.Clear();
+            discussionControl = config.Mode == "discussion" ? new() : null;
             current = new() { Surface = config.Surface, Prompt = prompt, Project = config.Project, Mode = config.Mode, Discussion = config.Mode == "discussion" ? config.Discussion.Copy() : null,
                 Team = config.Mode == "team" ? new() { Options = config.Team.Copy() } : null,
                 ConversationId = previous == null ? Guid.NewGuid().ToString("N") : previous.ConversationId.Length > 0 ? previous.ConversationId : previous.Id,
@@ -155,7 +157,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
             try {
             storage.SaveConversationJob(Snapshot()!);
             if (job.Mode == "team") await Task.Run(() => new TeamEngine(executor, storage, teamInstructions).Run(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token));
-            else if (job.Mode == "discussion") await new DiscussionEngine(executor, storage, time).Run(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token);
+            else if (job.Mode == "discussion") await new DiscussionEngine(executor, storage, time).RunInteractive(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token, discussionControl!, () => Snapshot()!, CheckpointDiscussion);
             else if (job.Mode == "parallel") await Task.WhenAll(agents.Select((a, index) => Stage(index, "")));
             else
             {
@@ -191,7 +193,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         }
         finally
         {
-            lock (gate) { cancellation?.Dispose(); cancellation = null; }
+            lock (gate) { discussionControl?.Dispose(); discussionControl = null; cancellation?.Dispose(); cancellation = null; }
             foreach (string file in Directory.Exists(Path.Combine(storage.DataDir, "handoffs")) ? Directory.GetFiles(Path.Combine(storage.DataDir, "handoffs"), "native-" + job.Id + "-*.txt") : [])
                 try { File.Delete(file); } catch (IOException) { }
             Notify();
@@ -207,6 +209,39 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         if (!replies.TryGetValue(agentId, out var reply) || !reply.TrySetException(new AgentQuotaException())) throw new InvalidOperationException("Agent không chờ kết quả.");
     }
     public void Cancel() { lock (gate) cancellation?.Cancel(); }
+    private void CheckpointDiscussion() { lock (gate) storage.Checkpoint(Snapshot()!); }
+    private void RequireDiscussion()
+    {
+        if (cancellation == null || cancellation.IsCancellationRequested || current?.Mode != "discussion" || discussionControl == null ||
+            current.DiscussionFinishRequested || current.DiscussionPhase is "summarizing" or "finished")
+            throw new InvalidOperationException("Bàn luận đang kết thúc hoặc không còn chạy. Giữ yêu cầu trong ô nhập để gửi tiếp sau khi phiên hoàn tất.");
+    }
+    public void AddDiscussionInstruction(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Length > 12000) throw new ArgumentException("Bổ sung cần có 1–12.000 ký tự.");
+        lock (gate) {
+            RequireDiscussion();
+            if (current!.Turns.Count(t => t.Kind == "user") >= 100) throw new InvalidOperationException("Đã đạt 100 bổ sung của phiên. Kết thúc bàn luận rồi gửi yêu cầu mới.");
+            var input = new DiscussionTurn { Kind = "user", Name = "Bạn", State = "queued", Text = text.Trim(), Timestamp = (time ?? TimeProvider.System).GetUtcNow() };
+            var accepted = Snapshot()!; accepted.Turns.Add(input);
+            // Persist before acknowledging, under the same gate as engine checkpoints.
+            storage.Checkpoint(accepted); current.Turns.Add(input); discussionControl!.Wake();
+        }
+        Notify();
+    }
+    public void NextDiscussionTurn()
+    {
+        lock (gate) { RequireDiscussion(); if (current!.DiscussionPhase != "resting") throw new InvalidOperationException("Chỉ bỏ thời gian nghỉ khi bàn luận đang chờ lượt tiếp."); discussionControl!.Wake(); }
+    }
+    public void FinishDiscussion()
+    {
+        lock (gate) {
+            RequireDiscussion();
+            var accepted = Snapshot()!; accepted.DiscussionFinishRequested = true; storage.Checkpoint(accepted);
+            current!.DiscussionFinishRequested = true; discussionControl!.Finish();
+        }
+        Notify();
+    }
     public void AddTeamInstruction(string text)
     {
         if (string.IsNullOrWhiteSpace(text) || text.Length > 12000) throw new ArgumentException("Bổ sung cần có 1–12.000 ký tự.");

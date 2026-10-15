@@ -17,6 +17,13 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
 
     public async Task Run(JobRecord job, List<AgentConfig> agents, string context, Action<Action> change, Action<string> quota, CancellationToken token)
     {
+        using var control = new DiscussionControl();
+        await RunInteractive(job, agents, context, change, quota, token, control, () => job, () => storage.Checkpoint(job));
+    }
+
+    internal async Task RunInteractive(JobRecord job, List<AgentConfig> agents, string context, Action<Action> change, Action<string> quota,
+        CancellationToken token, DiscussionControl control, Func<JobRecord> snapshot, Action checkpoint)
+    {
         var options = job.Discussion!;
         var unavailable = new HashSet<string>();
         var start = clock.GetUtcNow(); var deadline = start.AddMinutes(options.DurationMinutes);
@@ -25,18 +32,24 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
         // Preserve a previous interrupted conversation in history before replacing its checkpoint.
         var recovered = storage.History().FirstOrDefault(j => j.State == "interrupted");
         if (recovered != null) storage.SaveJob(recovered);
-        storage.Checkpoint(job);
+        checkpoint();
 
         async Task<string> Turn(int index, bool summary, DateTimeOffset until)
         {
             var agent = agents[index].Copy(); var result = job.Results[index];
             // Hub Code preserves the configured permission; Hub Chat remains text-only.
             if (job.Surface == "chat") agent.Permission = "read-only";
-            var turn = new DiscussionTurn { Number = job.Turns.Count + 1, AgentId = agent.Id, Name = agent.Name, Model = agent.Model,
-                Timestamp = clock.GetUtcNow(), Kind = summary ? "summary" : "discussion" };
-            string request = Prompt(job, agent, context, summary, unavailable.Count == agents.Count - 1);
-            change(() => { job.NextTurnAt = null; job.Turns.Add(turn); result.State = "running"; result.Text = ""; result.Error = ""; result.SentPrompt = request; });
-            storage.Checkpoint(job);
+            DiscussionTurn turn = null!; string request = "";
+            change(() => {
+                if (!summary && control.FinishRequested) return;
+                turn = new() { Number = job.Turns.Count(t => t.Kind != "user") + 1, AgentId = agent.Id, Name = agent.Name, Model = agent.Model,
+                    Timestamp = clock.GetUtcNow(), Kind = summary ? "summary" : "discussion" };
+                foreach (var input in job.Turns.Where(t => t.Kind == "user" && t.State == "queued")) { input.State = "success"; input.Number = turn.Number; }
+                request = Prompt(job, agent, context, summary, unavailable.Count == agents.Count - 1);
+                job.NextTurnAt = null; job.Turns.Add(turn); result.State = "running"; result.Text = ""; result.Error = ""; result.SentPrompt = request;
+            });
+            if (turn == null) return "stopped";
+            checkpoint();
             try {
                 var remaining = until - clock.GetUtcNow();
                 if (remaining <= TimeSpan.Zero) throw new OperationCanceledException();
@@ -66,33 +79,34 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
                 change(() => { result.State = turn.State = "error"; result.Error = turn.Error = e.Message; });
             }
             change(() => job.Seconds = (clock.GetUtcNow() - start).TotalSeconds);
-            storage.Checkpoint(job);
+            checkpoint();
             return turn.State;
         }
 
         try {
             int cursor = 0;
-            while (job.Turns.Count(t => t.Kind == "discussion") < options.MaxTurns && clock.GetUtcNow() < discussionEnd && !token.IsCancellationRequested) {
+            while (snapshot().Turns.Count(t => t.Kind == "discussion") < options.MaxTurns && clock.GetUtcNow() < discussionEnd && !token.IsCancellationRequested && !control.FinishRequested) {
                 int index = Enumerable.Range(0, agents.Count).Select(offset => (cursor + offset) % agents.Count).FirstOrDefault(i => !unavailable.Contains(agents[i].Id), -1);
                 if (index < 0) break;
                 cursor = (index + 1) % agents.Count;
                 string state = await Turn(index, false, discussionEnd);
                 if (token.IsCancellationRequested || state == "cancelled") break;
-                if (unavailable.Count == agents.Count || job.Turns.Count(t => t.Kind == "discussion") >= options.MaxTurns) break;
+                if (control.FinishRequested || unavailable.Count == agents.Count || snapshot().Turns.Count(t => t.Kind == "discussion") >= options.MaxTurns) break;
                 // A failed participant is skipped immediately; only successful turns incur the configured pause.
                 var delay = TimeSpan.FromSeconds(state == "success" ? options.PauseSeconds : 0);
                 if (discussionEnd - clock.GetUtcNow() < delay) delay = discussionEnd - clock.GetUtcNow();
                 if (delay > TimeSpan.Zero) {
                     change(() => { job.DiscussionPhase = "resting"; job.NextTurnAt = clock.GetUtcNow() + delay; });
-                    storage.Checkpoint(job);
-                    await Task.Delay(delay, clock, token);
+                    checkpoint();
+                    await control.Pause(delay, clock, token);
                     change(() => { job.DiscussionPhase = "discussing"; job.NextTurnAt = null; });
                 }
             }
             change(() => { job.NextTurnAt = null; job.StopReason = token.IsCancellationRequested ? "Người dùng dừng phiên." :
+                control.FinishRequested ? "Người dùng kết thúc bàn luận và yêu cầu tổng hợp." :
                 unavailable.Count == agents.Count ? "Không còn agent khả dụng; không tự thử lại." :
                 job.Turns.Count(t => t.Kind == "discussion") >= options.MaxTurns ? "Đã đạt số lượt đã đặt." : "Đã đến thời gian tổng hợp."; });
-            if (!token.IsCancellationRequested && job.Turns.Any(t => t.Kind == "discussion" && t.State == "success")) {
+            if (!token.IsCancellationRequested && snapshot().Turns.Any(t => t.Kind == "discussion" && t.State == "success")) {
                 change(() => job.DiscussionPhase = "summarizing");
                 // At most one summary attempt per available participant, within the original time budget.
                 for (int index = 0; index < agents.Count && clock.GetUtcNow() < deadline && !token.IsCancellationRequested; index++) {
@@ -107,7 +121,7 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
         finally {
             change(() => { job.NextTurnAt = null; job.DiscussionPhase = "finished";
                 if (job.Report.Length == 0) job.Report = LocalReport(job); });
-            storage.Checkpoint(job);
+            checkpoint();
         }
     }
 
@@ -132,6 +146,11 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
             text.Append($"\n[Lượt {turn.Number} • {Clip(turn.Name, 24)}]\n{Clip(turn.Text, 500)}\n");
         foreach (var turn in turns.Skip(recentStart))
             text.Append($"\n[Lượt {turn.Number} • {Clip(turn.Name, 80)} • {Clip(turn.Model, 120)}]\n{Clip(turn.Text, 6000)}\n");
+        if (job.Turns.Any(t => t.Kind == "user")) {
+            text.Append("\nBỔ SUNG TỪ NGƯỜI DÙNG (ưu tiên yêu cầu mới khi điều chỉnh chủ đề):\n");
+            string inputs = string.Join("\n\n", job.Turns.Where(t => t.Kind == "user").Select(t => $"[{t.Timestamp:O} • {(t.State == "queued" ? "chưa áp dụng" : "đã nhận")}]\n{t.Text}"));
+            text.Append(inputs.Length > 24000 ? "[…bổ sung cũ đã rút gọn]\n" + inputs[^24000..] : inputs);
+        }
         return text.Length == 0 ? "Chưa có đóng góp." : text.ToString();
     }
 

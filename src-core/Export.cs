@@ -11,7 +11,10 @@ public static class Export
             foreach (var turn in job.Turns) text.Append($"\nLƯỢT {turn.Number} • {turn.Name} • {turn.Model} • {turn.Role} • {turn.TaskId} • {turn.State}\n{turn.Text}\n{turn.Error}\n");
             if (job.Team != null) text.Append("\n" + TeamText(job));
         } else if (job.Mode == "discussion") {
-            foreach (var turn in job.Turns.Where(t => t.Kind != "summary" || t.State != "success")) text.Append($"\nLƯỢT {turn.Number} • {turn.Name} • {turn.Model} • {turn.State}{(turn.Kind == "summary" ? " • TỔNG HỢP" : "")}\n{turn.Text}\n{turn.Error}\n");
+            foreach (var turn in job.Turns.Where(t => t.Kind != "summary" || t.State != "success")) {
+                if (turn.Kind == "user") text.Append($"\nBẠN BỔ SUNG • {turn.Timestamp:O} • {(turn.State == "queued" ? "Chưa áp dụng" : "Đã gửi vào lượt " + turn.Number)}\n{turn.Text}\n");
+                else text.Append($"\nLƯỢT {turn.Number} • {turn.Name} • {turn.Model} • {turn.State}{(turn.Kind == "summary" ? " • TỔNG HỢP" : "")}\n{turn.Text}\n{turn.Error}\n");
+            }
             text.Append($"\nTỔNG HỢP\n{job.Report}\n{job.StopReason}\n");
         } else foreach (var result in job.Results) text.Append($"\n{result.Name} • {result.Model} • {result.State}\n{result.Text}\n{result.Error}\n");
         return text.ToString();
@@ -28,8 +31,10 @@ public static class Export
             text.Append($"\n## Tổng hợp\n\n{(job.ReportByModel ? "Do model tổng hợp; cần kiểm chứng ý tưởng." : "Bản ghi tự động, chưa có tổng hợp từ model.")}\n\n{job.Report}\n\nKết thúc: {job.StopReason}\n");
             if (job.Discussion is { } options) text.Append($"\nGiới hạn: {options.MaxTurns} lượt thảo luận • {options.DurationMinutes} phút • nghỉ {options.PauseSeconds}s\n");
             text.Append("\n## Cuộc trò chuyện\n");
-            foreach (var turn in job.Turns)
-                text.Append($"\n### Lượt {turn.Number} • {turn.Name} • {turn.Model}{(turn.Kind == "summary" ? " • tổng hợp" : "")}\n\n{turn.Timestamp:O} • {turn.State}\n\n{turn.Text}\n{(turn.Error.Length > 0 ? "\nLỗi: " + turn.Error + "\n" : "")}");
+            foreach (var turn in job.Turns) {
+                if (turn.Kind == "user") text.Append($"\n### Bạn bổ sung\n\n{turn.Timestamp:O} • {(turn.State == "queued" ? "Chưa áp dụng" : "Đã gửi vào lượt " + turn.Number)}\n\n{turn.Text}\n");
+                else text.Append($"\n### Lượt {turn.Number} • {turn.Name} • {turn.Model}{(turn.Kind == "summary" ? " • tổng hợp" : "")}\n\n{turn.Timestamp:O} • {turn.State}\n\n{turn.Text}\n{(turn.Error.Length > 0 ? "\nLỗi: " + turn.Error + "\n" : "")}");
+            }
             return text.ToString();
         }
         foreach (var result in job.Results)

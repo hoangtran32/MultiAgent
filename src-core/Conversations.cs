@@ -130,7 +130,10 @@ public sealed partial class Storage
         var selected = jobs.Take(index + 1).TakeLast(8).ToList(); var pieces = new List<string>(); int remaining = 18000;
         foreach (var job in selected.AsEnumerable().Reverse()) {
             string output = job.Report.Length > 0 ? job.Report : string.Join("\n", job.Results.Select(r => $"{r.Name} ({r.Model}, {r.State}): {r.Text}\n{r.Error}"));
-            string piece = $"[Trao đổi {job.Timestamp:O}]\nNgười dùng: {job.Prompt[..Math.Min(2000, job.Prompt.Length)]}\nKết quả: {output[..Math.Min(6000, output.Length)]}\n";
+            string inputs = string.Join("\n\n", job.Turns.Where(t => t.Kind == "user").Select(t => $"[{t.Timestamp:O} • {(t.State == "queued" ? "chưa áp dụng" : "đã gửi")}] {t.Text}"));
+            if (inputs.Length > 6000) inputs = "[…bổ sung cũ đã rút gọn]\n" + inputs[^6000..];
+            string piece = $"[Trao đổi {job.Timestamp:O}]\nNgười dùng: {job.Prompt[..Math.Min(2000, job.Prompt.Length)]}\n" +
+                (inputs.Length > 0 ? "Người dùng bổ sung:\n" + inputs + "\n" : "") + $"Kết quả: {output[..Math.Min(6000, output.Length)]}\n";
             if (piece.Length > remaining) piece = piece[..remaining];
             pieces.Insert(0, piece); remaining -= piece.Length; if (remaining == 0) break;
         }

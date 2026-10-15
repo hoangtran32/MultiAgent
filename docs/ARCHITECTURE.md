@@ -23,6 +23,8 @@ tests-native/              Harness kiểm tra native hiện có
 scripts/                   Build/publish/đóng gói
 ```
 
+Bàn luận 5.3.3: DiscussionControl dùng tín hiệu đồng bộ để đánh thức thời gian nghỉ hoặc yêu cầu kết thúc sau lượt; không hủy token của lượt model. JobRunner nhận bổ sung và ghi checkpoint trong cùng khóa với snapshot engine. DiscussionTurn.Kind=user có ID ổn định, không tăng số lượt model; gửi vào prompt kế tiếp/tổng hợp và lưu trong export/ngữ cảnh tiếp tục. UI giữ composer nhập được, chỉ khóa gửi lúc tổng hợp/kết thúc; không tạo lượt ngoài ngân sách.
+
 Desktop phụ thuộc Core. Core không phụ thuộc WinForms. IAgentExecutor là ranh giới gọi model, cho phép thêm adapter mà không đưa logic nhà cung cấp vào bàn tròn. Chưa thêm framework bên ngoài.
 
 Trong 5.3.0, HubConfig.Projects/ProjectSections lưu alias, pin, section và dấu Removed; ProjectCatalog merge RecentProjects/metadata hội thoại mà không khôi phục dấu gỡ. Thêm folder chủ động mới khôi phục. ArchiveProject chỉ đổi metadata Archived của hội thoại thuộc đúng đường dẫn; không ghi đè job/TXT hoặc xóa file project. Menu project phát sự kiện riêng cho MainWindow, không tự tác động filesystem.

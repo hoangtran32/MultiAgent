@@ -122,6 +122,7 @@ public sealed class JobRecord
     public string Report { get; set; } = "";
     public bool ReportByModel { get; set; }
     public string DiscussionPhase { get; set; } = "";
+    public bool DiscussionFinishRequested { get; set; }
     public string StopReason { get; set; } = "";
     public DateTimeOffset? Deadline { get; set; }
     public DateTimeOffset? NextTurnAt { get; set; }
@@ -156,6 +157,7 @@ public sealed class DiscussionOptions
 
 public sealed class DiscussionTurn
 {
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Role { get; set; } = "";
     public string TaskId { get; set; } = "";
     public string ProtocolData { get; set; } = "";

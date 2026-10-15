@@ -329,6 +329,12 @@ internal sealed partial class MainWindow : Form
             headerMenu.Items.Add(new ToolStripSeparator());
             headerMenu.Items.Add("Dừng sau bước hiện tại", null, (_, _) => Protect(runner.StopTeamAfterStep)).Enabled = displayed.Team?.StopAfterStep != true;
         }
+        if (runner.Busy && displayed?.Mode == "discussion") {
+            headerMenu.Items.Add(new ToolStripSeparator());
+            bool accepting = !displayed.DiscussionFinishRequested && displayed.DiscussionPhase is not ("summarizing" or "finished");
+            headerMenu.Items.Add("Chạy lượt tiếp ngay", null, (_, _) => Protect(runner.NextDiscussionTurn)).Enabled = accepting && displayed.DiscussionPhase == "resting";
+            headerMenu.Items.Add("Kết thúc & tổng hợp", null, (_, _) => Protect(runner.FinishDiscussion)).Enabled = accepting;
+        }
         if (headerMenu.Tag is Control button) headerMenu.Show(button, new Point(0, button.Height));
     }
     private void OpenAttachmentMenu()
@@ -417,7 +423,7 @@ internal sealed partial class MainWindow : Form
         if (!boardToggle.Visible) boardPanel.Visible = false;
         summary.Text = config.Mode == "team" ? $"Ngang hàng • ≤{config.Team.MaxCalls} lần gọi • {(config.Team.RunVerification ? "có lệnh kiểm tra" : "bạn tự kiểm tra")}" : config.Mode == "discussion" ? $"{chosen.Count} model • ≤{config.Discussion.MaxTurns} lượt • ≤{config.Discussion.DurationMinutes} phút" : config.Mode == "collaboration" ? "Thực hiện → rà soát → hoàn thiện" : config.Mode == "pipeline" ? string.Join(" → ", chosen.Select(a => a.Name)) : $"{chosen.Count} agent cùng nhận yêu cầu"; summary.MaximumSize = new Size(420, 32);
         discussionSettings.Enabled = !runner.Busy;
-        run.Text = ""; run.AccessibleName = runner.Busy && displayed?.Mode == "team" ? "Gửi bổ sung" : "Gửi yêu cầu"; Ui.Hint(run, run.AccessibleName);
+        run.Text = ""; run.AccessibleName = runner.Busy && displayed?.Mode is "team" or "discussion" ? "Gửi bổ sung" : "Gửi yêu cầu"; Ui.Hint(run, run.AccessibleName);
         Ui.Hint(teamButton, string.Join("\n", chosen.Select(a => $"{a.Name} • {a.Model}"))); Ui.Hint(status, summary.Text);
         prompt.PlaceholderText = config.Surface == "chat" ? "Hỏi bất cứ điều gì… Ctrl + Enter để gửi" : config.Mode == "discussion" ? "Chủ đề và điều bạn muốn các model cùng khám phá…" : "Mô tả việc cần làm… Ctrl + Enter để gửi";
     }
@@ -488,6 +494,7 @@ internal sealed partial class MainWindow : Form
         if (!runner.Busy && config.Agents.Count == 0) { OpenAgents(); status.Text = "Thêm agent và cấu hình kết nối trước khi gửi yêu cầu."; return; }
         if (runner.Busy) {
             if (displayed?.Mode == "team") { runner.AddTeamInstruction(prompt.Text.Trim()); prompt.Clear(); canvas.ScrollToEnd(); status.Text = "Đã nhận bổ sung; áp dụng tại ranh giới bước tiếp theo."; }
+            else if (displayed?.Mode == "discussion") { runner.AddDiscussionInstruction(prompt.Text.Trim()); prompt.Clear(); canvas.ScrollToEnd(); status.Text = "Đã nhận bổ sung; bỏ thời gian nghỉ và gửi vào lượt tiếp theo. Lượt đang chạy được giữ nguyên."; }
             return;
         }
         config.Project = Path.GetFullPath(project.Text.Trim()); if (!Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
@@ -572,12 +579,17 @@ internal sealed partial class MainWindow : Form
     {
         canvas.Update(conversationJobs.Where(j => j.Id != job.Id).Append(job));
         bool busy = runner.Busy;
+        bool liveComposer = job.Mode is "team" or "discussion";
+        bool canSend = job.Mode == "team" || job.Mode == "discussion" && !job.DiscussionFinishRequested && job.DiscussionPhase is not ("summarizing" or "finished");
         foreach (var control in locked) {
-            bool enabled = !busy || job.Mode == "team" && (control == prompt || control == run);
-            // Do not disable/re-enable the team composer on every streamed update: that drops keyboard focus.
+            bool enabled = !busy || liveComposer && control == prompt || canSend && control == run;
+            // Keep the live composer focused while snapshots arrive; drafts also survive summarizing.
             if (control.Enabled != enabled) control.Enabled = enabled;
         }
-        stop.Enabled = busy; stop.Visible = busy; run.Visible = !busy || job.Mode == "team"; history.Enabled = !busy;
+        stop.Enabled = busy; stop.Visible = busy; run.Visible = !busy || liveComposer; history.Enabled = !busy;
+        string sendAction = busy && liveComposer ? "Gửi bổ sung" : "Gửi yêu cầu";
+        if (run.AccessibleName != sendAction) { run.AccessibleName = sendAction; Ui.Hint(run, sendAction); }
+        if (busy && job.Mode == "discussion") prompt.PlaceholderText = canSend ? "Bổ sung ý kiến… Ctrl + Enter để gửi vào lượt tiếp theo" : "Đang kết thúc bàn luận… Bạn có thể soạn yêu cầu tiếp theo tại đây";
         if (job.Mode == "team") {
             boardToggle.Visible = true;
             teamBoard.Update(job); run.Text = ""; run.AccessibleName = busy ? "Gửi bổ sung" : "Gửi yêu cầu";
@@ -624,8 +636,9 @@ internal sealed partial class MainWindow : Form
         }
         if (job.Mode == "discussion") {
             int available = job.Results.Count(r => r.State is not ("quota" or "error"));
-            string phase = runner.Busy ? Ui.State(job.DiscussionPhase) : Ui.State(job.State);
-            status.Text = $"{phase}{(runner.Busy && available == 1 ? " • Chạy đơn" : "")} • {job.Turns.Count(t => t.Kind == "discussion")}/{job.Discussion?.MaxTurns} lượt{(job.NextTurnAt is { } next ? $" • lượt tiếp {next.LocalDateTime:HH:mm:ss}" : "")} • {seconds / 60:F1} phút{(!runner.Busy ? " • " + job.StopReason : "")}{(quotaSaveError.Length > 0 ? " • " + quotaSaveError : "")}";
+            string phase = runner.Busy ? job.DiscussionFinishRequested && job.DiscussionPhase != "summarizing" ? "Kết thúc sau lượt hiện tại" : Ui.State(job.DiscussionPhase) : Ui.State(job.State);
+            string pause = job.NextTurnAt is { } next ? $" • nghỉ còn {Math.Max(0, (int)Math.Ceiling((next - DateTimeOffset.Now).TotalSeconds))}s • gửi bổ sung để tiếp tục ngay" : "";
+            status.Text = $"{phase}{(runner.Busy && available == 1 ? " • Chạy đơn" : "")} • {job.Turns.Count(t => t.Kind == "discussion")}/{job.Discussion?.MaxTurns} lượt{pause} • {seconds / 60:F1} phút{(!runner.Busy ? " • " + job.StopReason : "")}{(quotaSaveError.Length > 0 ? " • " + quotaSaveError : "")}";
             return;
         }
         int done = job.Results.Count(r => r.State is "success" or "error" or "quota" or "cancelled" or "skipped"), waiting = job.Results.Count(r => r.State == "waiting"), exhausted = job.Results.Count(r => r.State == "quota");

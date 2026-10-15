@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.3.2
+# Hướng dẫn Multi-Agent Hub 5.3.3
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
@@ -53,6 +53,12 @@ Chuyển **Hub Code / Hub Chat** ở đầu thanh bên. Code (Làm việc) gửi
 Nhấp phải topic để **Ghim**, **Đổi tên**, **Lưu trữ** hoặc mở `.txt`. Bật **Hội thoại đã lưu trữ** để xem và khôi phục topic; lưu trữ giữ nguyên nội dung. Ghim hiển thị ở đầu thư viện. Đổi tên giữ đường dẫn file `.txt` ban đầu để các liên kết đã có vẫn dùng được.
 
 **Cùng làm việc** chạy agent chính → các đồng đội rà soát → quay lại agent khả dụng đầu tiên để hoàn thiện sau góp ý. Hai agent có tối đa 3 lần gọi, một agent chỉ 1 lần; nhiều agent có tối đa `số agent + 1` lần. Mỗi lượt nhận kết quả trước, lưu riêng trong transcript; chạy lần lượt để tránh cùng sửa một file. Hết quota tự bỏ chọn và bỏ qua; lỗi thường dừng chuỗi. **Song song** cho các agent cùng nhận yêu cầu; **Lần lượt / phản biện** chỉ đi qua đội một lượt; **Bàn luận qua lại** chạy phiên nhiều lượt và tổng hợp theo giới hạn đặt. Trạng thái chờ ghi rõ agent đang đợi đồng đội nào.
+
+Khi **Bàn luận qua lại** đang chạy, bạn vẫn gõ/gửi bổ sung bằng Ctrl + Enter. Nếu đang nghỉ giữa lượt, gửi sẽ bỏ thời gian nghỉ; nếu model đang trả lời, nó hoàn tất trước rồi nhận bổ sung ở lượt tiếp theo. Tin bổ sung xuất hiện bên phải, ghi đang chờ/đã gửi vào lượt nào, lưu trong JSON/TXT/Markdown và giữ trong ngữ cảnh khi gửi tiếp. Tối đa 12.000 ký tự/bổ sung và 100 bổ sung/phiên; không tính tin người dùng vào giới hạn lượt model.
+
+**⋯ → Chạy lượt tiếp ngay** bỏ thời gian nghỉ. **⋯ → Kết thúc & tổng hợp** đợi lượt hiện tại xong, tổng hợp trong thời gian còn lại rồi mở gửi yêu cầu mới. Nút **Dừng** hủy ngay và giữ kết quả đã có. Trong lúc tổng hợp bạn vẫn soạn bản nháp, nút gửi bật lại khi phiên kết thúc. Không tự đổi các agent được chọn.
+
+Một model trả lời xong chưa kết thúc cả phiên bàn luận: mặc định nghỉ 600 giây giữa lượt để chạy dài. Trạng thái hiện thời gian nghỉ còn lại; sửa trong **Agent & model → Giới hạn bàn luận…** trước phiên mới. Chỉ bật những agent bạn muốn tham gia: tên Codex/Gemini trong câu trả lời không tự gọi thêm hoặc bật lại agent đang tắt.
 
 ## Chạy ứng dụng
 

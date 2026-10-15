@@ -66,6 +66,10 @@ internal sealed class ConversationCanvas : UserControl
             next.Add(new("Bạn", job.Timestamp.LocalDateTime.ToString("dd/MM HH:mm"), job.Prompt, true, Key("user")));
             if (job.Mode is "discussion" or "collaboration" or "team") {
                 foreach (var turn in job.Turns.Where(t => t.Kind != "summary")) {
+                    if (turn.Kind == "user") {
+                        string meta = turn.Timestamp.LocalDateTime.ToString("dd/MM HH:mm") + (turn.State == "queued" ? " · Chờ lượt kế tiếp" : $" · Đã gửi vào lượt {turn.Number}");
+                        next.Add(new("Bạn", meta, turn.Text, true, Key("input:" + turn.Id))); continue;
+                    }
                     var result = job.Results.FirstOrDefault(r => r.AgentId == turn.AgentId);
                     next.Add(new(turn.Name, $"{turn.Model} · {turn.Role}{(turn.TaskId.Length > 0 ? " / " + turn.TaskId : "")} · Lượt {turn.Number} · {Ui.State(turn.State)}",
                         turn.Text + (turn.Error.Length > 0 ? "\n" + turn.Error : ""), Key: Key("turn:" + turn.Number), Logs: result?.Logs ?? "", Prompt: result?.SentPrompt ?? ""));

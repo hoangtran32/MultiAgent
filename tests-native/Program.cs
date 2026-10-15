@@ -339,6 +339,49 @@ try
         Assert(fixture.Calls.Count == 1 && runner.Snapshot()!.State == "cancelled" && !runner.Snapshot()!.ReportByModel && runner.Snapshot()!.Report.Contains("idea-1"));
         Assert(store.History()[0].State == "cancelled");
     });
+    await Test("discussion input wakes pause, reaches next prompt and survives export/reopen", async () => {
+        var store = Store(); var fixture = new DiscussionFixture(); var runner = new JobRunner(fixture, store);
+        runner.Start(new() { Project = root, Mode = "discussion", Agents = [Agent("codex", "codex-cli")], Discussion = new() { MaxTurns = 2, PauseSeconds = 3600 } }, "topic");
+        try {
+            await Until(() => runner.Snapshot()!.DiscussionPhase == "resting");
+            runner.AddDiscussionInstruction("Focus on failure recovery, not more features.");
+            await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10));
+            var job = runner.Snapshot()!; var input = job.Turns.Single(t => t.Kind == "user");
+            Assert(!runner.Busy && job.State == "completed" && job.ReportByModel && fixture.Calls.Count == 3);
+            Assert(fixture.Calls[1].Prompt.Contains(input.Text) && fixture.Calls[2].Prompt.Contains(input.Text));
+            Assert(input.State == "success" && input.Number == 2 && job.Turns.Where(t => t.Kind != "user").Select(t => t.Number).SequenceEqual(new[] { 1, 2, 3 }));
+            var saved = store.ReadConversationJobs(job.ConversationId).Single();
+            Assert(saved.Turns.Any(t => t.Id == input.Id && t.Text == input.Text) && Export.PlainText(saved).Contains("BẠN BỔ SUNG") && Export.Markdown(saved).Contains(input.Text));
+            Assert(store.ConversationContext(job.ConversationId, job.Id).Contains(input.Text));
+            Throws(() => runner.AddDiscussionInstruction("too late"));
+        } finally { runner.Cancel(); await runner.Completion!; }
+    });
+    await Test("discussion can skip a pause and finish with summary without another discussion call", async () => {
+        var fixture = new DiscussionFixture(); var runner = new JobRunner(fixture, Store());
+        runner.Start(new() { Project = root, Mode = "discussion", Agents = [Agent("codex", "codex-cli")], Discussion = new() { MaxTurns = 50, PauseSeconds = 3600 } }, "topic");
+        try {
+            await Until(() => runner.Snapshot()!.DiscussionPhase == "resting"); runner.NextDiscussionTurn();
+            await Until(() => runner.Snapshot() is { DiscussionPhase: "resting" } job && job.Turns.Count == 2);
+            runner.FinishDiscussion(); await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10));
+            var job = runner.Snapshot()!;
+            Assert(job.State == "completed" && job.ReportByModel && job.DiscussionFinishRequested && job.NextTurnAt == null);
+            Assert(job.Turns.Count(t => t.Kind == "discussion") == 2 && fixture.Calls.Count == 3 && job.StopReason.Contains("Người dùng kết thúc"));
+        } finally { runner.Cancel(); await runner.Completion!; }
+    });
+    await Test("discussion finishing preserves in-flight output and includes queued input in summary", async () => {
+        var fixture = new InteractiveDiscussionFixture(); var runner = new JobRunner(fixture, Store());
+        runner.Start(new() { Project = root, Mode = "discussion", Agents = [Agent("codex", "codex-cli")], Discussion = new() { MaxTurns = 50, PauseSeconds = 3600 } }, "topic");
+        try {
+            await fixture.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            runner.AddDiscussionInstruction("Summarize the remaining risks."); runner.FinishDiscussion();
+            Throws(() => runner.AddDiscussionInstruction("late input"));
+            Assert(runner.Busy && !fixture.FirstToken.IsCancellationRequested);
+            fixture.Release.TrySetResult(); await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10));
+            var job = runner.Snapshot()!;
+            Assert(job.State == "completed" && job.Turns.First().Text == "finished first turn" && job.Report == "final summary");
+            Assert(fixture.Prompts.Count == 2 && fixture.Prompts[1].Contains("Summarize the remaining risks.") && job.Turns.Single(t => t.Kind == "user").Number == 2);
+        } finally { fixture.Release.TrySetResult(); runner.Cancel(); await runner.Completion!; }
+    });
     await Test("discussion deadline bounds turns and summary; failed summary preserves ideas", async () => {
         var clock = new DiscussionClock(); var fixture = new DiscussionFixture { Behavior = (_, n) => { clock.Advance(TimeSpan.FromSeconds(n == 1 ? 55 : 10)); return "deadline-idea"; } };
         var runner = new JobRunner(fixture, Store(), clock);
@@ -501,6 +544,20 @@ sealed class DiscussionClock : TimeProvider
     private DateTimeOffset now = DateTimeOffset.UtcNow;
     public override DateTimeOffset GetUtcNow() => now;
     public void Advance(TimeSpan elapsed) => now += elapsed;
+}
+sealed class InteractiveDiscussionFixture : IAgentExecutor
+{
+    public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public List<string> Prompts { get; } = [];
+    public CancellationToken FirstToken { get; private set; }
+    public async Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token)
+    {
+        Prompts.Add(prompt);
+        if (Prompts.Count > 1) return "final summary";
+        FirstToken = token; Started.TrySetResult(); await Release.Task.WaitAsync(token);
+        return "finished first turn";
+    }
 }
 sealed class BlockingDiscussionFixture : IAgentExecutor
 {
