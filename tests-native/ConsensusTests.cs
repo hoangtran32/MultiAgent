@@ -41,7 +41,7 @@ internal static class ConsensusTests
             runner.Start(config, "Complete two small ideas, agreeing each before doing it."); await Complete(runner);
             var job = runner.Snapshot()!; var tasks = job.Team!.Tasks;
             Assert(job.State == "completed" && tasks.Count == 2 && tasks.All(t => t.State == "done" && t.IndependentReview && t.AgreedBy.Count == 2));
-            Assert(tasks[0].ProposalVersion == 2 && fixture.WorkVersions.First() == 2 && fixture.NextIdeaAfterDone);
+            Assert(tasks[0].ProposalVersion == 2 && fixture.WorkVersions.First() == 2 && fixture.NextIdeaAfterDone && fixture.ReviewCalls == 2);
             Assert(fixture.PlanningCalls >= 6 && fixture.Prompts.All(p => p.Contains("CHẾ ĐỘ CHỐT TỪNG Ý")));
             var saved = store.ReadConversationJobs(job.ConversationId).Single();
             Assert(saved.Team!.Tasks[0].ProposalVersion == 2 && Export.PlainText(saved).Contains("v2") && Export.Markdown(saved).Contains("CHỐT TỪNG Ý"));
@@ -88,6 +88,7 @@ internal static class ConsensusTests
         public bool FailPeer { get; init; }
         public bool QuotaPeer { get; init; }
         public int PlanningCalls { get; private set; }
+        public int ReviewCalls { get; private set; }
         public bool NextIdeaAfterDone { get; private set; }
         public List<int> WorkVersions { get; } = [];
         public List<string> Prompts { get; } = [];
@@ -101,7 +102,7 @@ internal static class ConsensusTests
             var board = JsonSerializer.Deserialize<List<TeamTask>>(prompt[start..end], Json.Options)!;
             TeamReply reply;
             if (prompt.Contains("Đây là lượt THỰC HIỆN task.")) { WorkVersions.Add(IdeaConsensus.Active(new() { Tasks = board })!.ProposalVersion); reply = new() { Message = "Implemented only the agreed idea.", Outcome = "done" }; }
-            else if (prompt.Contains("Đây là lượt REVIEW ngang hàng.")) reply = new() { Message = "This idea meets its acceptance criterion.", Outcome = "approve" };
+            else if (prompt.Contains("Đây là lượt REVIEW ngang hàng.")) { ReviewCalls++; reply = new() { Message = "This idea meets its acceptance criterion.", Outcome = "approve" }; }
             else {
                 PlanningCalls++; var task = board.FirstOrDefault(t => t.State is not ("done" or "planned"));
                 if (task == null && board.Count < DesiredIdeas) {

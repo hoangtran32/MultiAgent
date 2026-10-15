@@ -219,8 +219,9 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     });
                 }
                 string files = TeamWorkspace.ReadFiles(job.Project, reply.Files);
-                // Tester contributes evidence/coverage analysis; only configured commands are executed by the Hub.
-                while (Capacity()) {
+                // In idea consensus, one peer review covers the small slice; avoid duplicate tester/reviewer calls.
+                // The roundtable workflow retains its separate coverage assessment.
+                while (!consensus && Capacity()) {
                     var tester = Select("tester", task.AssignedTo); if (tester == null) break;
                     var assessment = await Call(tester, "review", "tester", task, "\nBạn đang đóng vai Tester: dùng công cụ xác minh theo quyền được cấp; đối chiếu tiêu chí với bằng chứng, tìm ca chưa phủ và cách tái hiện lỗi. Sửa code đưa về task thực hiện; build/test theo phần kiểm tra đã cấu hình, không tự chạy thêm trong lượt đánh giá. Thiếu bằng chứng thì nêu rõ chưa kiểm chứng.\n" +
                         (!options.RunVerification ? "Người dùng chọn tự kiểm tra. Không yêu cầu sửa code chỉ vì Hub chưa chạy test. approve nếu chưa thấy lỗi cụ thể, kèm ghi chú chưa kiểm chứng; revise khi có lỗi hoặc thiếu chức năng cụ thể.\n" : "") + files + "\nBằng chứng Hub:\n" + Clip(JsonSerializer.Serialize(team.Evidence.Where(e => e.TaskId == task.Id).TakeLast(8), Json.Options), 24000));
