@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.3.0
+# Hướng dẫn Multi-Agent Hub 5.3.1
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
@@ -6,7 +6,7 @@ Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, 
 
 ## Bàn tròn & thực hiện
 
-Chọn **Bàn tròn & thực hiện** dưới ô nhập, mở **Nhóm & giới hạn**, rồi gửi yêu cầu. Các model trao đổi ngang hàng: phát triển ý tưởng của nhau, giữ bất đồng có lý do, đề xuất task có tiêu chí và phụ thuộc. Một task cần được thành viên khác chấp nhận trước khi thực hiện; khi chỉ còn một kết nối, nó tự rà soát và kết quả ghi rõ thiếu review độc lập. Chọn người nói tiếp theo bằng đề xuất của model trong các thành viên chưa phát biểu của vòng, tránh một model chiếm hết lượt.
+Chọn **Bàn tròn & thực hiện** dưới ô nhập, mở **Agent & model → Phân vai & giới hạn bàn tròn…**, rồi gửi yêu cầu. Các model trao đổi ngang hàng: phát triển ý tưởng của nhau, giữ bất đồng có lý do, đề xuất task có tiêu chí và phụ thuộc. Một task cần được thành viên khác chấp nhận trước khi thực hiện; khi chỉ còn một kết nối, nó tự rà soát và kết quả ghi rõ thiếu review độc lập. Chọn người nói tiếp theo bằng đề xuất của model trong các thành viên chưa phát biểu của vòng, tránh một model chiếm hết lượt.
 
 Năm chuyên môn **Product Manager / Architect / Coder / Tester / Reviewer** không phải năm cấp bậc và không đòi hỏi năm tài khoản. Mỗi vai chọn kết nối/model ưu tiên; để Tự phân công để chia chuyên môn trong nhóm. Hub luân phiên góc nhìn khi một kết nối đảm nhiệm nhiều vai. Sau thực hiện, Tester phân tích kiểm chứng, Reviewer phản biện rồi kết quả được đưa lại ra bàn tròn; không khóa toàn phiên vào chuỗi chức danh.
 
@@ -14,7 +14,7 @@ Năm chuyên môn **Product Manager / Architect / Coder / Tester / Reviewer** kh
 
 Coder sửa file cần CLI có quyền **workspace-write/full**; Hub không tự nâng quyền. API thuần văn bản tham gia bàn tròn, tài liệu và review, không tự có công cụ sửa file. Antigravity ở quyền `default` cần được đặt `workspace-write` nếu bạn muốn nó nhận task sửa code. Chế độ Trò chuyện chỉ bàn luận/lập kế hoạch. Kết nối dán kết quả thủ công không tham gia phiên nhóm tự động.
 
-Mặc định **bạn tự kiểm tra**: Hub không chạy lệnh build/test, ghi trạng thái **Chưa kiểm chứng** cho kết quả sửa code. Trong **Nhóm & giới hạn → Lệnh kiểm tra**, có thể cấu hình executable, mảng đối số JSON và timeout, rồi bật tự kiểm tra cho project hiện tại. Hub chạy đúng lệnh đã cấu hình; model không được tự thêm lệnh vào danh sách thực thi. Tester/Reviewer giữ quyền CLI đã chọn, tập trung đối chiếu bằng chứng và chuyển đề xuất sửa về task thực hiện. CLI tùy chỉnh tự quản lý quyền. Lệnh build/test có thể thực thi script project, nên chỉ cấu hình lệnh bạn tin cậy.
+Mặc định **bạn tự kiểm tra**: Hub không chạy lệnh build/test, ghi trạng thái **Chưa kiểm chứng** cho kết quả sửa code. Trong **Agent & model → Phân vai & giới hạn bàn tròn… → Lệnh kiểm tra**, có thể cấu hình executable, mảng đối số JSON và timeout, rồi bật tự kiểm tra cho project hiện tại. Hub chạy đúng lệnh đã cấu hình; model không được tự thêm lệnh vào danh sách thực thi. Tester/Reviewer giữ quyền CLI đã chọn, tập trung đối chiếu bằng chứng và chuyển đề xuất sửa về task thực hiện. CLI tùy chỉnh tự quản lý quyền. Lệnh build/test có thể thực thi script project, nên chỉ cấu hình lệnh bạn tin cậy.
 
 Bằng chứng lưu exit code, log và fingerprint source (ngoài các thư mục sinh tự động). Sửa source làm hết hiệu lực kết quả trước; lệnh đạt không đồng nghĩa tất cả tiêu chí đã được bao phủ. Khi không xác minh được fingerprint, Hub không ghi thành đã kiểm chứng. Nhóm dùng một writer tại một thời điểm và khóa workspace giữa các phiên nhóm; chưa chạy nhiều coder trong các worktree riêng.
 
@@ -40,11 +40,11 @@ Nhấp phải folder project (hoặc Shift+F10/phím Menu) để **Ghim**, **Ch�
 
 Gửi tin mới hoặc bổ sung yêu cầu sẽ đưa đến cuối hội thoại. Có thể lăn chuột trên nội dung, phần nền hoặc thao tác của khung tin để đọc tiếp; giới hạn thanh cuộn được cập nhật khi tin mới xuất hiện hoặc nội dung tăng chiều cao.
 
-Ô nhập bo góc chứa luôn nút **+**, cách phối hợp, thiết lập phiên, chọn agent/model và nút gửi hình mũi tên. Bấm **⚙ → Phân vai & giới hạn…** để cấu hình bàn tròn, hoặc giới hạn thảo luận khi dùng chế độ Bàn luận. Nút **⋯** trên đầu hội thoại mở chi tiết/nhật ký, sao chép, TXT và quản lý topic. Nút danh sách ở góc phải mở **Công việc & đầu ra** thành khu vực phụ; cửa sổ hẹp mở thành hộp riêng. Markdown cơ bản (tiêu đề, chữ đậm/nghiêng, liên kết, danh sách, code) được hiển thị bằng RichEdit native.
+Ô nhập bo góc chứa nút **+** để đính kèm/thay/bỏ file, cách phối hợp, chọn agent tham gia và nút gửi hình mũi tên. Chỉ giữ **Agent & model** ở cuối sidebar để quản lý agent, phân vai/giới hạn bàn tròn và giới hạn bàn luận. Rê chuột trên cách phối hợp đang chọn hoặc từng mục trong menu để đọc mô tả cơ chế và ví dụ. Khi bàn tròn đang chạy, **⋯ → Dừng sau bước hiện tại** kết thúc sau bước đang làm; nút Dừng cạnh ô nhập hủy ngay. Nút **⋯** trên đầu hội thoại mở chi tiết/nhật ký, sao chép, TXT và quản lý topic. Nút danh sách ở góc phải mở **Công việc & đầu ra** thành khu vực phụ; cửa sổ hẹp mở thành hộp riêng. Markdown cơ bản (tiêu đề, chữ đậm/nghiêng, liên kết, danh sách, code) được hiển thị bằng RichEdit native.
 
 Ô nhập tăng chiều cao theo số dòng đến giới hạn rồi cuộn nội dung bên trong. Gõ chữ hoặc Space trên cùng dòng không đổi chiều cao bố cục. Khi nhóm đang chạy, bạn vẫn nhập bổ sung mà không bị tắt/bật lại ô nhập theo từng lượt streaming.
 
-Thanh bên giữ project, đoạn chat mới, tìm kiếm và hội thoại đã lưu. Nội dung của bạn và các agent xuất hiện chung ở giữa; ô nhập luôn ở dưới. Bộ chọn agent ngay cạnh mũi tên gửi bật/tắt từng thành viên, hiển thị model và mở thiết lập model/vai trò. **Agent & model** ở cuối thanh bên mở quản lý đầy đủ (thêm, nhân bản, đổi thứ tự, cấu hình CLI/API). **⋯ → Chi tiết** chứa câu trả lời riêng, nhật ký, prompt gửi đi, lịch sử gần đây, dùng lại yêu cầu và xuất Markdown. Mũi tên xuống trên đầu hội thoại đưa đến nội dung cuối; cuộn lên để đọc phần cũ. **Ctrl + Enter** gửi, Enter xuống dòng.
+Thanh bên giữ project, đoạn chat mới, tìm kiếm và hội thoại đã lưu. Nội dung của bạn và các agent xuất hiện chung ở giữa; ô nhập luôn ở dưới. Bộ chọn agent ngay cạnh mũi tên gửi bật/tắt từng thành viên, hiển thị model; đổi model/vai trò trong Agent & model. **Agent & model** ở cuối thanh bên mở quản lý đầy đủ (thêm, nhân bản, đổi thứ tự, cấu hình CLI/API). **⋯ → Chi tiết** chứa câu trả lời riêng, nhật ký, prompt gửi đi, lịch sử gần đây, dùng lại yêu cầu và xuất Markdown. Mũi tên xuống trên đầu hội thoại đưa đến nội dung cuối; cuộn lên để đọc phần cũ. **Ctrl + Enter** gửi, Enter xuống dòng.
 
 Chuyển **Hub Code / Hub Chat** ở đầu thanh bên. Code (Làm việc) gửi đường dẫn project và chạy CLI tại thư mục đó, giữ nguyên quyền riêng đã cấu hình trong mọi lượt, gồm thảo luận, bàn tròn, Tester/Reviewer và sửa định dạng JSON. Chọn `full` cho phép file/terminal theo yêu cầu, không bị tự hạ về chỉ đọc; chọn `read-only` thì giới hạn đọc vẫn áp dụng. Vai trò xác định công việc của lượt: nhóm đưa thay đổi project vào task thực hiện và review đối chiếu kết quả. Chat (Trò chuyện) yêu cầu trả lời trực tiếp, không dùng công cụ/đọc/sửa file/chạy lệnh và dùng bản sao quyền read-only/Plan cho CLI. API thuần văn bản không có công cụ đọc thư mục trên máy dù cấu hình quyền nào. CLI tùy chỉnh và app thủ công tự quản lý quyền ở công cụ. Đây là hai chế độ của Hub dùng các agent đã kết nối, không phải tích hợp hay đăng nhập thêm tài khoản ChatGPT. Chế độ được lưu theo từng lần trao đổi và khôi phục khi mở hội thoại.
 
@@ -96,7 +96,7 @@ Song song gửi cùng yêu cầu, kèm vai trò riêng. Pipeline gửi thêm k�
 
 ## Thảo luận ý tưởng / chạy qua đêm
 
-Chọn các agent dùng **CLI/API**, chọn **Thảo luận ý tưởng**, mở **Cài đặt thảo luận…**, nhập chủ đề rồi **Bắt đầu thảo luận**. Có thể dùng Codex CLI + Gemini API, Claude CLI + Antigravity CLI hoặc các model khác đã cấu hình. Codex CLI là một kết nối riêng với tài khoản trên máy; cuộc chat Codex hiện tại không tự tham gia. Model ID phụ thuộc quyền tài khoản, dùng **Tải model** trong thiết lập hoặc nhập ID hợp lệ.
+Chọn các agent dùng **CLI/API**, chọn **Bàn luận qua lại**, mở **Agent & model → Giới hạn bàn luận…**, nhập chủ đề rồi gửi. Có thể dùng Codex CLI + Gemini API, Claude CLI + Antigravity CLI hoặc các model khác đã cấu hình. Codex CLI là một kết nối riêng với tài khoản trên máy; cuộc chat Codex hiện tại không tự tham gia. Model ID phụ thuộc quyền tài khoản, dùng **Tải model** trong thiết lập hoặc nhập ID hợp lệ.
 
 - **Số lượt** tính mỗi lần một model đóng góp, bao gồm lượt lỗi. Các model chạy lần lượt theo thứ tự danh sách, đọc ý kiến trước và phát triển/phản biện ý tưởng. Một model vẫn dùng được để tự phản biện.
 - **Thời gian** là giới hạn cả phiên; dành tối đa 2 phút cuối (10% với phiên ngắn) để tổng hợp. Phiên kết thúc khi chạm số lượt hoặc thời gian, điều kiện nào đến trước. Mẫu **8 giờ**: 48 lượt, tối đa 480 phút, nghỉ 600 giây giữa lượt; có thể kết thúc sớm hơn.

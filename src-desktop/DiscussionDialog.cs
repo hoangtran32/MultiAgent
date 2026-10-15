@@ -7,7 +7,7 @@ internal sealed class DiscussionDialog : Form
     public DiscussionDialog(DiscussionOptions options, int agentCount)
     {
         SuspendLayout(); AutoScaleMode = AutoScaleMode.None;
-        Result = options.Copy(); Text = "Cài đặt thảo luận"; Font = new Font("Segoe UI", 10); BackColor = Ui.Background;
+        Result = options.Copy(); Text = "Giới hạn bàn luận"; Font = new Font("Segoe UI", 10); BackColor = Ui.Background;
         Size = new Size(760, 720);
         StartPosition = FormStartPosition.CenterParent; MinimizeBox = MaximizeBox = false;
         if (Ui.AppIcon != null) Icon = Ui.AppIcon;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.3.1 — 2026-10-15
+
+- Giữ một nơi quản lý Agent & model ở cuối sidebar; bỏ nút thiết lập trong ô chat, thanh icon ngoài cùng và lối tắt quản lý trùng trong các menu. Bộ chọn agent cạnh nút gửi chỉ bật/tắt thành viên.
+- Chuyển phân vai/giới hạn bàn tròn và giới hạn bàn luận vào màn hình Agent & model; vẫn cấu hình được cả hai trước khi chọn chế độ. Thay/bỏ file qua nút +; dừng sau bước hiện tại qua menu ⋯ khi bàn tròn đang chạy.
+- Rê chuột trên nút cách phối hợp hoặc từng mục menu để đọc giải thích riêng cho Song song, Lần lượt, Cùng làm, Bàn luận và Bàn tròn, kèm ví dụ và nơi chỉnh giới hạn.
+- Chỉ biên dịch/đóng gói cục bộ; không chạy kiểm tra màn hình hoặc test chức năng theo yêu cầu.
+
 ## 5.3.0 — 2026-10-15
 
 - Menu chuột phải project: Ghim/Bỏ ghim, Chỉnh sửa tên hiển thị, Mục (chọn/tạo mục), Mở trong File Explorer, Lưu trữ/khôi phục các cuộc trò chuyện và Gỡ dự án. Có icon và đường phân cách; menu dùng được qua Shift+F10/phím Menu.

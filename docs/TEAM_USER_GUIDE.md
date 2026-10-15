@@ -1,12 +1,12 @@
 # Dùng nhóm AI trong Hub 5.1
 
-Giao diện 5.1: **Hub Code / Hub Chat** ở đầu thanh bên là Làm việc / Trò chuyện. Chọn **Bàn tròn** trong ô nhập, bấm biểu tượng thiết lập **⚙ → Phân vai & giới hạn…**. **Công việc & đầu ra** mở bằng biểu tượng danh sách ở góc trên phải. **Chi tiết**, TXT và quản lý topic nằm trong menu **⋯**. Các chỉ dẫn tên chế độ đầy đủ bên dưới vẫn chỉ cùng chức năng, không đổi dữ liệu hội thoại hoặc phân vai.
+Giao diện 5.3.1: **Hub Code / Hub Chat** ở đầu thanh bên là Làm việc / Trò chuyện. Chọn **Bàn tròn** trong ô nhập, mở **Agent & model → Phân vai & giới hạn bàn tròn…** ở cuối sidebar. Rê chuột trên cách phối hợp hoặc từng mục menu để đọc giải thích. **Công việc & đầu ra** mở bằng biểu tượng danh sách ở góc trên phải. **Chi tiết**, TXT và quản lý topic nằm trong menu **⋯**. Các chỉ dẫn tên chế độ đầy đủ bên dưới vẫn chỉ cùng chức năng, không đổi dữ liệu hội thoại hoặc phân vai.
 
 ## Bắt đầu
 
 1. Chọn project ở thanh bên. Mở **Agent & model**, bật ít nhất một CLI/API; hai kết nối khác nhau cho phép phản biện chéo.
 2. Vào **Tài khoản / kết nối → Kiểm tra tất cả**. Kiểm tra này xác nhận trạng thái đăng nhập hoặc danh sách model, không bảo đảm quota còn đủ. Nếu thiếu đăng nhập, chọn agent rồi **Đăng nhập agent đã chọn**; hoàn thành luồng chính thức ở CLI/trình duyệt và kiểm tra lại. API nhập key ở Thiết lập / model. Kết nối IDE/desktop tự đăng nhập trong ứng dụng ngoài.
-3. Chọn **Làm việc**, rồi **Bàn tròn & thực hiện**. Mở **Nhóm & giới hạn** để phân vai, chọn model riêng và giới hạn gọi. Không cần tạo thêm kết nối chỉ để có thêm vai.
+3. Chọn **Làm việc**, rồi **Bàn tròn & thực hiện**. Mở **Agent & model → Phân vai & giới hạn bàn tròn…** để phân vai, chọn model riêng và giới hạn gọi. Không cần tạo thêm kết nối chỉ để có thêm vai.
 4. Nếu muốn model sửa code, cấp `workspace-write` cho CLI đó. Mặc định không tự tăng quyền. Để các API làm phân tích/review cũng được.
 5. Nhập mục tiêu, phạm vi và điều kiện bạn sẽ dùng để nghiệm thu. Gửi bằng Ctrl+Enter hoặc Bắt đầu.
 
@@ -29,7 +29,7 @@ Task đủ điều kiện được thực hiện riêng; tiếp theo là kiểm 
 
 ## Kiểm tra và trạng thái
 
-Mặc định người dùng tự kiểm tra. Kết quả code đã review vẫn hiện **Chưa kiểm chứng**. Muốn Hub chạy lệnh, vào Nhóm & giới hạn → Lệnh kiểm tra, nhập executable và đối số JSON, ví dụ `dotnet.exe` với `["build"]`, rồi bật tự kiểm tra. Phải cấu hình lại hoặc xác nhận lại khi đổi project; không dùng câu lệnh do model sinh để tự chạy qua shell.
+Mặc định người dùng tự kiểm tra. Kết quả code đã review vẫn hiện **Chưa kiểm chứng**. Muốn Hub chạy lệnh, vào Agent & model → Phân vai & giới hạn bàn tròn… → Lệnh kiểm tra, nhập executable và đối số JSON, ví dụ `dotnet.exe` với `["build"]`, rồi bật tự kiểm tra. Phải cấu hình lại hoặc xác nhận lại khi đổi project; không dùng câu lệnh do model sinh để tự chạy qua shell.
 
 **Lệnh đạt** nghĩa là process trả exit code 0. Đọc log để biết có thực sự chạy test, có bỏ qua ca hoặc thiếu dependency không. Fingerprint xét file ngoài `.git`, `bin`, `obj`, `node_modules`, `.build`, `app-bin`, `release`, `dist`, `build`, `.vs`, `.idea`, `.next`, `coverage`, `__pycache__`, `.venv`, `venv`; source nằm trong thư mục bị loại trừ không được fingerprint bao phủ. Workspace quá 12.000 file/256 MB hoặc có liên kết source có thể không xác minh được.
 

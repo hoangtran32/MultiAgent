@@ -4,7 +4,7 @@ internal static class Ui
     public static readonly Color Background = Color.White, Ink = Color.FromArgb(43, 45, 44), Accent = Color.FromArgb(55, 125, 239), Muted = Color.FromArgb(130, 135, 132);
     public static readonly Color Sidebar = Color.FromArgb(249, 251, 248), Surface = Color.FromArgb(245, 247, 245), Border = Color.FromArgb(231, 234, 230);
     public static readonly Color Selection = Color.FromArgb(234, 239, 234), Rail = Color.FromArgb(243, 245, 240);
-    private static readonly ToolTip hints = new() { AutomaticDelay = 450 };
+    private static readonly ToolTip hints = new() { AutomaticDelay = 450, AutoPopDelay = 15000 };
     public static readonly Icon? AppIcon = LoadAppIcon();
     private static Icon? LoadAppIcon()
     {
@@ -46,14 +46,21 @@ internal static class Ui
         button.IconKind = icon; button.Appearance = primary ? "circle" : "ghost"; button.AccessibleName = description; Hint(button, description); return button;
     }
     public static void Hint(Control control, string text) { hints.SetToolTip(control, text); control.AccessibleDescription = text; }
-    public static Button ChoiceButton(ComboBox source, string description, Func<MultiAgentHub.Core.Choice, string>? caption = null)
+    public static Button ChoiceButton(ComboBox source, string description, Func<MultiAgentHub.Core.Choice, string>? caption = null,
+        Func<MultiAgentHub.Core.Choice, string>? explanation = null)
     {
-        var button = Ghost(""); var menu = new ContextMenuStrip { Renderer = new ToolStripProfessionalRenderer(new LightMenuColors()), Font = new Font("Segoe UI", 9), ShowImageMargin = false };
-        void Update() { button.Text = (source.SelectedItem is MultiAgentHub.Core.Choice choice ? caption?.Invoke(choice) ?? choice.Name : description) + "  ⌄"; button.Enabled = source.Enabled; }
+        var button = Ghost(""); var menu = new ContextMenuStrip { Renderer = new ToolStripProfessionalRenderer(new LightMenuColors()), Font = new Font("Segoe UI", 9), ShowImageMargin = false, ShowItemToolTips = true };
+        void Update() {
+            var choice = source.SelectedItem as MultiAgentHub.Core.Choice;
+            button.Text = (choice != null ? caption?.Invoke(choice) ?? choice.Name : description) + "  ⌄";
+            button.Enabled = source.Enabled;
+            Hint(button, choice != null ? explanation?.Invoke(choice) ?? description : description);
+        }
         source.SelectedIndexChanged += (_, _) => Update(); source.EnabledChanged += (_, _) => Update();
         button.Click += (_, _) => {
             menu.Items.Clear(); foreach (MultiAgentHub.Core.Choice choice in source.Items) {
-                var item = new ToolStripMenuItem(choice.Name) { Checked = choice.Id == Value(source) };
+                string hint = explanation?.Invoke(choice) ?? choice.Name;
+                var item = new ToolStripMenuItem(choice.Name) { Checked = choice.Id == Value(source), ToolTipText = hint, AccessibleDescription = hint };
                 item.Click += (_, _) => source.SelectedItem = choice; menu.Items.Add(item);
             }
             menu.Show(button, new Point(0, button.Height));

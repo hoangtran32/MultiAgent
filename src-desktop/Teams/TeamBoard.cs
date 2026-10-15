@@ -40,7 +40,7 @@ internal sealed class TeamBoard : UserControl
         ShowTask();
         artifacts.Text = "BỔ SUNG ĐANG CHỜ ÁP DỤNG\r\n" + string.Join("\r\n\r\n", team.PendingDirectives) + "\r\n\r\nBỔ SUNG ĐÃ NHẬN\r\n" + string.Join("\r\n\r\n", team.Directives) + "\r\n\r\nGHI NHẬN / BẤT ĐỒNG\r\n" + string.Join("\r\n", team.Decisions) +
             "\r\n\r\nTÀI LIỆU\r\n" + string.Join("\r\n\r\n────────────────────\r\n\r\n", team.Artifacts.Select(a => $"{a.Title} • {a.Kind} • {a.TaskId} • lượt {a.Turn}\r\n\r\n{a.Content.ReplaceLineEndings()}"));
-        evidence.Text = team.Evidence.Count == 0 ? "Chưa chạy lệnh kiểm tra do Hub quản lý. Bạn có thể tự kiểm tra hoặc cấu hình lệnh trong Nhóm & giới hạn.\r\nLời báo đã test từ model không phải bằng chứng thực thi của Hub." :
+        evidence.Text = team.Evidence.Count == 0 ? "Chưa chạy lệnh kiểm tra do Hub quản lý. Bạn có thể tự kiểm tra hoặc vào Agent & model → Phân vai & giới hạn bàn tròn… → Lệnh kiểm tra.\r\nLời báo đã test từ model không phải bằng chứng thực thi của Hub." :
             string.Join("\r\n\r\n────────────────────\r\n\r\n", team.Evidence.Select(e => $"{e.Name} • {e.TaskId} • {Ui.State(e.State)} • exit={e.ExitCode}\r\n{e.Executable}\r\nĐối số: {JsonSerializer.Serialize(e.Arguments)}\r\nFingerprint: {e.Fingerprint}\r\nHiệu lực: {(e.Current ? "khớp bản được ghi nhận" : "đã hết hiệu lực / chưa xác minh")}\r\n\r\n{e.Log.ReplaceLineEndings()}"));
     }
     private void ShowTask()
