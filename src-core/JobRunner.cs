@@ -109,7 +109,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 foreach (var evidence in resumed.Evidence) evidence.Current = false;
                 foreach (var task in resumed.Tasks.Where(t => t.Verification == "passed")) task.Verification = "stale";
                 resumed.Directives.Add("Yêu cầu khi tiếp tục: " + prompt); current.Team = resumed;
-                foreach (string pending in resumed.PendingDirectives) teamInstructions.Enqueue(pending);
+                foreach (string pending in resumed.PendingDirectives) { teamInstructions.Enqueue(pending); current.Turns.Add(new() { Kind = "user", Name = "Bạn", State = "queued", Text = pending }); }
                 if (resumed.Tasks.Count > config.Team.MaxTasks) { cancellation.Dispose(); cancellation = null; current = null; throw new ArgumentException("Giới hạn task mới nhỏ hơn số task đang lưu. Tăng giới hạn trong Nhóm & giới hạn."); }
             }
         }
@@ -258,8 +258,10 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         lock (gate) {
             if (cancellation == null || current == null || current.State != "running" || !Catalog.IsTeamMode(current.Mode) || current.Team == null || current.Team.Phase == "finished") throw new InvalidOperationException("Phiên nhóm đã kết thúc hoặc không còn chạy. Giữ yêu cầu để gửi tiếp.");
             if (teamInstructions.Count >= 20 || current.Team!.Directives.Count + teamInstructions.Count >= 100) throw new InvalidOperationException("Đã đạt giới hạn bổ sung của phiên.");
-            var accepted = Snapshot()!; accepted.Team!.PendingDirectives.Add(text.Trim()); storage.Checkpoint(accepted);
+            var input = new DiscussionTurn { Kind = "user", Name = "Bạn", State = "queued", Text = text.Trim() };
+            var accepted = Snapshot()!; accepted.Team!.PendingDirectives.Add(text.Trim()); accepted.Turns.Add(input); storage.Checkpoint(accepted);
             current.Team.PendingDirectives.Add(text.Trim());
+            current.Turns.Add(input);
             teamInstructions.Enqueue(text.Trim());
         }
         Notify();

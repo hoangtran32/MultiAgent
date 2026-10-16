@@ -29,7 +29,10 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         void Directives() {
             bool added = false;
             while (instructions.TryDequeue(out string? directive)) {
-                change(() => { team.PendingDirectives.Remove(directive); team.Directives.Add(directive); team.Decisions.Add("Người dùng bổ sung: " + directive); }); added = true;
+                change(() => {
+                    team.PendingDirectives.Remove(directive); team.Directives.Add(directive); team.Decisions.Add("Người dùng bổ sung: " + directive);
+                    if (job.Turns.FirstOrDefault(t => t.Kind == "user" && t.State == "queued" && t.Text == directive) is { } input) { input.State = "success"; input.Number = team.Calls + 1; }
+                }); added = true;
             }
             if (!added) return;
             change(() => {
@@ -89,7 +92,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 if (binding?.Model is { Length: > 0 } model) agent.Model = model;
                 if (job.Surface == "chat") agent.Permission = "read-only";
                 var result = job.Results.First(r => r.AgentId == agent.Id);
-                var turn = new DiscussionTurn { Number = job.Turns.Count + 1, AgentId = agent.Id, Name = agent.Name, Model = agent.Model,
+                var turn = new DiscussionTurn { Number = job.Turns.Count(t => t.Kind != "user") + 1, AgentId = agent.Id, Name = agent.Name, Model = agent.Model,
                     Role = blockerReview ? "Kiểm chứng vướng mắc" : phase == "roundtable" ? "Bàn tròn / " + TeamRoles.Name(role) : TeamRoles.Name(role), TaskId = task?.Id ?? "", Kind = "team" };
                 string request = Prompt(agent, phase, role, task, extra + correction);
                 change(() => { team.Calls++; team.Phase = phase; team.ActiveTaskId = task?.Id ?? ""; job.Turns.Add(turn);

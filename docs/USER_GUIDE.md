@@ -1,10 +1,10 @@
-# Hướng dẫn Multi-Agent Hub 5.5.0
+# Hướng dẫn Multi-Agent Hub 5.5.1
 
 ## Biết phiên đang làm gì
 
-Thanh trạng thái cố định **ngay trên ô nhập** cho biết phiên còn chạy hay đã dừng, agent/task đang xử lý và trạng thái từng agent. Màu xanh dương là đang chạy, xanh lá là hoàn tất phiên, vàng là chưa xong/chưa kiểm chứng, đỏ là lỗi. Luôn đọc nhãn trạng thái cùng màu.
+Panel tiến độ **bên trái, dưới danh sách project/chat** cho biết phiên còn chạy hay đã dừng, agent/task đang xử lý và trạng thái từng agent. Màu xanh dương là đang chạy, xanh lá là hoàn tất phiên, vàng là chưa xong/chưa kiểm chứng, đỏ là lỗi. Luôn đọc nhãn trạng thái cùng màu. Cuối hội thoại có loading ba chấm kèm tên agent đang xử lý khi chưa có chữ mới; không cần gửi lại yêu cầu để biết phiên còn hoạt động. Loading biến mất khi lượt/phiên đã dừng; lịch sử không tự chạy loading.
 
-**4/5 task đã review** nghĩa là bốn task đã hoàn tất review, còn một task chưa xong. Thanh tiến độ tính danh sách task hiện có; nhóm có thể đề xuất thêm task. **3/30 lần gọi (giới hạn)** là ngân sách sử dụng model, không phải tiến độ project. Kết quả model gửi xong vẫn có thể đang chờ đồng đội review hoặc chốt phiên. **Đã có kết quả — chưa kiểm chứng** và **Đã lưu kế hoạch — chưa thực hiện** không phải đã hoàn thiện phần mềm.
+**4/5 task đã review** nghĩa là bốn task đã hoàn tất review, còn một task chưa xong. Số đếm tính danh sách task hiện có; nhóm có thể đề xuất thêm task. **3/30 lần gọi (giới hạn)** là ngân sách sử dụng model, không phải tiến độ project. Kết quả model gửi xong vẫn có thể đang chờ đồng đội review hoặc chốt phiên. **Đã có kết quả — chưa kiểm chứng** và **Đã lưu kế hoạch — chưa thực hiện** không phải đã hoàn thiện phần mềm.
 
 Nhấn **Công việc** để xem task và bằng chứng, **Chi tiết** để xem nhật ký/prompt hoặc dán kết quả cho kết nối thủ công. **Dừng** nằm cạnh trạng thái đang chạy. Phiên dang dở có nút **Tiếp tục** dùng kết quả đã lưu; nếu đang gõ bản nháp, nút này đưa con trỏ về ô nhập để bạn tự gửi, không ghi đè bản nháp. Lý do dừng hiển thị ngay dưới trạng thái; rê chuột để đọc đầy đủ nếu dòng bị rút gọn.
 

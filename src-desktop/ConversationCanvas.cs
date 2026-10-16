@@ -49,7 +49,7 @@ internal sealed class ConversationCanvas : UserControl
     {
         if (sections.Count > 0) Clipboard.SetText(string.Join("\n\n", sections.Select(s => s.Title + "\n" + s.Meta + "\n\n" + s.Text)));
     }
-    public void Update(IEnumerable<JobRecord> jobs)
+    public void Update(IEnumerable<JobRecord> jobs, string? activeJobId = null)
     {
         var records = jobs.ToList();
         string topicKey = records.FirstOrDefault() is { } first ? first.ConversationId.Length > 0 ? first.ConversationId : first.Id : "";
@@ -64,10 +64,12 @@ internal sealed class ConversationCanvas : UserControl
         foreach (var job in records) {
             string Key(string part) => job.Id + ":" + part;
             next.Add(new("Bạn", job.Timestamp.LocalDateTime.ToString("dd/MM HH:mm"), job.Prompt, true, Key("user")));
+            var supplements = ConversationTimeline.TeamInputs(job, records.FirstOrDefault(j => j.Id == job.PreviousJobId));
+            if (supplements.Count > 0) next.Add(new("Bạn bổ sung", "Bổ sung đã lưu của phiên này", string.Join("\n\n", supplements), true, Key("directives")));
             if (job.Mode is "discussion" or "collaboration" or "team" or "consensus") {
                 foreach (var turn in job.Turns.Where(t => t.Kind != "summary")) {
                     if (turn.Kind == "user") {
-                        string meta = turn.Timestamp.LocalDateTime.ToString("dd/MM HH:mm") + (turn.State == "queued" ? " · Chờ lượt kế tiếp" : $" · Đã gửi vào lượt {turn.Number}");
+                        string meta = turn.Timestamp.LocalDateTime.ToString("dd/MM HH:mm") + (turn.State == "queued" ? " · Chờ bước hiện tại kết thúc" : " · Đã gửi cho nhóm");
                         next.Add(new("Bạn", meta, turn.Text, true, Key("input:" + turn.Id))); continue;
                     }
                     var result = job.Results.FirstOrDefault(r => r.AgentId == turn.AgentId);
@@ -76,8 +78,6 @@ internal sealed class ConversationCanvas : UserControl
                 }
                 foreach (var queued in job.Results.Where(r => r.State == "queued")) next.Add(new(queued.Name, Ui.AgentState(job, queued), "", Key: Key("queued:" + queued.AgentId)));
                 if (job.Mode is "discussion" or "team" or "consensus" && job.Report.Length > 0) next.Add(new("Tổng hợp", job.ReportByModel ? "Từ model" : "Bản ghi tự động", job.Report, Key: Key("report")));
-                if (job.Team is { } team && team.Directives.Count + team.PendingDirectives.Count > 0)
-                    next.Add(new("Bạn bổ sung", "Áp dụng tại ranh giới bước", string.Join("\n\n", team.Directives.Concat(team.PendingDirectives.Select(d => "[Đang chờ áp dụng] " + d))), true, Key("directives")));
                 if (job.Mode == "consensus" && job.Team?.Tasks.FirstOrDefault(t => t.NeedsScopeReview || t.State == "blocked") is { } blocked) {
                     string peer = job.Results.FirstOrDefault(r => r.AgentId == blocked.BlockReviewedBy)?.Name ?? "";
                     bool reconciling = blocked.NeedsScopeReview, checking = job.State == "running" && !blocked.BlockConfirmed;
@@ -94,6 +94,8 @@ internal sealed class ConversationCanvas : UserControl
                 }
             }
         }
-        sections = next; feed.Apply(sections); welcome.Visible = false; feed.Visible = true; feed.BringToFront();
+        sections = next; feed.Apply(sections);
+        feed.SetActivity(records.FirstOrDefault(j => j.Id == activeJobId) is { } active ? RunProgress.Activity(active, true) : "");
+        welcome.Visible = false; feed.Visible = true; feed.BringToFront();
     }
 }

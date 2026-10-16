@@ -1,53 +1,59 @@
 using MultiAgentHub.Core;
 namespace MultiAgentHubApp;
 
-/// <summary>Always-visible session state above the composer; does not rebuild the message feed.</summary>
+/// <summary>A compact sidebar summary with deterministic heights.</summary>
 internal sealed class SessionProgressView : UserControl
 {
-    private readonly Label heading = Ui.Label("", true), detail = Ui.Label(""), counts = Ui.Label(""), agents = Ui.Label(""), reason = Ui.Label("");
-    private readonly ProgressBar progress = new() { Dock = DockStyle.Fill, Height = 4, Minimum = 0, Maximum = 100, Style = ProgressBarStyle.Continuous, Margin = Padding.Empty };
+    private readonly Label heading = Ui.Label("", true), detail = Ui.Label(""), counts = Ui.Label(""), agents = Ui.Label(""), timing = Ui.Label(""), reason = Ui.Label("");
     private readonly Button board = Ui.Ghost("Công việc"), resume = Ui.Button("Tiếp tục"), inspect = Ui.Ghost("Chi tiết");
-    public Button StopButton { get; } = Ui.Button("Dừng");
+    public Button StopButton { get; } = Ui.Button("Dừng phiên");
     public event Action? BoardRequested, ContinueRequested, DetailsRequested, StopRequested;
+    private int agentLines = 1;
+    private bool showReason, showAction, hasTasks;
+    private int D(int value) => (int)Math.Round(value * DeviceDpi / 96f);
     public SessionProgressView()
     {
         DoubleBuffered = true; AutoSize = true; AutoSizeMode = AutoSizeMode.GrowAndShrink; Dock = DockStyle.Fill;
-        Margin = Padding.Empty; Padding = new Padding(24, 4, 24, 2); Visible = false;
-        var root = Ui.Table(2); root.AutoSize = true; root.AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        root.RowCount = 5; for (int i = 0; i < 5; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); Controls.Add(root);
-        heading.Font = new Font("Segoe UI", 11, FontStyle.Bold); heading.Margin = new Padding(0, 4, 8, 2);
-        heading.AutoSize = false; heading.AutoEllipsis = true; heading.Dock = DockStyle.Fill; heading.MinimumSize = new Size(0, 30);
-        var actions = Ui.Flow(); actions.Dock = DockStyle.Right; actions.WrapContents = false;
-        actions.Controls.AddRange([board, inspect, resume, StopButton]); root.Controls.Add(heading, 0, 0); root.Controls.Add(actions, 1, 0);
-        foreach (var label in new[] { detail, counts, agents, reason }) {
-            label.AutoSize = false; label.AutoEllipsis = true; label.Dock = DockStyle.Fill; label.Margin = new Padding(0, 1, 0, 1); label.UseMnemonic = false;
+        Margin = new Padding(0, 6, 0, 4); Visible = false; BackColor = Ui.Sidebar;
+        heading.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+        foreach (var label in new[] { heading, detail, counts, agents, timing, reason }) {
+            label.AutoSize = false; label.AutoEllipsis = true; label.UseMnemonic = false; label.Margin = Padding.Empty; Controls.Add(label);
         }
-        detail.Height = 21; counts.Height = 19; agents.Height = 19; reason.Height = 32;
-        foreach (var label in new[] { detail, counts, agents, reason }) label.MinimumSize = new Size(0, label.Height);
-        root.Controls.Add(detail, 0, 1); root.SetColumnSpan(detail, 2);
-        var countRow = Ui.Table(2); countRow.AutoSize = true; countRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); countRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 110));
-        countRow.Controls.Add(counts, 0, 0); var track = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 7, 0, 7), Height = 19 }; track.Controls.Add(progress); countRow.Controls.Add(track, 1, 0);
-        root.Controls.Add(countRow, 0, 2); root.SetColumnSpan(countRow, 2); root.Controls.Add(agents, 0, 3); root.SetColumnSpan(agents, 2);
-        root.Controls.Add(reason, 0, 4); root.SetColumnSpan(reason, 2);
+        foreach (var button in new[] { board, inspect, resume, StopButton }) {
+            button.AutoSize = false; button.MinimumSize = Size.Empty; button.Padding = new Padding(6, 2, 6, 2); button.Margin = Padding.Empty;
+            button.Font = new Font("Segoe UI", 8.5f); Controls.Add(button);
+        }
         board.Click += (_, _) => BoardRequested?.Invoke(); resume.Click += (_, _) => ContinueRequested?.Invoke(); inspect.Click += (_, _) => DetailsRequested?.Invoke(); StopButton.Click += (_, _) => StopRequested?.Invoke();
-        Ui.Hint(board, "Xem toàn bộ task, phạm vi, kết quả và phần đang chờ review."); Ui.Hint(resume, "Tiếp tục phần còn dang dở với kết quả đã lưu. Nếu đã soạn tin nhắn, bạn tự gửi nội dung đó.");
-        Paint += (_, e) => { using var pen = new Pen(Ui.Border); e.Graphics.DrawLine(pen, Padding.Left, 0, Width - Padding.Right, 0); };
+        Ui.Hint(board, "Xem task, kết quả và phần đang chờ review."); Ui.Hint(resume, "Tiếp tục từ kết quả đã lưu; giữ bản nháp đang gõ để bạn tự gửi.");
     }
-    private static void Set(Label label, string value) { if (label.Text == value) return; label.Text = value; Ui.Hint(label, value); }
+    public override Size GetPreferredSize(Size proposedSize) => new(0, D(22 + 38 + 20 + agentLines * 18 + 36 + 32 + 16 + (showReason ? 38 : 0) + (showAction ? 32 : 0)));
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+        base.OnLayout(e); if (heading == null || StopButton == null) return;
+        int x = D(8), width = Math.Max(D(40), ClientSize.Width - D(16)), y = D(8);
+        void Place(Control control, int height) { control.SetBounds(x, y, width, D(height)); y += D(height); }
+        Place(heading, 22); Place(detail, 38); Place(counts, 20); Place(agents, agentLines * 18); Place(timing, 36);
+        if (showReason) Place(reason, 38);
+        int half = (width - D(6)) / 2;
+        board.SetBounds(x, y, hasTasks ? half : 0, D(28)); inspect.SetBounds(hasTasks ? x + half + D(6) : x, y, hasTasks ? width - half - D(6) : width, D(28)); y += D(32);
+        StopButton.SetBounds(x, y, width, D(28)); resume.SetBounds(x, y, width, D(28));
+    }
+    protected override void OnDpiChangedAfterParent(EventArgs e) { base.OnDpiChangedAfterParent(e); PerformLayout(); Parent?.PerformLayout(this, nameof(PreferredSize)); }
+    protected override void OnPaint(PaintEventArgs e) { base.OnPaint(e); using var pen = new Pen(Ui.Border); e.Graphics.DrawLine(pen, D(8), 1, Width - D(8), 1); }
+    private static void Set(Label label, string value, string? hint = null) { if (label.Text == value) return; label.Text = value; Ui.Hint(label, hint ?? value); }
     public void Clear() => Visible = false;
     public void Update(JobRecord job, bool active)
     {
         var state = RunProgress.From(job, active, DateTimeOffset.Now);
-        Set(heading, state.Title); Set(detail, state.Detail); Set(counts, state.Progress + "   ·   " + state.Timing); Set(agents, state.Agents); Set(reason, state.Reason);
+        int heightBefore = GetPreferredSize(Size.Empty).Height;
+        var names = state.Agents.Split("   ·   ", StringSplitOptions.RemoveEmptyEntries);
+        agentLines = Math.Clamp(names.Length, 1, 3); showReason = state.Reason.Length > 0; showAction = state.IsRunning || state.CanContinue; hasTasks = job.Team != null;
+        string agentText = string.Join("\n", names.Take(names.Length > 3 ? 2 : 3)); if (names.Length > 3) agentText += $"\n+ {names.Length - 2} agent khác · xem Chi tiết";
+        Set(heading, state.Title); Set(detail, state.Detail); Set(counts, state.Progress); Set(agents, agentText, state.Agents); Set(timing, state.Timing.Replace(" · ", "\n")); Set(reason, state.Reason);
         heading.ForeColor = state.Tone switch { "active" => Ui.Accent, "success" => Color.FromArgb(34, 128, 83), "error" => Color.FromArgb(181, 55, 55), _ => Color.FromArgb(148, 99, 29) };
         reason.ForeColor = state.Tone == "error" ? Color.FromArgb(181, 55, 55) : Ui.Muted;
-        reason.Visible = state.Reason.Length > 0; board.Visible = job.Team != null; resume.Visible = state.CanContinue;
-        string boardText = $"Công việc {state.Done}/{state.Total}"; if (board.Text != boardText) board.Text = boardText;
-        StopButton.Visible = StopButton.Enabled = state.IsRunning;
-        progress.Visible = state.Total > 0 && job.Mode != "discussion";
-        int value = state.Total == 0 ? 0 : (int)(100L * state.Done / state.Total); if (progress.Value != value) progress.Value = value;
-        Ui.Hint(progress, "Phần task/agent đã hoàn tất trong danh sách hiện có; không phải ước tính phần trăm toàn bộ project.");
+        reason.Visible = showReason; board.Visible = hasTasks; resume.Visible = state.CanContinue; StopButton.Visible = StopButton.Enabled = state.IsRunning;
         if (!Visible) Visible = true;
+        if (heightBefore != GetPreferredSize(Size.Empty).Height) { PerformLayout(); Parent?.PerformLayout(this, nameof(PreferredSize)); }
     }
 }

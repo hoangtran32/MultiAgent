@@ -4,6 +4,12 @@ namespace MultiAgentHub.Core;
 public sealed record RunProgress(string Title, string Detail, string Reason, string Progress, string Agents,
     string Timing, string Tone, int Done, int Total, bool IsRunning, bool CanContinue)
 {
+    public static string Activity(JobRecord job, bool active)
+    {
+        if (!active || job.State != "running") return "";
+        string names = string.Join(" + ", job.Results.Where(r => r.State == "running").Select(r => r.Name).Distinct());
+        return names.Length > 0 ? names + " đang xử lý…" : job.Team?.Phase == "verifying" ? "Đang chạy kiểm tra…" : "";
+    }
     public static RunProgress From(JobRecord job, bool active, DateTimeOffset now)
     {
         var team = job.Team;

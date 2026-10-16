@@ -144,10 +144,15 @@ internal static class ConsensusTests
         await test("new instruction during blocker review discards the stale verdict and reconciles scope", async () => {
             var fixture = new ConsensusFixture { BlockFirstWork = true, ConfirmBlock = true };
             var runner = new JobRunner(fixture, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
-            fixture.DuringBlockReview = () => runner.AddTeamInstruction("The prerequisite may now be replaced for this test.");
+            fixture.DuringBlockReview = () => {
+                runner.AddTeamInstruction("The prerequisite may now be replaced for this test.");
+                Assert(runner.Snapshot()!.Turns.Single(t => t.Kind == "user").State == "queued");
+            };
             runner.Start(Config(root), "Original constraints"); await Complete(runner); var job = runner.Snapshot()!;
             Assert(job.State == "completed" && fixture.BlockReviews == 1 && fixture.WorkVersions.SequenceEqual(new[] { 1, 3 }));
             Assert(job.Team!.PendingDirectives.Count == 0 && job.Team.Directives.Last().Contains("may now be replaced"));
+            Assert(job.Turns.Single(t => t.Kind == "user").State == "success" && job.Turns.Single(t => t.Kind == "user").Text.Contains("may now be replaced"));
+            Assert(ConversationTimeline.TeamInputs(job, null).Count == 0 && Export.PlainText(job).Contains("may now be replaced"));
             Assert(!job.Team.Tasks.Single().NeedsScopeReview && !job.Team.Tasks.Single().BlockConfirmed);
         });
         await test("resuming consensus reopens unfinished proposal with fresh approvals", async () => {

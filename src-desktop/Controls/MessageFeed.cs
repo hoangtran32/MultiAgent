@@ -7,6 +7,7 @@ internal sealed class MessageFeed : Panel
     private readonly Dictionary<string, MessageCard> cards = [];
     private readonly List<MessageCard> ordered = [];
     private readonly Button older;
+    private readonly ActivityIndicator activity = new();
     private IReadOnlyList<ChatSection> sections = [];
     private string topic = "";
     private int first;
@@ -17,13 +18,13 @@ internal sealed class MessageFeed : Panel
     {
         Dock = DockStyle.Fill; AutoScroll = true; DoubleBuffered = true; ResizeRedraw = true; BackColor = Ui.Background;
         older = Ui.Button("Hiển thị tin nhắn cũ", (_, _) => { follow = false; first = Math.Max(0, first - BatchSize); Sync(); SetScroll(0); });
-        Controls.Add(older); older.Visible = false;
+        Controls.Add(older); Controls.Add(activity); older.Visible = false;
     }
     public void ClearMessages()
     {
         foreach (var card in cards.Values) { Controls.Remove(card); card.Dispose(); }
         cards.Clear(); ordered.Clear(); sections = []; topic = ""; first = 0; follow = true;
-        older.Visible = false; AutoScrollMinSize = Size.Empty; AutoScrollPosition = Point.Empty;
+        older.Visible = false; activity.SetActivity(""); AutoScrollMinSize = Size.Empty; AutoScrollPosition = Point.Empty;
     }
     public void Apply(IReadOnlyList<ChatSection> value)
     {
@@ -31,6 +32,7 @@ internal sealed class MessageFeed : Panel
         if (topic != nextTopic) { ClearMessages(); topic = nextTopic; first = Math.Max(0, value.Count - BatchSize); }
         sections = value; Sync();
     }
+    public void SetActivity(string text) { if (activity.SetActivity(text)) ScheduleArrange(); }
     private ViewportMark? CaptureAnchor() => ordered.FirstOrDefault(c => c.Bottom > 0 && c.Top < ClientSize.Height) is { } card ? new(card.Key, card.Top) : null;
     private void Sync()
     {
@@ -87,6 +89,7 @@ internal sealed class MessageFeed : Panel
                     card.SetBounds(x + width - cardWidth, y + scroll, cardWidth, height);
                     y += height + D(18);
                 }
+                if (activity.Text.Length > 0) { activity.SetBounds(x, y + scroll, width, D(34)); y += D(46); }
                 AutoScrollMinSize = new Size(0, y + D(12));
             } finally {
                 // ScrollableControl recalculates its native range during layout. Flush it

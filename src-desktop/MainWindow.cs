@@ -69,12 +69,12 @@ internal sealed partial class MainWindow : Form
             else if (e.Control && e.Shift && e.KeyCode == Keys.F) { e.SuppressKeyPress = true; sidebar.FocusSearch(); }
             else if (e.Control && e.KeyCode == Keys.Oemcomma && !runner.Busy) { e.SuppressKeyPress = true; OpenAgents(); }
         };
-        var root = Ui.Table(); root.Padding = new Padding(0, 0, 0, 4); root.RowCount = 5;
+        var root = Ui.Table(); root.Padding = new Padding(0, 0, 0, 4); root.RowCount = 4;
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 174)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 174)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         var shell = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, Size = new Size(1380, 900), SplitterDistance = 286, SplitterWidth = 1, BackColor = Ui.Border };
         var rail = new NavigationRail(); rail.NewRequested += NewConversation; rail.SearchRequested += () => sidebar.FocusSearch(); rail.ProjectRequested += BrowseProject;
-        shell.Panel1.Controls.Add(sidebar); shell.Panel1.Controls.Add(rail); shell.Panel2.Controls.Add(root); Controls.Add(shell); locked.Add(sidebar); locked.Add(rail);
+        shell.Panel1.Controls.Add(sidebar); shell.Panel1.Controls.Add(rail); shell.Panel2.Controls.Add(root); Controls.Add(shell); locked.Add(rail);
         sidebar.NewRequested += NewConversation; sidebar.AddProjectRequested += BrowseProject;
         sidebar.ProjectSelected += path => { if (!runner.Busy && !string.Equals(path, config.Project, StringComparison.OrdinalIgnoreCase)) SetProject(path); };
         sidebar.ConversationSelected += OpenConversation;
@@ -121,7 +121,7 @@ internal sealed partial class MainWindow : Form
         boardHeader.Controls.Add(boardCaption); boardHeader.Controls.Add(boardClose); boardPanel.Controls.Add(boardHeader);
         boardPanel.Paint += (_, e) => { using var pen = new Pen(Ui.Border); e.Graphics.DrawLine(pen, 0, 0, 0, boardPanel.Height); };
         conversationHost.Controls.Add(canvas); conversationHost.Controls.Add(boardPanel); root.Controls.Add(conversationHost, 0, 1);
-        root.Controls.Add(sessionProgress, 0, 2);
+        sidebar.SetProgressControl(sessionProgress);
         sessionProgress.BoardRequested += OpenBoard; sessionProgress.DetailsRequested += OpenDetails; sessionProgress.StopRequested += () => runner.Cancel();
         sessionProgress.ContinueRequested += () => {
             if (runner.Busy || conversationLoading || displayed == null) return;
@@ -226,7 +226,7 @@ internal sealed partial class MainWindow : Form
         send.Controls.AddRange([teamButton, run]); toolbar.Controls.Add(send, 1, 0); locked.Add(run);
         attachment.AutoEllipsis = true; attachment.AutoSize = false; attachment.Height = 22; attachment.Dock = DockStyle.Top; attachment.Visible = false;
         inputLayout.Controls.Add(attachment, 0, 2); inputLayout.Controls.Add(toolbar, 0, 3);
-        root.Controls.Add(composer, 0, 3);
+        root.Controls.Add(composer, 0, 2);
         bool adjustingComposer = false, composerLayoutQueued = false;
         int measuredPromptWidth = -1;
         void QueueComposerLayout() {
@@ -259,14 +259,14 @@ internal sealed partial class MainWindow : Form
                 bool workspaceChanged = Math.Abs(inputLayout.RowStyles[0].Height - workspaceHeight) > 0.5f;
                 bool attachmentChanged = Math.Abs(inputLayout.RowStyles[2].Height - attachmentHeight) > 0.5f;
                 bool toolbarChanged = Math.Abs(inputLayout.RowStyles[3].Height - toolbarHeight) > 0.5f;
-                bool heightChanged = Math.Abs(root.RowStyles[3].Height - desiredHeight) > 0.5f;
+                bool heightChanged = Math.Abs(root.RowStyles[2].Height - desiredHeight) > 0.5f;
                 if (workspaceChanged || attachmentChanged || toolbarChanged || heightChanged) {
                     root.SuspendLayout(); inputLayout.SuspendLayout();
                     try {
                         if (workspaceChanged) inputLayout.RowStyles[0].Height = workspaceHeight;
                         if (attachmentChanged) inputLayout.RowStyles[2].Height = attachmentHeight;
                         if (toolbarChanged) inputLayout.RowStyles[3].Height = toolbarHeight;
-                        if (heightChanged) root.RowStyles[3].Height = desiredHeight;
+                        if (heightChanged) root.RowStyles[2].Height = desiredHeight;
                     } finally { inputLayout.ResumeLayout(true); root.ResumeLayout(true); }
                 }
             } finally { adjustingComposer = false; }
@@ -279,7 +279,7 @@ internal sealed partial class MainWindow : Form
         var output = Ui.Table(); output.RowStyles.Add(new RowStyle(SizeType.AutoSize)); output.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); detailPanel.Controls.Add(output);
         var outputHeader = Ui.Flow(); outputHeader.Controls.AddRange([history, Ui.Button("Xem lịch sử", (_, _) => ShowHistory()), Ui.Button("Dùng lại yêu cầu", (_, _) => Reuse()), Ui.Button("Xuất Markdown…", (_, _) => ExportJob())]); output.Controls.Add(outputHeader, 0, 0);
         history.AccessibleName = "Lịch sử tác vụ"; output.Controls.Add(results, 0, 1);
-        status.Font = new Font("Segoe UI", 8); status.AutoSize = false; status.AutoEllipsis = true; status.Dock = DockStyle.Fill; status.Height = 18; status.Margin = new Padding(24, 0, 24, 1); root.Controls.Add(status, 0, 4);
+        status.Font = new Font("Segoe UI", 8); status.AutoSize = false; status.AutoEllipsis = true; status.Dock = DockStyle.Fill; status.Height = 18; status.Margin = new Padding(24, 0, 24, 1); root.Controls.Add(status, 0, 3);
         status.TextChanged += (_, _) => Ui.Hint(status, status.Text);
         runner.Changed += value => latest = value;
         runner.AgentQuotaReached += id => pendingQuota[id] = 0;
@@ -594,8 +594,9 @@ internal sealed partial class MainWindow : Form
     }
     private void RenderJob(JobRecord job, bool live = true)
     {
-        canvas.Update(conversationJobs.Where(j => j.Id != job.Id).Append(job));
+        canvas.Update(conversationJobs.Where(j => j.Id != job.Id).Append(job), runner.Busy ? job.Id : null);
         bool busy = runner.Busy;
+        sidebar.SetRunning(busy);
         bool liveComposer = job.Mode is "team" or "consensus" or "discussion";
         bool canSend = Catalog.IsTeamMode(job.Mode) && job.State == "running" || job.Mode == "discussion" && !job.DiscussionFinishRequested && job.DiscussionPhase is not ("summarizing" or "finished");
         foreach (var control in locked) {

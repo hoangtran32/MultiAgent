@@ -15,6 +15,7 @@ internal sealed partial class ConversationSidebar : UserControl
     private readonly Dictionary<string, List<TreeNode>> conversationNodes = [];
     private string currentProject = "", selectedId = "";
     private bool updating;
+    private readonly List<Control> navigation = [];
     private TreeNode? hovered;
     public event Action<string>? ProjectSelected;
     public event Action<ConversationInfo>? ConversationSelected;
@@ -26,10 +27,10 @@ internal sealed partial class ConversationSidebar : UserControl
     {
         Dock = DockStyle.Fill; BackColor = Ui.Sidebar; Padding = new Padding(8, 12, 8, 10);
         DoubleBuffered = true; Controls.Add(root);
-        root.RowCount = 7;
+        root.RowCount = 8;
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         for (int i = 0; i < 3; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         surfaceHost.SetSearchButton(Ui.IconButton("search", "Tìm hội thoại", (_, _) => FocusSearch()));
         root.Controls.Add(surfaceHost, 0, 0);
         var create = Ui.Ghost("Đoạn chat mới", (_, _) => NewRequested?.Invoke()); ((ModernButton)create).IconKind = "edit"; create.TextAlign = ContentAlignment.MiddleLeft; create.Dock = DockStyle.Fill; create.Height = 36; create.MinimumSize = new Size(0, 36); create.Margin = new Padding(0, 8, 0, 12); root.Controls.Add(create, 0, 1);
@@ -38,9 +39,10 @@ internal sealed partial class ConversationSidebar : UserControl
         var projectsHeader = Ui.Table(2); projectsHeader.Height = 32; projectsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); projectsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34));
         projectsHeader.Controls.Add(Ui.Label("Dự án"), 0, 0); projectsHeader.Controls.Add(Ui.IconButton("plus", "Thêm project", (_, _) => AddProjectRequested?.Invoke()), 1, 0); root.Controls.Add(projectsHeader, 0, 3);
         root.Controls.Add(tree, 0, 4); archives.CheckedChanged += (_, _) => Populate();
-        var archiveButton = Ui.Ghost("Hội thoại đã lưu trữ", (_, _) => { archives.Checked = !archives.Checked; }); archiveButton.TextAlign = ContentAlignment.MiddleLeft; archiveButton.Dock = DockStyle.Fill; archiveButton.Font = new Font("Segoe UI", 8.5f); archiveButton.ForeColor = Ui.Muted; root.Controls.Add(archiveButton, 0, 5);
+        var archiveButton = Ui.Ghost("Hội thoại đã lưu trữ", (_, _) => { archives.Checked = !archives.Checked; }); archiveButton.TextAlign = ContentAlignment.MiddleLeft; archiveButton.Dock = DockStyle.Fill; archiveButton.Font = new Font("Segoe UI", 8.5f); archiveButton.ForeColor = Ui.Muted; root.Controls.Add(archiveButton, 0, 6);
         archives.CheckedChanged += (_, _) => archiveButton.Text = archives.Checked ? "← Quay lại hội thoại" : "Hội thoại đã lưu trữ";
-        var footer = Ui.Ghost("Agent & model", (_, _) => SettingsRequested?.Invoke()); ((ModernButton)footer).IconKind = "settings"; footer.TextAlign = ContentAlignment.MiddleLeft; footer.Dock = DockStyle.Fill; root.Controls.Add(footer, 0, 6);
+        var footer = Ui.Ghost("Agent & model", (_, _) => SettingsRequested?.Invoke()); ((ModernButton)footer).IconKind = "settings"; footer.TextAlign = ContentAlignment.MiddleLeft; footer.Dock = DockStyle.Fill; root.Controls.Add(footer, 0, 7);
+        navigation.AddRange([surfaceHost, create, search, projectsHeader, tree, archiveButton, footer]);
         tree.HandleCreated += (_, _) => { tree.ItemHeight = (int)(32 * tree.DeviceDpi / 96f); tree.Indent = (int)(18 * tree.DeviceDpi / 96f); };
         tree.DrawNode += DrawNode;
         tree.MouseMove += (_, e) => { var next = tree.GetNodeAt(e.Location); if (next != hovered) { var previous = hovered; hovered = next; tree.InvalidateRow(previous); tree.InvalidateRow(next); } };
@@ -66,6 +68,8 @@ internal sealed partial class ConversationSidebar : UserControl
             else if (e.Node?.Tag is ProjectInfo project) ProjectSelected?.Invoke(project.Path);
         };
     }
+    public void SetProgressControl(Control control) => root.Controls.Add(control, 0, 5);
+    public void SetRunning(bool running) { foreach (var control in navigation) if (control.Enabled == running) control.Enabled = !running; }
     public void SetSurfaceControl(Control control) {
         if (control is Button button) { button.AutoSize = false; button.TextAlign = ContentAlignment.MiddleLeft; }
         control.Font = new Font("Segoe UI", 11, FontStyle.Bold); surfaceHost.SetChoice(control); PerformLayout();

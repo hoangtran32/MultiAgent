@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.5.1 — 2026-10-16
+
+- Chuyển tiến độ vào panel gọn bên trái, dưới danh sách project/chat. Bỏ thanh trải ngang và progress bar native; giữ trạng thái, task, agent, số đã review, thời gian và thao tác. Chiều cao cố định theo nội dung, không dùng FlowLayout kéo giãn. Nút Dừng trong sidebar vẫn dùng được khi điều hướng/cấu hình đang khóa.
+- Thêm loading ba chấm ở cuối hội thoại với tên agent đang xử lý, kể cả chưa có chữ mới. Animation chỉ vẽ lại indicator, không dựng lại tin nhắn hoặc đổi scroll; dừng khi phiên kết thúc, mở lịch sử hoặc feed bị ẩn. Chờ kết quả thủ công không giả là AI đang chạy.
+- Không lặp toàn bộ Directives tích lũy ở cuối mỗi lượt tiếp tục. Yêu cầu đã có trong prompt/lịch sử không bị nhân đôi; bổ sung mới lưu thành tin nhắn theo thứ tự queued/đã áp dụng. Bổ sung legacy chưa có tin nhắn vẫn được giữ trước phần trả lời của phiên, dữ liệu gốc/export không mất.
+- Bổ sung kiểm tra hồi quy cho loading theo trạng thái thực, lọc phần bổ sung kế thừa và vòng đời tin nhắn bổ sung của nhóm. Chỉ biên dịch/đóng gói cục bộ; không chạy test UI/chức năng cục bộ theo yêu cầu.
+
 ## 5.5.0 — 2026-10-16
 
 - Thêm thanh trạng thái cố định trên ô nhập: phân biệt đang làm, đang chốt ý, phản biện, kiểm tra, chờ dán kết quả, nghỉ giữa lượt, lưu kết quả, hoàn tất, chưa kiểm chứng và dừng khi chưa xong.

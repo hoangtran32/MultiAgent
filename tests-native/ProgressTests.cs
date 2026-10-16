@@ -56,5 +56,20 @@ internal static class ProgressTests
             var state = RunProgress.From(job, false, now); Assert(state.Done == 1 && state.Total == 3 && state.CanContinue && state.Reason.Contains("C: Connection failed"));
             var task = new TeamTask { State = "proposed", NeedsScopeReview = true }; Assert(RunProgress.TaskState(task).Contains("cập nhật phạm vi")); return Task.CompletedTask;
         });
+        await test("loading names only running providers and stops for history, waiting and finished runs", () => {
+            var job = Job(); Assert(RunProgress.Activity(job, true) == "A đang xử lý…");
+            job.Results[1].State = "running"; Assert(RunProgress.Activity(job, true) == "A + B đang xử lý…");
+            Assert(RunProgress.Activity(job, false) == ""); job.State = "partial"; Assert(RunProgress.Activity(job, true) == "");
+            job.State = "running"; job.Results.ForEach(r => r.State = "waiting"); Assert(RunProgress.Activity(job, true) == "");
+            job.Team!.Phase = "verifying"; Assert(RunProgress.Activity(job, true).Contains("kiểm tra")); return Task.CompletedTask;
+        });
+        await test("conversation inputs omit inherited resume history and inputs already represented as messages", () => {
+            var previous = new JobRecord { Team = new() { Directives = ["Old input", "Another old input"] } };
+            var job = new JobRecord { Prompt = "Continue", Team = new() { Directives = [..previous.Team.Directives, "Yêu cầu khi tiếp tục: Continue", "New legacy input", "Live input"], PendingDirectives = ["Queued input"] },
+                Turns = [new() { Kind = "user", Text = "Live input", State = "success" }, new() { Kind = "user", Text = "Queued input", State = "queued" }] };
+            Assert(ConversationTimeline.TeamInputs(job, previous).SequenceEqual(new[] { "New legacy input" }));
+            job.Turns.RemoveAt(1); Assert(ConversationTimeline.TeamInputs(job, previous).Last() == "[Đang chờ áp dụng] Queued input");
+            Assert(previous.Team.Directives.Count == 2 && job.Team.Directives.Count == 5); return Task.CompletedTask;
+        });
     }
 }
