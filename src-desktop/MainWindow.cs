@@ -32,6 +32,7 @@ internal sealed partial class MainWindow : Form
     private readonly Button discussionSettings;
     private readonly Panel agentPanel = new() { Dock = DockStyle.Fill }, detailPanel = new() { Dock = DockStyle.Fill };
     private readonly ConversationCanvas canvas = new();
+    private readonly SessionProgressView sessionProgress = new();
     private readonly Panel conversationHost = new() { Dock = DockStyle.Fill }, boardPanel = new() { Dock = DockStyle.Right, Width = 420 };
     private readonly Label headerTitle = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ContextMenuStrip headerMenu = new(), attachmentMenu = new();
@@ -68,9 +69,9 @@ internal sealed partial class MainWindow : Form
             else if (e.Control && e.Shift && e.KeyCode == Keys.F) { e.SuppressKeyPress = true; sidebar.FocusSearch(); }
             else if (e.Control && e.KeyCode == Keys.Oemcomma && !runner.Busy) { e.SuppressKeyPress = true; OpenAgents(); }
         };
-        var root = Ui.Table(); root.Padding = new Padding(0, 0, 0, 4); root.RowCount = 4;
+        var root = Ui.Table(); root.Padding = new Padding(0, 0, 0, 4); root.RowCount = 5;
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 174)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 174)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         var shell = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, Size = new Size(1380, 900), SplitterDistance = 286, SplitterWidth = 1, BackColor = Ui.Border };
         var rail = new NavigationRail(); rail.NewRequested += NewConversation; rail.SearchRequested += () => sidebar.FocusSearch(); rail.ProjectRequested += BrowseProject;
         shell.Panel1.Controls.Add(sidebar); shell.Panel1.Controls.Add(rail); shell.Panel2.Controls.Add(root); Controls.Add(shell); locked.Add(sidebar); locked.Add(rail);
@@ -120,6 +121,14 @@ internal sealed partial class MainWindow : Form
         boardHeader.Controls.Add(boardCaption); boardHeader.Controls.Add(boardClose); boardPanel.Controls.Add(boardHeader);
         boardPanel.Paint += (_, e) => { using var pen = new Pen(Ui.Border); e.Graphics.DrawLine(pen, 0, 0, 0, boardPanel.Height); };
         conversationHost.Controls.Add(canvas); conversationHost.Controls.Add(boardPanel); root.Controls.Add(conversationHost, 0, 1);
+        root.Controls.Add(sessionProgress, 0, 2);
+        sessionProgress.BoardRequested += OpenBoard; sessionProgress.DetailsRequested += OpenDetails; sessionProgress.StopRequested += () => runner.Cancel();
+        sessionProgress.ContinueRequested += () => {
+            if (runner.Busy || conversationLoading || displayed == null) return;
+            if (prompt.TextLength > 0) { prompt.Focus(); return; }
+            prompt.Text = "Tiếp tục phần còn dang dở. Đối chiếu kết quả và file đã có trước khi thực hiện thêm; giữ nguyên các task đã hoàn tất.";
+            StartJob();
+        };
         canvas.SuggestionSelected += value => { prompt.Text = value + ": "; prompt.Focus(); prompt.SelectionStart = prompt.TextLength; };
         project.Text = config.Project; project.AccessibleName = "Project";
         recentProjects.AccessibleName = "Project gần đây";
@@ -213,11 +222,11 @@ internal sealed partial class MainWindow : Form
         teamButton.Click += (_, _) => ChooseTeam(); ((ModernButton)teamButton).Appearance = "ghost"; teamButton.MaximumSize = new Size(220, 34); teamButton.MinimumSize = new Size(80, 30); locked.Add(teamButton);
         var send = Ui.Flow(); send.WrapContents = false; send.Dock = DockStyle.Right;
         run = Ui.IconButton("up", "Gửi yêu cầu", (_, _) => StartJob(), true); run.Size = new Size(32, 32);
-        stop = Ui.IconButton("stop", "Dừng tác vụ", (_, _) => runner.Cancel()); stop.Enabled = false; stop.Visible = false;
-        send.Controls.AddRange([teamButton, stop, run]); toolbar.Controls.Add(send, 1, 0); locked.Add(run);
+        stop = sessionProgress.StopButton; stop.Enabled = false; stop.Visible = false;
+        send.Controls.AddRange([teamButton, run]); toolbar.Controls.Add(send, 1, 0); locked.Add(run);
         attachment.AutoEllipsis = true; attachment.AutoSize = false; attachment.Height = 22; attachment.Dock = DockStyle.Top; attachment.Visible = false;
         inputLayout.Controls.Add(attachment, 0, 2); inputLayout.Controls.Add(toolbar, 0, 3);
-        root.Controls.Add(composer, 0, 2);
+        root.Controls.Add(composer, 0, 3);
         bool adjustingComposer = false, composerLayoutQueued = false;
         int measuredPromptWidth = -1;
         void QueueComposerLayout() {
@@ -250,14 +259,14 @@ internal sealed partial class MainWindow : Form
                 bool workspaceChanged = Math.Abs(inputLayout.RowStyles[0].Height - workspaceHeight) > 0.5f;
                 bool attachmentChanged = Math.Abs(inputLayout.RowStyles[2].Height - attachmentHeight) > 0.5f;
                 bool toolbarChanged = Math.Abs(inputLayout.RowStyles[3].Height - toolbarHeight) > 0.5f;
-                bool heightChanged = Math.Abs(root.RowStyles[2].Height - desiredHeight) > 0.5f;
+                bool heightChanged = Math.Abs(root.RowStyles[3].Height - desiredHeight) > 0.5f;
                 if (workspaceChanged || attachmentChanged || toolbarChanged || heightChanged) {
                     root.SuspendLayout(); inputLayout.SuspendLayout();
                     try {
                         if (workspaceChanged) inputLayout.RowStyles[0].Height = workspaceHeight;
                         if (attachmentChanged) inputLayout.RowStyles[2].Height = attachmentHeight;
                         if (toolbarChanged) inputLayout.RowStyles[3].Height = toolbarHeight;
-                        if (heightChanged) root.RowStyles[2].Height = desiredHeight;
+                        if (heightChanged) root.RowStyles[3].Height = desiredHeight;
                     } finally { inputLayout.ResumeLayout(true); root.ResumeLayout(true); }
                 }
             } finally { adjustingComposer = false; }
@@ -270,7 +279,7 @@ internal sealed partial class MainWindow : Form
         var output = Ui.Table(); output.RowStyles.Add(new RowStyle(SizeType.AutoSize)); output.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); detailPanel.Controls.Add(output);
         var outputHeader = Ui.Flow(); outputHeader.Controls.AddRange([history, Ui.Button("Xem lịch sử", (_, _) => ShowHistory()), Ui.Button("Dùng lại yêu cầu", (_, _) => Reuse()), Ui.Button("Xuất Markdown…", (_, _) => ExportJob())]); output.Controls.Add(outputHeader, 0, 0);
         history.AccessibleName = "Lịch sử tác vụ"; output.Controls.Add(results, 0, 1);
-        status.Font = new Font("Segoe UI", 8); status.AutoSize = false; status.AutoEllipsis = true; status.Dock = DockStyle.Fill; status.Height = 18; status.Margin = new Padding(24, 0, 24, 1); root.Controls.Add(status, 0, 3);
+        status.Font = new Font("Segoe UI", 8); status.AutoSize = false; status.AutoEllipsis = true; status.Dock = DockStyle.Fill; status.Height = 18; status.Margin = new Padding(24, 0, 24, 1); root.Controls.Add(status, 0, 4);
         status.TextChanged += (_, _) => Ui.Hint(status, status.Text);
         runner.Changed += value => latest = value;
         runner.AgentQuotaReached += id => pendingQuota[id] = 0;
@@ -525,7 +534,7 @@ internal sealed partial class MainWindow : Form
         CancelConversationLoad();
         selectedConversationId = null; continueFrom = null; conversationJobs = []; latest = null; displayed = null;
         config.LastConversationId = ""; contextFile = null; attachment.Text = "Không đính kèm file"; Protect(Save);
-        topic.ReadOnly = false; topic.Clear(); prompt.Clear(); teamBoard.Clear(); canvas.ShowWelcome(config.Surface); UpdateSummary(); ReloadLibrary(); run.Enabled = true;
+        topic.ReadOnly = false; topic.Clear(); prompt.Clear(); teamBoard.Clear(); sessionProgress.Clear(); canvas.ShowWelcome(config.Surface); UpdateSummary(); ReloadLibrary(); run.Enabled = true;
         status.Text = "Cuộc trò chuyện mới. Đặt tên topic hoặc để Hub lấy tên từ yêu cầu đầu tiên."; prompt.Focus();
     }
     private void CancelConversationLoad() { conversationLoadVersion++; conversationLoad?.Cancel(); conversationLoad = null; conversationLoading = false; }
@@ -543,7 +552,7 @@ internal sealed partial class MainWindow : Form
         if (selectedConversationId == info.Id && displayed != null && !conversationLoading) { if (focus) prompt.Focus(); return; }
         CancelConversationLoad(); int version = conversationLoadVersion;
         using var request = new CancellationTokenSource(); conversationLoad = request; conversationLoading = true;
-        run.Enabled = false; status.Text = "Đang mở: " + info.Title;
+        run.Enabled = false; sessionProgress.Clear(); status.Text = "Đang mở: " + info.Title;
         try {
             long stamp = await Task.Run(() => storage.ConversationStamp(info.Id), request.Token);
             List<JobRecord> jobs;
@@ -600,7 +609,7 @@ internal sealed partial class MainWindow : Form
         if (busy && job.Mode == "discussion") prompt.PlaceholderText = canSend ? "Bổ sung ý kiến… Ctrl + Enter để gửi vào lượt tiếp theo" : "Đang kết thúc bàn luận… Bạn có thể soạn yêu cầu tiếp theo tại đây";
         if (Catalog.IsTeamMode(job.Mode)) {
             boardToggle.Visible = true;
-            teamBoard.Update(job); run.Text = ""; run.AccessibleName = busy ? "Gửi bổ sung" : "Gửi yêu cầu";
+            teamBoard.Update(job, busy); run.Text = ""; run.AccessibleName = busy ? "Gửi bổ sung" : "Gửi yêu cầu";
         }
         UpdateAddAvailability(); ShowJobStatus(job);
         if (detailPanel.FindForm() != null) RenderDetails(job);
@@ -637,21 +646,8 @@ internal sealed partial class MainWindow : Form
     }
     private void ShowJobStatus(JobRecord job)
     {
-        double seconds = runner.Busy ? (DateTimeOffset.Now - job.Timestamp).TotalSeconds : job.Seconds;
-        if (job.Team is { } team) {
-            status.Text = $"{Ui.State(runner.Busy ? team.Phase : job.State)} • {team.Tasks.Count(t => t.State == "done")}/{team.Tasks.Count} task đã review • {team.Calls}/{team.Options.MaxCalls} lần gọi • {seconds / 60:F1} phút{(!runner.Busy ? " • " + job.StopReason : "")}{(quotaSaveError.Length > 0 ? " • " + quotaSaveError : "")}";
-            return;
-        }
-        if (job.Mode == "discussion") {
-            int available = job.Results.Count(r => r.State is not ("quota" or "error"));
-            string phase = runner.Busy ? job.DiscussionFinishRequested && job.DiscussionPhase != "summarizing" ? "Kết thúc sau lượt hiện tại" : Ui.State(job.DiscussionPhase) : Ui.State(job.State);
-            string pause = job.NextTurnAt is { } next ? $" • nghỉ còn {Math.Max(0, (int)Math.Ceiling((next - DateTimeOffset.Now).TotalSeconds))}s • gửi bổ sung để tiếp tục ngay" : "";
-            status.Text = $"{phase}{(runner.Busy && available == 1 ? " • Chạy đơn" : "")} • {job.Turns.Count(t => t.Kind == "discussion")}/{job.Discussion?.MaxTurns} lượt{pause} • {seconds / 60:F1} phút{(!runner.Busy ? " • " + job.StopReason : "")}{(quotaSaveError.Length > 0 ? " • " + quotaSaveError : "")}";
-            return;
-        }
-        int done = job.Results.Count(r => r.State is "success" or "error" or "quota" or "cancelled" or "skipped"), waiting = job.Results.Count(r => r.State == "waiting"), exhausted = job.Results.Count(r => r.State == "quota");
-        bool single = runner.Busy && exhausted > 0 && job.Results.Count(r => r.State is "queued" or "running" or "waiting") == 1;
-        status.Text = $"{(single ? "Chạy đơn" : Ui.State(job.State))} • {done}/{job.Results.Count} xong{(waiting > 0 ? $" • {waiting} chờ dán kết quả" : "")}{(exhausted > 0 ? $" • {exhausted} hết quota" : "")} • {seconds:F1}s • {job.Project}{(quotaSaveError.Length > 0 ? " • " + quotaSaveError : "")}";
+        sessionProgress.Update(job, runner.Busy);
+        status.Text = quotaSaveError;
     }
     private void Reply(string agentId, string text) => Protect(() => runner.Reply(agentId, text));
     private void OpenExternal(string agentId, string handoff) => Protect(() => {

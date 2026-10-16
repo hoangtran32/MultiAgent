@@ -26,18 +26,25 @@ internal sealed class TeamBoard : UserControl
         root.Controls.Add(tabs, 0, 2); Ui.Theme(this);
     }
     public void Clear() { job = null; signature = ""; tasks.Rows.Clear(); details.Clear(); artifacts.Clear(); evidence.Clear(); phase.Text = "Bàn tròn, task và đầu ra sẽ xuất hiện khi bắt đầu phiên nhóm."; }
-    public void Update(JobRecord value)
+    public void Update(JobRecord value, bool active = false)
     {
         job = value; if (value.Team is not { } team) { Clear(); return; }
-        string next = JsonSerializer.Serialize(team, Json.Options); if (next == signature) return; signature = next;
+        string next = value.State + active + JsonSerializer.Serialize(team, Json.Options); if (next == signature) return; signature = next;
         string selected = tasks.CurrentRow?.Cells[0].Value?.ToString() ?? "";
-        phase.Text = $"{Ui.State(team.Phase)} • {team.Tasks.Count(t => t.State == "done")}/{team.Tasks.Count} task đã review • {team.Calls}/{team.Options.MaxCalls} lần gọi{(team.ActiveTaskId.Length > 0 ? " • " + team.ActiveTaskId : "")}";
-        tasks.Rows.Clear();
+        var progress = RunProgress.From(value, active, DateTimeOffset.Now);
+        phase.Text = progress.Title + "\n" + progress.Progress; Ui.Hint(phase, progress.Detail + "\n" + progress.Reason);
+        if (!tasks.Rows.Cast<DataGridViewRow>().Select(r => r.Cells[0].Value?.ToString()).SequenceEqual(team.Tasks.Select(t => t.Id))) tasks.Rows.Clear();
+        if (selected.Length == 0) selected = team.ActiveTaskId.Length > 0 ? team.ActiveTaskId : team.Tasks.FirstOrDefault(t => t.State is not ("done" or "planned"))?.Id ?? "";
+        int index = 0;
         foreach (var task in team.Tasks) {
             int required = value.Results.Count(r => r.State != "quota");
             string agreement = value.Mode == "consensus" ? $"v{task.ProposalVersion} · {task.AgreedBy.Count(id => value.Results.Any(r => r.AgentId == id && r.State != "quota"))}/{required}" : "—";
-            int index = tasks.Rows.Add(task.Id, task.Title, Ui.State(task.State), agreement, value.Results.FirstOrDefault(r => r.AgentId == task.AssignedTo)?.Name ?? "—", Ui.State(task.Verification));
+            object[] cells = [task.Id, task.Title, RunProgress.TaskState(task), agreement, value.Results.FirstOrDefault(r => r.AgentId == task.AssignedTo)?.Name ?? "—", Ui.State(task.Verification)];
+            if (index >= tasks.Rows.Count) tasks.Rows.Add(cells);
+            else for (int column = 0; column < cells.Length; column++) if (!Equals(tasks.Rows[index].Cells[column].Value, cells[column])) tasks.Rows[index].Cells[column].Value = cells[column];
+            tasks.Rows[index].Cells[2].Style.ForeColor = task.State switch { "done" or "planned" => Color.FromArgb(34, 128, 83), "running" or "reviewing" or "verifying" => Ui.Accent, "blocked" => Color.FromArgb(181, 55, 55), _ => Ui.Muted };
             if (task.Id == selected) tasks.CurrentCell = tasks.Rows[index].Cells[0];
+            index++;
         }
         ShowTask();
         artifacts.Text = "BỔ SUNG ĐANG CHỜ ÁP DỤNG\r\n" + string.Join("\r\n\r\n", team.PendingDirectives) + "\r\n\r\nBỔ SUNG ĐÃ NHẬN\r\n" + string.Join("\r\n\r\n", team.Directives) + "\r\n\r\nGHI NHẬN / BẤT ĐỒNG\r\n" + string.Join("\r\n", team.Decisions) +

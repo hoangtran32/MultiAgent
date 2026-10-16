@@ -109,7 +109,7 @@ internal static class Ui
     public static string State(string value) => value switch {
         "roundtable" => "Bàn tròn", "work" => "Thực hiện", "review" or "reviewing" => "Phản biện", "verifying" => "Kiểm tra", "finished" => "Kết thúc",
         "proposed" => "Đề xuất", "ready" => "Sẵn sàng", "done" => "Đã review", "blocked" => "Cần can thiệp", "not_run" => "Chưa chạy", "passed" => "Lệnh đạt", "stale" => "Hết hiệu lực", "timeout" => "Quá thời gian", "invalid" => "Sai định dạng", "planned" => "Đã lưu kế hoạch", "unverified" => "Chưa kiểm chứng",
-        "discussing" => "Đang thảo luận", "resting" => "Nghỉ giữa lượt", "summarizing" => "Đang tổng hợp", "interrupted" => "Phiên bị gián đoạn", "queued" => "Chờ", "running" => "Đang chạy", "waiting" => "Chờ dán kết quả", "success" => "Hoàn thành", "quota" => "Hết quota", "partial" => "Chưa hoàn tất", "error" => "Lỗi", "completed" => "Hoàn tất", "failed" => "Có lỗi", "cancelled" => "Đã dừng", "skipped" => "Bỏ qua", _ => value };
+        "discussing" => "Đang thảo luận", "resting" => "Nghỉ giữa lượt", "summarizing" => "Đang tổng hợp", "interrupted" => "Phiên bị gián đoạn", "queued" => "Chờ", "running" => "Đang chạy", "waiting" => "Chờ dán kết quả", "success" => "Đã trả lời", "quota" => "Hết quota", "partial" => "Chưa hoàn tất", "error" => "Lỗi", "completed" => "Hoàn tất", "failed" => "Có lỗi", "cancelled" => "Đã dừng", "skipped" => "Bỏ qua", _ => value };
 }
 
 internal sealed class ComposerPanel : Panel

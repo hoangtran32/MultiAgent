@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.5.0 — 2026-10-16
+
+- Thêm thanh trạng thái cố định trên ô nhập: phân biệt đang làm, đang chốt ý, phản biện, kiểm tra, chờ dán kết quả, nghỉ giữa lượt, lưu kết quả, hoàn tất, chưa kiểm chứng và dừng khi chưa xong.
+- Hiển thị agent/task đang xử lý, số task đã review, trạng thái từng agent, thời gian và nguyên nhân dừng. Giới hạn gọi model được ghi riêng, không dùng làm tiến độ công việc; thanh tiến độ chỉ tính task/agent đã xong trong danh sách hiện có. Mở lịch sử không giả là đang chạy.
+- Đưa nút Dừng có chữ sang thanh trạng thái, bỏ ô vuông khó nhận biết trong composer. Có Công việc kèm số đã xong, Chi tiết và Tiếp tục cho phiên dang dở; bản nháp đang gõ được giữ để người dùng tự gửi. Phiên mới ẩn thanh trạng thái.
+- Bảng task dùng trạng thái dễ hiểu, tô màu, ưu tiên chọn phần đang làm khi chưa chọn và cập nhật tại chỗ để giữ lựa chọn, giảm dựng lại bảng khi nhận snapshot.
+- Thêm 7 ca hồi quy về ý nghĩa tiến độ và phân biệt trạng thái. Chỉ biên dịch/đóng gói cục bộ, không chạy test UI/chức năng cục bộ theo yêu cầu.
+
 ## 5.4.3 — 2026-10-16
 
 - CLI tách sự kiện kết thúc process gốc, EOF của pipe và sự kiện hoàn tất model. Codex turn.completed, Claude result thành công và Antigravity result SUCCESS có nội dung cho phép nhận kết quả mà không chờ CLI mắc ở bước thoát. Tin nhắn giữa lượt, đầu ra rỗng và result lỗi không phải hoàn tất.
