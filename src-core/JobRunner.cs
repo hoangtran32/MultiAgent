@@ -96,7 +96,11 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 var resumed = JsonSerializer.Deserialize<TeamRun>(JsonSerializer.Serialize(earlier, Json.Options), Json.Options)!;
                 resumed.Options = config.Team.Copy(); resumed.Calls = 0; resumed.Phase = "roundtable"; resumed.ActiveTaskId = resumed.NextAgentId = ""; resumed.StopAfterStep = false;
                 foreach (var task in resumed.Tasks.Where(t => t.State != "done")) {
-                    if (config.Mode == "consensus") IdeaConsensus.Invalidate(task); else task.State = "proposed";
+                    if (config.Mode == "consensus") {
+                        bool blocked = task.State == "blocked";
+                        IdeaConsensus.Invalidate(task);
+                        if (blocked) { task.State = "blocked"; TaskBlocker.Reopen(task); }
+                    } else task.State = "proposed";
                     task.Revisions = 0; task.Feedback += "\nTiếp tục phiên: cần xác nhận lại task và đọc workspace hiện tại.";
                 }
                 foreach (var evidence in resumed.Evidence) evidence.Current = false;

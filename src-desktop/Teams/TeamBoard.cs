@@ -51,6 +51,7 @@ internal sealed class TeamBoard : UserControl
         if (job?.Team?.Tasks.FirstOrDefault(t => t.Id == id) is not { } task) { details.Text = "Chọn một task để xem phạm vi, tiêu chí và phản biện."; return; }
         details.Text = $"{task.Id} • {task.Title}\r\n{Ui.State(task.State)} • sửa {task.Revisions}/{job.Team.Options.MaxRevisions} vòng\r\nPhụ thuộc: {string.Join(", ", task.DependsOn)}\r\n{(task.IndependentReview ? "Review chéo" : "Chưa có review độc lập")}\r\n\r\nPHẠM VI\r\n{task.Description}\r\n\r\nTIÊU CHÍ\r\n{task.Acceptance}\r\n\r\nKẾT QUẢ\r\n{task.Outcome}\r\n\r\nPHẢN BIỆN\r\n{task.Feedback}".ReplaceLineEndings();
         if (job.Mode == "consensus") details.Text = $"PHIÊN BẢN Ý: {task.ProposalVersion}\r\nĐã chốt: {string.Join(", ", task.AgreedBy.Select(id => job.Results.FirstOrDefault(r => r.AgentId == id)?.Name ?? id))}\r\n\r\n" + details.Text;
+        if (task.State == "blocked") details.Text = "VƯỚNG MẮC / ĐIỀU KIỆN TIẾP TỤC\r\n" + TaskBlocker.Describe(task).ReplaceLineEndings() + "\r\n\r\n" + details.Text;
     }
     private void ExportArtifacts()
     {

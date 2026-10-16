@@ -22,6 +22,10 @@ Trong **Hub Chat** hoặc khi tắt thực hiện, ý được chốt thành **�
 
 ## Can thiệp và tiếp tục
 
+Nếu agent thực hiện báo **bị chặn**, Hub chuyển cho đồng đội kiểm chứng trước khi kết thúc. Có cách xử lý trong phạm vi thì hai bên chốt lại phiên bản mới rồi tiếp tục chính ý đó, trong số vòng sửa đã đặt. Xác nhận vướng mắc không phải nghiệm thu task.
+
+Nếu đồng đội xác nhận thiếu điều kiện bên ngoài, Hub hiển thị thẻ **Chưa thể tiếp tục** với lý do và điều kiện/thao tác cần làm. Ví dụ: backend đang chạy không khớp bản cần đo, trong khi phạm vi không cho phép thay tiến trình. Hub giữ task chưa hoàn tất, không tự tắt dịch vụ hoặc đổi điều kiện nghiệm thu để báo đạt. Sau khi điều kiện được đáp ứng hoặc bạn điều chỉnh phạm vi, gửi tiếp; Hub kiểm chứng vướng mắc trước khi thử thực hiện lại.
+
 Gửi bổ sung trong lúc chạy để điều chỉnh yêu cầu ở ranh giới bước. Các xác nhận cũ bị làm hết hiệu lực; cần chốt lại phạm vi. **⋯ → Dừng sau bước hiện tại** kết thúc sau bước đang làm; nút Dừng hủy ngay. Kết quả và ý còn dang dở được lưu trong hội thoại, JSON, TXT và Markdown. Mở lại rồi gửi tiếp để tiếp tục; ý chưa hoàn tất phải xác nhận lại, không tự chạy khi mở app.
 
 Chọn được một hoặc nhiều agent, không cố định Codex/Gemini. Với nhiều hơn hai agent, tất cả thành viên khả dụng phải chốt. Hết quota tự bỏ chọn theo cơ chế hiện có; chỉ còn một agent thì ghi rõ tự rà soát, chưa có đồng thuận/review độc lập. Lỗi thông thường sẽ dừng và giữ ý chưa chốt, không tự loại bên phản biện để biến thành đồng thuận. Kết nối dán kết quả thủ công chưa tham gia chế độ tự động này.

@@ -75,5 +75,6 @@ public static class IdeaConsensus
     public static void Invalidate(TeamTask task)
     {
         task.ProposalVersion++; task.AgreedBy.Clear(); task.State = "proposed";
+        task.BlockReviewedBy = ""; task.BlockConfirmed = false;
     }
 }

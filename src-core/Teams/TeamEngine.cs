@@ -71,7 +71,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 (task == null ? "" : $"TASK ĐANG XỬ LÝ:\n{Clip(JsonSerializer.Serialize(task, Json.Options), 24000)}\n") + extra + "\n\n" + TeamProtocol.Contract +
                 (consensus ? "\n\n" + IdeaConsensus.Contract + "\nÝ đang bàn: " + (IdeaConsensus.Active(team)?.Id ?? "Chưa có; chỉ đề xuất MỘT ý kế tiếp hoặc xác nhận kết thúc.") : "");
         }
-        async Task<TeamReply?> Call(AgentConfig original, string phase, string role, TeamTask? task = null, string extra = "") {
+        async Task<TeamReply?> Call(AgentConfig original, string phase, string role, TeamTask? task = null, string extra = "", bool blockerReview = false) {
             string correction = "";
             for (int attempt = 0; attempt < 2 && Capacity(); attempt++) {
                 var agent = original.Copy();
@@ -80,7 +80,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 if (job.Surface == "chat") agent.Permission = "read-only";
                 var result = job.Results.First(r => r.AgentId == agent.Id);
                 var turn = new DiscussionTurn { Number = job.Turns.Count + 1, AgentId = agent.Id, Name = agent.Name, Model = agent.Model,
-                    Role = phase == "roundtable" ? "Bàn tròn / " + TeamRoles.Name(role) : TeamRoles.Name(role), TaskId = task?.Id ?? "", Kind = "team" };
+                    Role = blockerReview ? "Kiểm chứng vướng mắc" : phase == "roundtable" ? "Bàn tròn / " + TeamRoles.Name(role) : TeamRoles.Name(role), TaskId = task?.Id ?? "", Kind = "team" };
                 string request = Prompt(agent, phase, role, task, extra + correction);
                 change(() => { team.Calls++; team.Phase = phase; team.ActiveTaskId = task?.Id ?? ""; job.Turns.Add(turn);
                     result.Model = agent.Model; result.State = "running"; result.Text = ""; result.Error = ""; result.SentPrompt = request; });
@@ -105,6 +105,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 }
                 try {
                     var reply = TeamProtocol.Parse(answer, phase);
+                    if (blockerReview) TaskBlocker.ValidateReview(reply);
                     if (phase == "roundtable") {
                         if (consensus) IdeaConsensus.Validate(team, reply);
                         else {
@@ -164,6 +165,23 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             }
             return Available().Count > 0 && Available().All(a => finished.Contains(a.Id));
         }
+        async Task ReviewBlocker(TeamTask task) {
+            while (Capacity() && failedParticipants.Count == 0) {
+                Directives(); if (task.State != "blocked" || task.BlockConfirmed) return;
+                var peer = Select("reviewer", task.BlockedBy); if (peer == null) return;
+                var reply = await Call(peer, "review", "reviewer", task,
+                    "\nKIỂM CHỨNG VƯỚNG MẮC — TASK CHƯA HOÀN TẤT.\n" + TaskBlocker.Describe(task) +
+                    "\nĐối chiếu bằng chứng của đồng đội, kiểm tra xem có cách xử lý hợp lệ trong phạm vi đã thống nhất hay không. " +
+                    "Không tự đổi tiến trình/cấu hình hoặc làm thao tác ngoài yêu cầu/quyền để bỏ qua điều kiện nghiệm thu. " +
+                    "Nếu có hướng xử lý trong phạm vi: outcome=revise, giải thích phương án để hai bên chốt lại. " +
+                    "Nếu cần điều kiện bên ngoài: outcome=blocked, ghi blockedReason và requiredAction thật cụ thể. " +
+                    "Không trả approve/done và không báo đã đo/đã đạt khi điều kiện đo chưa có.", blockerReview: true);
+                if (reply == null) continue;
+                // A scope change queued during review invalidates this assessment before it can decide the task.
+                Directives(); if (task.State != "blocked") return;
+                change(() => TaskBlocker.ApplyReview(task, reply, peer.Id, options.MaxRevisions)); Save(); return;
+            }
+        }
         async Task<bool> Review(TeamTask task, string files) {
             while (Capacity()) {
                 Directives();
@@ -176,9 +194,17 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 change(() => {
                     task.Feedback = reply.Message;
                     if (reply.Outcome == "approve" && task.Verification != "failed") task.State = "done";
-                    else if (reply.Outcome == "blocked" || task.Revisions >= options.MaxRevisions) task.State = "blocked";
+                    else if (reply.Outcome == "blocked" || task.Revisions >= options.MaxRevisions) {
+                        if (consensus) TaskBlocker.Capture(task, reply.Outcome == "blocked" ? reply : new() {
+                            Message = reply.Message,
+                            BlockedReason = task.Verification == "failed" ? "Kiểm tra chưa đạt và đã hết số vòng sửa của ý này." : "Phản biện còn yêu cầu sửa nhưng đã hết số vòng sửa của ý này.",
+                            RequiredAction = "Điều chỉnh phạm vi hoặc tăng giới hạn vòng sửa trước khi thử tiếp; chưa được nghiệm thu."
+                        }, reviewer.Id); else task.State = "blocked";
+                    }
                     else { task.Revisions++; task.State = "ready"; }
-                }); Save(); return true;
+                }); Save();
+                if (consensus && task.State == "blocked") await ReviewBlocker(task);
+                return true;
             }
             return false;
         }
@@ -187,7 +213,10 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 Directives(); if (task.State != "ready") return;
                 if (consensus && failedParticipants.Count > 0) return;
                 var coder = Select("coder", writer: task.RequiresWorkspace);
-                if (coder == null) { change(() => { task.State = "blocked"; task.Feedback = "Không còn CLI có quyền ghi workspace. Chọn workspace-write trong Agent & model hoặc phân lại vai."; }); Save(); return; }
+                if (coder == null) {
+                    change(() => TaskBlocker.Capture(task, new() { Message = "Không còn CLI có quyền ghi workspace.", BlockedReason = "Không còn CLI có quyền ghi workspace.", RequiredAction = "Chọn agent CLI có quyền workspace-write/full trong Agent & model hoặc điều chỉnh phạm vi." }, ""));
+                    Save(); if (consensus) await ReviewBlocker(task); return;
+                }
                 change(() => { task.State = "running"; task.AssignedTo = coder.Id;
                     if (task.RequiresWorkspace) {
                         foreach (var e in team.Evidence) e.Current = false;
@@ -197,7 +226,10 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 var reply = await Call(coder, "work", "coder", task, "\nGiữ nguyên các thay đổi đã có. Task có thể có thay đổi một phần từ lượt lỗi/quota trước; phải đọc lại trước khi tiếp nhận.\n");
                 if (reply == null) { change(() => { task.State = "ready"; task.Feedback = "Lượt trước lỗi/quota; kiểm tra thay đổi một phần trước khi tiếp nhận."; }); Save(); continue; }
                 change(() => { task.Outcome = reply.Message; task.Verification = "not_run"; task.State = reply.Outcome == "blocked" ? "blocked" : "verifying"; });
-                if (task.State == "blocked") { Save(); return; }
+                if (task.State == "blocked") {
+                    change(() => TaskBlocker.Capture(task, reply, coder.Id));
+                    Save(); if (consensus) await ReviewBlocker(task); return;
+                }
                 if (options.RunVerification && task.RequiresWorkspace) {
                     string before;
                     try { before = TeamWorkspace.Fingerprint(job.Project, runToken); }
@@ -240,7 +272,11 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             while (Capacity() && Available().Count > 0 && !team.StopAfterStep && (!consensus || failedParticipants.Count == 0)) {
                 Directives();
                 if (consensus && options.ExecuteTasks && job.Surface == "work" && IdeaConsensus.Active(team) is { State: "ready" } ready) { await Execute(ready); continue; }
-                if (consensus && IdeaConsensus.Active(team)?.State == "blocked") break;
+                if (consensus && IdeaConsensus.Active(team) is { State: "blocked" } blocked) {
+                    if (!blocked.BlockConfirmed) await ReviewBlocker(blocked);
+                    if (blocked.State == "blocked" || failedParticipants.Count > 0) break;
+                    continue;
+                }
                 agreed = await Round();
                 if (!Capacity() || team.StopAfterStep) break;
                 if (consensus && failedParticipants.Count > 0) break;
@@ -270,6 +306,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 job.State = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "cancelled" : "partial" : consensus && (failedParticipants.Count > 0 || team.PendingDirectives.Count > 0 || (!options.ExecuteTasks || job.Surface == "chat") && (!agreed || IdeaConsensus.Active(team) != null)) ? "partial" : !options.ExecuteTasks || job.Surface == "chat" ? "planned" : !implemented || team.PendingDirectives.Count > 0 ? "partial" : !agreed || !verified || team.Tasks.Any(t => !t.IndependentReview || consensus && t.AgreedBy.Count < 2) ? "unverified" : "completed";
                 job.StopReason = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "Người dùng dừng phiên." : "Đã đạt giới hạn thời gian." : team.StopAfterStep ? "Đã dừng sau bước hiện tại theo yêu cầu. Có thể tiếp tục từ hội thoại này." : Available().Count == 0 ? "Không còn agent khả dụng." : team.Calls >= options.MaxCalls ? "Đã đạt giới hạn gọi model." :
                     consensus && failedParticipants.Count > 0 ? "Agent bị lỗi; giữ ý chưa chốt, không loại bên phản biện để giả đồng thuận." :
+                    consensus && IdeaConsensus.Active(team) is { State: "blocked" } obstacle ? TaskBlocker.Describe(obstacle) :
                     consensus && IdeaConsensus.Active(team) is { } unresolved ? $"Ý {unresolved.Id} v{unresolved.ProposalVersion} chưa xong; không chuyển sang ý khác." :
                     !options.ExecuteTasks || job.Surface == "chat" ? "Đã lưu kế hoạch / bàn tròn; chưa thực hiện task." : implemented ? "Các task đã được review; xem bằng chứng kiểm tra và ghi chú tự review." : "Chưa đủ điều kiện thực hiện tiếp; xem task và phản biện.";
             });
@@ -291,6 +328,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         if (job.Mode == "consensus") {
             report.AppendLine("CHỐT TỪNG Ý — XÁC NHẬN THEO PHIÊN BẢN");
             foreach (var task in team.Tasks) report.AppendLine($"{task.Id} v{task.ProposalVersion}: {string.Join(", ", task.AgreedBy.Select(id => job.Results.FirstOrDefault(r => r.AgentId == id)?.Name ?? id))}");
+            foreach (var task in team.Tasks.Where(t => t.State == "blocked")) report.AppendLine("\n" + TaskBlocker.Describe(task));
         }
         report.AppendLine("BẰNG CHỨNG LỆNH (exit code 0 không chứng minh bao phủ đủ yêu cầu)");
         foreach (var evidence in team.Evidence) report.AppendLine($"{evidence.Name}: {evidence.State}, exit={evidence.ExitCode}, {(evidence.Current ? "đúng fingerprint được ghi nhận" : "hết hiệu lực / chưa xác minh fingerprint")}");

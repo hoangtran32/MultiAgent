@@ -28,6 +28,8 @@ public sealed class TeamReply
     public string NextAgentId { get; set; } = "";
     public bool Finished { get; set; }
     public string Outcome { get; set; } = "";
+    public string BlockedReason { get; set; } = "";
+    public string RequiredAction { get; set; } = "";
     public List<TaskProposal> Tasks { get; set; } = [];
     public List<TaskProposal> TaskAmendments { get; set; } = [];
     public List<TaskReview> TaskReviews { get; set; } = [];
@@ -47,6 +49,8 @@ public static class TeamProtocol
           "nextAgentId": "ID agent phù hợp tiếp theo hoặc chuỗi rỗng",
           "finished": false,
           "outcome": "",
+          "blockedReason": "",
+          "requiredAction": "",
           "tasks": [{"id":"T1","title":"Tên task","description":"Phạm vi cụ thể","acceptance":"Tiêu chí nghiệm thu","dependsOn":[],"requiresWorkspace":true}],
           "taskReviews": [{"taskId":"ID task đã được đề xuất trước lượt này","accept":true,"reason":"Vì sao task đủ rõ và cần làm"}],
           "artifacts": [{"title":"Thiết kế / PRD / báo cáo","kind":"design","content":"Nội dung tài liệu"}],
@@ -57,6 +61,8 @@ public static class TeamProtocol
         không đề xuất lại task đã tồn tại. requiresWorkspace=false dành cho phân tích/tài liệu trả về trong artifacts.
         Khi thực hiện task: outcome="done" hoặc "blocked"; mô tả trung thực thay đổi và giới hạn.
         Khi review: outcome="approve", "revise" hoặc "blocked". Không sửa file trong lượt review.
+        Khi kiểm chứng VƯỚNG MẮC: chỉ outcome="revise" (có cách xử lý trong phạm vi) hoặc "blocked" (cần điều kiện bên ngoài).
+        blocked phải ghi rõ blockedReason và requiredAction. Không báo approve/done cho một task chưa thực hiện được.
         Không tự chấp nhận task mới của mình trong cùng lượt. Không dùng finished=true khi còn việc chưa giải quyết.
         Không coi model đồng ý hoặc model báo PASS là bằng chứng thực thi. Trường không dùng để [] hoặc "".
         """;
@@ -72,6 +78,7 @@ public static class TeamProtocol
         } else if (json.StartsWith("```json", StringComparison.OrdinalIgnoreCase) && json.EndsWith("```")) json = json[7..^3].Trim();
         var reply = JsonSerializer.Deserialize<TeamReply>(json, Json.Options) ?? throw new InvalidDataException("Đầu ra hub rỗng.");
         if (string.IsNullOrWhiteSpace(reply.Message) || reply.Message.Length > 48000 || reply.NextAgentId == null || reply.Outcome == null ||
+            reply.BlockedReason == null || reply.RequiredAction == null || reply.BlockedReason.Length > 3000 || reply.RequiredAction.Length > 3000 ||
             reply.Tasks == null || reply.TaskAmendments == null || reply.TaskReviews == null || reply.Artifacts == null || reply.Decisions == null || reply.Files == null)
             throw new InvalidDataException("Thiếu message hoặc trường dữ liệu nhóm không hợp lệ.");
         if (reply.Tasks.Count > 12 || reply.TaskAmendments.Count > 1 || reply.TaskReviews.Count > 50 || reply.Artifacts.Count > 6 || reply.Decisions.Count > 12 || reply.Files.Count > 30) throw new InvalidDataException("Đầu ra nhóm vượt giới hạn.");

@@ -59,6 +59,11 @@ public sealed class TeamTask
 {
     public int ProposalVersion { get; set; } = 1;
     public List<string> AgreedBy { get; set; } = [];
+    public string BlockedBy { get; set; } = "";
+    public string BlockedReason { get; set; } = "";
+    public string RequiredAction { get; set; } = "";
+    public string BlockReviewedBy { get; set; } = "";
+    public bool BlockConfirmed { get; set; }
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";

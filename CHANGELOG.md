@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.4.1 — 2026-10-16
+
+- Chốt từng ý không dừng ngay khi agent thực hiện báo blocked: chuyển vướng mắc cho đồng đội kiểm chứng. Có hướng xử lý trong phạm vi thì mở lại đúng ý, tăng phiên bản, xóa xác nhận cũ và chốt lại trước khi thử. Không mở ý khác hoặc coi bị chặn là hoàn thành.
+- Đồng đội xác nhận cần điều kiện bên ngoài phải ghi lý do và thao tác/điều kiện cần để tiếp tục. Chat có thẻ vướng mắc riêng; trạng thái, bảng task và TXT/Markdown nêu rõ lý do, không chỉ ghi ý chưa xong. Không tự đổi tiến trình/cấu hình ngoài phạm vi để bỏ qua điều kiện nghiệm thu.
+- Tiếp tục phiên bị chặn sẽ kiểm chứng vướng mắc trước khi gọi lại agent thực hiện; tương thích dữ liệu blocked cũ. Hướng xử lý mới vẫn bị giới hạn bởi số vòng sửa, số lần gọi và thời gian.
+- Thêm 5 ca hồi quy cho kiểm chứng blocked, tìm cách xử lý và chốt lại, điều kiện bên ngoài, giới hạn thử lại và tiếp tục phiên blocked. Chỉ biên dịch/đóng gói cục bộ, không chạy UI/test chức năng cục bộ theo yêu cầu.
+
 ## 5.4.0 — 2026-10-16
 
 - Thêm Chốt từng ý: chỉ một ý mở, phản hồi ngắn 100–200 từ; mọi thành viên khả dụng phải xác nhận cùng phiên bản trước khi thực hiện và review phần đó rồi mở ý tiếp. Cùng làm, Bàn luận và Bàn tròn vẫn giữ cách phối hợp riêng.
