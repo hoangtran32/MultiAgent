@@ -70,7 +70,8 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 $"YÊU CẦU GỐC:\n{Clip(job.Prompt, 24000)}\nNGỮ CẢNH:\n{Clip(context, 18000)}\nBỔ SUNG TỪ NGƯỜI DÙNG:\n{Latest(string.Join("\n", team.Directives.TakeLast(10)), 18000)}\n" +
                 $"THÀNH VIÊN:\n{JsonSerializer.Serialize(peers, Json.Options)}\nBẢNG TASK:\n{JsonSerializer.Serialize(board, Json.Options)}\n" +
                 $"TÀI LIỆU GẦN ĐÂY:\n{artifacts}\nGHI NHẬN CHUNG:\n{Clip(string.Join("\n", team.Decisions.TakeLast(30)), 12000)}\nTRAO ĐỔI GẦN ĐÂY:\n{history}\n" +
-                (task == null ? "" : $"TASK ĐANG XỬ LÝ:\n{Clip(JsonSerializer.Serialize(task, Json.Options), 24000)}\n") + extra + "\n\n" + TeamProtocol.Contract +
+                (task == null ? "" : $"TASK ĐANG XỬ LÝ:\n{Clip(JsonSerializer.Serialize(task, Json.Options), 24000)}\n") +
+                (phase == "work" && task?.PreviousAttempt is { Length: > 0 } previousAttempt ? "\nĐẦU RA LƯỢT THỰC HIỆN CHƯA ĐƯỢC HUB XÁC NHẬN (đối chiếu file trước, không mặc định chạy lại phần đã làm):\n" + Clip(previousAttempt, 12000) + "\n" : "") + extra + "\n\n" + TeamProtocol.Contract +
                 (consensus ? "\n\n" + IdeaConsensus.Contract + "\nÝ đang bàn: " + (IdeaConsensus.Active(team)?.Id ?? "Chưa có; chỉ đề xuất MỘT ý kế tiếp hoặc xác nhận kết thúc.") : "") +
                 "\n\nYÊU CẦU NGƯỜI DÙNG HIỆN HÀNH:\n" + Clip(job.Prompt, 24000) +
                 "\nBỔ SUNG THEO THỨ TỰ CŨ → MỚI:\n" + Latest(string.Join("\n\n", team.Directives.TakeLast(10)), 18000) +
@@ -237,8 +238,11 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     }
                 });
                 var reply = await Call(coder, "work", "coder", task, "\nGiữ nguyên các thay đổi đã có. Task có thể có thay đổi một phần từ lượt lỗi/quota trước; phải đọc lại trước khi tiếp nhận.\n");
-                if (reply == null) { change(() => { task.State = "ready"; task.Feedback = "Lượt trước lỗi/quota; kiểm tra thay đổi một phần trước khi tiếp nhận."; }); Save(); continue; }
-                change(() => { task.Outcome = reply.Message; task.Verification = "not_run"; task.State = reply.Outcome == "blocked" ? "blocked" : "verifying"; });
+                if (reply == null) { change(() => {
+                    task.State = "ready"; task.Feedback = "Lượt trước lỗi/quota; kiểm tra thay đổi một phần trước khi tiếp nhận.";
+                    if (job.Turns.LastOrDefault(t => t.TaskId == task.Id)?.Text is { Length: > 0 } partial) task.PreviousAttempt = Clip(partial, 12000);
+                }); Save(); continue; }
+                change(() => { task.PreviousAttempt = ""; task.Outcome = reply.Message; task.Verification = "not_run"; task.State = reply.Outcome == "blocked" ? "blocked" : "verifying"; });
                 if (task.State == "blocked") {
                     change(() => TaskBlocker.Capture(task, reply, coder.Id));
                     Save(); if (consensus) await ReviewBlocker(task); return;

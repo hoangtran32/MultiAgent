@@ -103,9 +103,8 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                         if (blocked) { TaskBlocker.Reopen(task); task.NeedsScopeReview = true; }
                     } else task.State = "proposed";
                     task.Revisions = 0; task.Feedback += "\nTiếp tục phiên: cần xác nhận lại task và đọc workspace hiện tại.";
-                    var attempt = previous.Turns.LastOrDefault(t => t.TaskId == task.Id && t.Role == TeamRoles.Name("coder") && t.State is "cancelled" or "timeout" or "error" && t.Text.Length > 0);
-                    if (attempt != null) task.Feedback += "\nĐẦU RA LƯỢT THỰC HIỆN CHƯA ĐƯỢC HUB XÁC NHẬN (đối chiếu file trước, không mặc định chạy lại phần đã làm):\n" +
-                        attempt.Text[..Math.Min(attempt.Text.Length, 12000)];
+                    var attempt = previous.Turns.LastOrDefault(t => t.TaskId == task.Id && t.Role == TeamRoles.Name("coder") && t.State is ("cancelled" or "timeout" or "error") && t.Text.Length > 0);
+                    if (attempt != null) task.PreviousAttempt = attempt.Text[..Math.Min(attempt.Text.Length, 12000)];
                 }
                 foreach (var evidence in resumed.Evidence) evidence.Current = false;
                 foreach (var task in resumed.Tasks.Where(t => t.Verification == "passed")) task.Verification = "stale";

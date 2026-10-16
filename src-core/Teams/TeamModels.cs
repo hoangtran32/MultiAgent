@@ -77,6 +77,7 @@ public sealed class TeamTask
     public int Revisions { get; set; }
     public string Outcome { get; set; } = "";
     public string Feedback { get; set; } = "";
+    public string PreviousAttempt { get; set; } = "";
     public bool IndependentReview { get; set; }
     public string Verification { get; set; } = "not_run";
 }
