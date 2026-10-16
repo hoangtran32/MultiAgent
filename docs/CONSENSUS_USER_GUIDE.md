@@ -24,7 +24,9 @@ Trong **Hub Chat** hoặc khi tắt thực hiện, ý được chốt thành **�
 
 Nếu agent thực hiện báo **bị chặn**, Hub chuyển cho đồng đội kiểm chứng trước khi kết thúc. Có cách xử lý trong phạm vi thì hai bên chốt lại phiên bản mới rồi tiếp tục chính ý đó, trong số vòng sửa đã đặt. Xác nhận vướng mắc không phải nghiệm thu task.
 
-Nếu đồng đội xác nhận thiếu điều kiện bên ngoài, Hub hiển thị thẻ **Chưa thể tiếp tục** với lý do và điều kiện/thao tác cần làm. Ví dụ: backend đang chạy không khớp bản cần đo, trong khi phạm vi không cho phép thay tiến trình. Hub giữ task chưa hoàn tất, không tự tắt dịch vụ hoặc đổi điều kiện nghiệm thu để báo đạt. Sau khi điều kiện được đáp ứng hoặc bạn điều chỉnh phạm vi, gửi tiếp; Hub kiểm chứng vướng mắc trước khi thử thực hiện lại.
+Nếu đồng đội xác nhận thiếu điều kiện bên ngoài, Hub hiển thị thẻ **Chưa thể tiếp tục** với lý do và điều kiện/thao tác cần làm. Ví dụ: backend đang chạy không khớp bản cần đo, trong khi phạm vi không cho phép thay tiến trình. Hub giữ task chưa hoàn tất, không đổi điều kiện nghiệm thu để báo đạt. Khi đang kiểm chứng, thẻ ghi **Đang kiểm chứng vướng mắc**, chưa phải kết luận dừng.
+
+Sau khi điều kiện được đáp ứng hoặc bạn điều chỉnh phạm vi, gửi tiếp. Hub mở lại đúng ý bị chặn, giữ các ý đã hoàn tất và yêu cầu hai bên cập nhật đầy đủ phương án trước khi xác nhận lại. Chỉ dẫn mới nhất của bạn được ưu tiên hơn giới hạn do model ghi trong kế hoạch cũ; không cần cấp lại quyền đã nêu. Ví dụ bạn đã cho phép thay tiến trình để thử nghiệm thì nhóm cần cập nhật phạm vi tương ứng, không tiếp tục viện dẫn câu cấm thay tiến trình cũ. **Cập nhật phạm vi** ghi lý do cũ là lịch sử; cho phép thử lại không đồng nghĩa đã có bằng chứng đạt nghiệm thu. Quyền CLI đã cấu hình và Hub Chat vẫn áp dụng.
 
 Gửi bổ sung trong lúc chạy để điều chỉnh yêu cầu ở ranh giới bước. Các xác nhận cũ bị làm hết hiệu lực; cần chốt lại phạm vi. **⋯ → Dừng sau bước hiện tại** kết thúc sau bước đang làm; nút Dừng hủy ngay. Kết quả và ý còn dang dở được lưu trong hội thoại, JSON, TXT và Markdown. Mở lại rồi gửi tiếp để tiếp tục; ý chưa hoàn tất phải xác nhận lại, không tự chạy khi mở app.
 

@@ -99,7 +99,8 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                     if (config.Mode == "consensus") {
                         bool blocked = task.State == "blocked";
                         IdeaConsensus.Invalidate(task);
-                        if (blocked) { task.State = "blocked"; TaskBlocker.Reopen(task); }
+                        // A new user request must reconcile the old scope before an old blocker can stop it again.
+                        if (blocked) { TaskBlocker.Reopen(task); task.NeedsScopeReview = true; }
                     } else task.State = "proposed";
                     task.Revisions = 0; task.Feedback += "\nTiếp tục phiên: cần xác nhận lại task và đọc workspace hiện tại.";
                 }

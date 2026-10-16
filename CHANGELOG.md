@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.4.2 — 2026-10-16
+
+- Yêu cầu mới trực tiếp từ người dùng được ưu tiên hơn giới hạn trong kế hoạch/model report cũ. Giữ phần bổ sung mới nhất khi rút gọn prompt, không để lịch sử dài làm mất chỉ dẫn vừa gửi.
+- Tiếp tục ý bị chặn đưa ý đó về bàn tròn, bắt buộc cập nhật đầy đủ phạm vi trước khi bỏ phiếu và thực hiện. Hướng xử lý sau kiểm chứng blocked cũng cần cập nhật phương án, không chỉ bỏ phiếu lại mô tả cũ. Giữ nguyên các task đã hoàn tất khi tiếp tục.
+- Thẻ vướng mắc phân biệt đang kiểm chứng, đang cập nhật phạm vi và kết luận đã dừng; lý do phiên trước được ghi rõ là lịch sử. Không báo đã nghiệm thu chỉ vì người dùng cho phép thử lại.
+- Bổ sung ca hồi quy về quyền mới thay phạm vi cũ, giữ task đã xong, sửa phạm vi trước quorum và chỉ dẫn đến trong lúc kiểm chứng. Chỉ biên dịch/đóng gói cục bộ; không chạy kiểm tra màn hình hoặc chức năng cục bộ theo yêu cầu.
+
 ## 5.4.1 — 2026-10-16
 
 - Chốt từng ý không dừng ngay khi agent thực hiện báo blocked: chuyển vướng mắc cho đồng đội kiểm chứng. Có hướng xử lý trong phạm vi thì mở lại đúng ý, tăng phiên bản, xóa xác nhận cũ và chốt lại trước khi thử. Không mở ý khác hoặc coi bị chặn là hoàn thành.

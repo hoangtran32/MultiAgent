@@ -14,6 +14,9 @@ public static class IdeaConsensus
         - Đồng ý/phản đối ý đang mở: taskReviews=[{taskId:"I1",version:PHIEN_BAN_HIEN_TAI,accept:true/false,reason:"lý do cụ thể"}].
         - Sửa ý đang mở: taskAmendments=[{id:"I1",version:PHIEN_BAN_HIEN_TAI+1,title,description,acceptance,dependsOn:[],requiresWorkspace}].
           Cung cấp đầy đủ phương án mới; thay đổi làm hết hiệu lực mọi xác nhận cũ, đồng đội phải xác nhận lại.
+        - needsScopeReview=true: ý từng bị chặn cần cập nhật phạm vi theo yêu cầu người dùng hoặc hướng xử lý mới.
+          Phải dùng taskAmendments cập nhật đầy đủ phạm vi theo yêu cầu hiện hành trước khi bỏ phiếu.
+          Bỏ giới hạn trong kế hoạch cũ nếu người dùng đã thay đổi/cho phép; giữ tiêu chí nghiệm thu còn phù hợp.
         Mỗi lượt tối đa một đề xuất/sửa/xác nhận. Hỏi làm rõ thì để ba danh sách trên rỗng; chưa được coi là đồng ý.
         Không chuyển ý, không bỏ qua bất đồng để đạt quota. Không giả lập lời nói hay sự đồng ý của đồng đội.
         Chỉ finished=true khi không còn ý mở và yêu cầu gốc đã được đáp ứng; cả nhóm phải xác nhận kết thúc.
@@ -45,6 +48,8 @@ public static class IdeaConsensus
                 throw new InvalidDataException("Ý chỉ phụ thuộc các phần đã hoàn tất, không phụ thuộc chính nó.");
         }
         if (reply.TaskReviews.FirstOrDefault() is { } review) {
+            if (active?.NeedsScopeReview == true)
+                throw new InvalidDataException("Phải cập nhật phạm vi theo yêu cầu mới bằng taskAmendments trước khi xác nhận lại ý bị chặn.");
             if (active == null || active.State != "proposed" || review.TaskId != active.Id || review.Version != active.ProposalVersion || string.IsNullOrWhiteSpace(review.Reason))
                 throw new InvalidDataException("Xác nhận phải ghi đúng ý, phiên bản hiện tại và lý do; xác nhận cũ hết hiệu lực.");
         }
@@ -62,6 +67,7 @@ public static class IdeaConsensus
         }
         if (reply.TaskAmendments.FirstOrDefault() is { } amended) {
             task!.ProposalVersion = amended.Version; task.Title = amended.Title; task.Description = amended.Description; task.Acceptance = amended.Acceptance;
+            task.NeedsScopeReview = false;
             task.DependsOn = amended.DependsOn.Distinct().ToList(); task.RequiresWorkspace = amended.RequiresWorkspace;
             task.AgreedBy = [speaker]; task.Feedback = speaker + " sửa phương án; cần xác nhận lại phiên bản " + task.ProposalVersion;
         }

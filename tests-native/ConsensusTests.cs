@@ -76,7 +76,7 @@ internal static class ConsensusTests
             Reject(() => TaskBlocker.ApplyReview(task, new() { Message = "Still blocked", Outcome = "blocked" }, "B", 2));
             Assert(task.State == "blocked" && !task.BlockConfirmed);
             TaskBlocker.ApplyReview(task, new() { Message = "A supported in-scope workaround", Outcome = "revise" }, "B", 2);
-            Assert(task.State == "proposed" && task.ProposalVersion == 2 && task.AgreedBy.Count == 0 && task.Revisions == 1 && !task.BlockConfirmed);
+            Assert(task.State == "proposed" && task.NeedsScopeReview && task.ProposalVersion == 2 && task.AgreedBy.Count == 0 && task.Revisions == 1 && !task.BlockConfirmed);
             return Task.CompletedTask;
         });
         await test("blocked execution goes to the other peer before retrying a newly agreed version", async () => {
@@ -84,7 +84,7 @@ internal static class ConsensusTests
             var runner = new JobRunner(fixture, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
             runner.Start(config, "Complete the small idea"); await Complete(runner); var job = runner.Snapshot()!;
             Assert(job.State == "completed" && fixture.BlockReviews == 1 && fixture.BlockReviewAgents.Single() == "B");
-            Assert(fixture.WorkVersions.SequenceEqual(new[] { 1, 2 }) && fixture.ReviewCalls == 1 && job.Team!.Tasks.Single().AgreedBy.Count == 2);
+            Assert(fixture.WorkVersions.SequenceEqual(new[] { 1, 3 }) && fixture.ReviewCalls == 1 && job.Team!.Tasks.Single().AgreedBy.Count == 2);
         });
         await test("confirmed external blocker stays partial and reports the exact required action", async () => {
             var fixture = new ConsensusFixture { BlockFirstWork = true, ConfirmBlock = true }; var config = Config(root);
@@ -101,14 +101,42 @@ internal static class ConsensusTests
             Assert(job.State == "partial" && task.State == "blocked" && task.BlockConfirmed && task.Revisions == 2);
             Assert(fixture.WorkVersions.Count == 3 && fixture.BlockReviews == 3 && task.RequiredAction.Contains("giới hạn"));
         });
-        await test("resuming a saved blocker reviews the obstacle before invoking another writer", async () => {
+        await test("resuming a saved blocker reconciles new scope before voting or invoking a writer", async () => {
             var store = new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))); var config = Config(root);
             var initial = new JobRunner(new ConsensusFixture { BlockFirstWork = true, ConfirmBlock = true }, store);
             initial.Start(config, "Original task"); await Complete(initial); var previous = initial.Snapshot()!;
+            previous.Team!.Tasks.Single().Description = "Old plan: do not replace the running process.";
+            previous.Team.Directives.Add(new string('x', 20000)); // Older context must not truncate the newest authorization.
+            previous.Team.Tasks.Insert(0, new() { Id = "I0", Title = "Already reviewed", State = "done", IndependentReview = true });
             var fixture = new ConsensusFixture(); var runner = new JobRunner(fixture, store);
-            runner.Start(config, "Prerequisite now available; continue", previous: previous); await Complete(runner); var job = runner.Snapshot()!;
-            Assert(job.State == "completed" && fixture.Prompts.First().Contains("KIỂM CHỨNG VƯỚNG MẮC") && fixture.BlockReviewAgents.Single() == "B");
-            Assert(fixture.WorkVersions.Single() == 3 && job.Team!.Tasks.Single().AgreedBy.Count == 2);
+            const string request = "You may stop the old process to test the research copy; backup connectivity is for research only.";
+            runner.Start(config, request, previous: previous); await Complete(runner); var job = runner.Snapshot()!;
+            string prompt = fixture.Prompts.First(); int current = prompt.IndexOf("YÊU CẦU NGƯỜI DÙNG HIỆN HÀNH:", StringComparison.Ordinal);
+            Assert(job.State == "completed" && fixture.BlockReviews == 0 && !prompt.Contains("KIỂM CHỨNG VƯỚNG MẮC"));
+            Assert(current > prompt.IndexOf("Old plan:", StringComparison.Ordinal) && prompt[current..].Contains(request));
+            Assert(prompt[prompt.IndexOf("BỔ SUNG THEO THỨ TỰ CŨ → MỚI:", StringComparison.Ordinal)..].Contains(request));
+            Assert(fixture.WorkVersions.Single() == 3 && job.Team!.Tasks[1].AgreedBy.Count == 2 && !job.Team.Tasks[1].NeedsScopeReview);
+            Assert(job.Team!.Tasks[0].State == "done" && job.Team.Tasks[0].ProposalVersion == 1 && job.Team.Tasks[0].IndependentReview);
+            Assert(!job.Team.Tasks[1].Description.Contains("Old plan:") && previous.Team.Tasks[1].State == "blocked");
+            Assert(store.ReadConversationJobs(job.ConversationId).First(j => j.Id == job.Id).Team!.Tasks[1].Description == job.Team.Tasks[1].Description);
+        });
+        await test("scope reconciliation forbids stale votes until a complete amendment is agreed", () => {
+            var task = new TeamTask { Id = "I1", NeedsScopeReview = true, State = "proposed", ProposalVersion = 2 };
+            var team = new TeamRun { Tasks = [task] }; string[] members = ["A", "B"];
+            Reject(() => IdeaConsensus.Apply(team, Vote(task, true), "A", members));
+            Assert(task.NeedsScopeReview && task.AgreedBy.Count == 0);
+            IdeaConsensus.Apply(team, new() { Message = "Reconcile the authorization", TaskAmendments = [Proposal("I1", 3)] }, "A", members);
+            Assert(!task.NeedsScopeReview && task.State == "proposed" && task.AgreedBy.SequenceEqual(new[] { "A" }));
+            IdeaConsensus.Apply(team, Vote(task, true), "B", members); Assert(task.State == "ready"); return Task.CompletedTask;
+        });
+        await test("new instruction during blocker review discards the stale verdict and reconciles scope", async () => {
+            var fixture = new ConsensusFixture { BlockFirstWork = true, ConfirmBlock = true };
+            var runner = new JobRunner(fixture, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
+            fixture.DuringBlockReview = () => runner.AddTeamInstruction("The prerequisite may now be replaced for this test.");
+            runner.Start(Config(root), "Original constraints"); await Complete(runner); var job = runner.Snapshot()!;
+            Assert(job.State == "completed" && fixture.BlockReviews == 1 && fixture.WorkVersions.SequenceEqual(new[] { 1, 3 }));
+            Assert(job.Team!.PendingDirectives.Count == 0 && job.Team.Directives.Last().Contains("may now be replaced"));
+            Assert(!job.Team.Tasks.Single().NeedsScopeReview && !job.Team.Tasks.Single().BlockConfirmed);
         });
         await test("resuming consensus reopens unfinished proposal with fresh approvals", async () => {
             var store = new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))); var config = Config(root);
@@ -131,6 +159,7 @@ internal static class ConsensusTests
         public bool BlockFirstWork { get; init; }
         public bool BlockEveryWork { get; init; }
         public bool ConfirmBlock { get; init; }
+        public Action? DuringBlockReview { get; set; }
         public int BlockReviews { get; private set; }
         public List<string> BlockReviewAgents { get; } = [];
         public int PlanningCalls { get; private set; }
@@ -155,6 +184,7 @@ internal static class ConsensusTests
             }
             else if (prompt.Contains("KIỂM CHỨNG VƯỚNG MẮC — TASK CHƯA HOÀN TẤT.")) {
                 BlockReviews++; BlockReviewAgents.Add(agent.Name);
+                DuringBlockReview?.Invoke();
                 reply = ConfirmBlock ? new() { Message = "I independently confirm the prerequisite is missing.", Outcome = "blocked", BlockedReason = "The active runtime is wrong.", RequiredAction = "Select the matching runtime." } :
                     new() { Message = "An in-scope workaround is available; discuss it before execution.", Outcome = "revise" };
             }
@@ -165,6 +195,7 @@ internal static class ConsensusTests
                     if (board.Count > 0) NextIdeaAfterDone = board.All(t => t.State is "done" or "planned");
                     reply = new() { Message = "One next idea.", Tasks = [Proposal("I" + (board.Count + 1))] };
                 } else if (task == null) reply = new() { Message = "All requested ideas are complete.", Finished = true };
+                else if (task.NeedsScopeReview) reply = new() { Message = "Update scope to the current user authorization.", TaskAmendments = [Proposal(task.Id, task.ProposalVersion + 1)] };
                 else if (ReviseFirst && task.Id == "I1" && task.ProposalVersion == 1 && agent.Name == "A") reply = new() { Message = "Revise this same idea.", TaskAmendments = [Proposal(task.Id, 2)] };
                 else reply = Vote(task, !AlwaysDisagree && !(ReviseFirst && task.Id == "I1" && task.ProposalVersion == 1));
             }

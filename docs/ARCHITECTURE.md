@@ -31,6 +31,8 @@ Chốt từng ý (5.4.0) dùng mode consensus qua Catalog.IsTeamMode và tái s�
 
 Từ 5.4.1, TaskBlocker ghi nguồn báo chặn, lý do, điều kiện tiếp tục và người kiểm chứng. TeamEngine chuyển blocked sang ReviewBlocker của đồng đội. revise tăng phiên bản/đặt lại quorum trước khi thử, tính vào MaxRevisions; blocked có requiredAction rõ ràng và không bao giờ chuyển done. JobRunner tiếp tục blocked bằng kiểm chứng trước, không gọi lại writer ngay. Bổ sung scope trong lúc kiểm chứng làm hết hiệu lực kết quả vừa nhận. Chat/bảng task/export trình bày vướng mắc riêng.
 
+Từ 5.4.2, tiếp tục blocked chuyển sang proposed + NeedsScopeReview, giữ lý do trước để đối chiếu; không dùng lại kết luận blocked trước khi đọc yêu cầu mới. IdeaConsensus từ chối taskReviews cho đến khi taskAmendments cập nhật phạm vi rồi mới lấy quorum. TaskBlocker revise và bổ sung đến trong lúc kiểm chứng cũng bật NeedsScopeReview. Prompt đặt yêu cầu người dùng hiện hành cuối ngữ cảnh và ưu tiên phần bổ sung mới nhất khi rút gọn; kế hoạch/lời model cũ không được ghi đè quyền người dùng vừa cho. Các task done không bị mở lại khi tiếp tục phiên. Thẻ chat phân biệt kiểm chứng đang chạy và kết luận dừng.
+
 Desktop phụ thuộc Core. Core không phụ thuộc WinForms. IAgentExecutor là ranh giới gọi model, cho phép thêm adapter mà không đưa logic nhà cung cấp vào bàn tròn. Chưa thêm framework bên ngoài.
 
 Trong 5.3.0, HubConfig.Projects/ProjectSections lưu alias, pin, section và dấu Removed; ProjectCatalog merge RecentProjects/metadata hội thoại mà không khôi phục dấu gỡ. Thêm folder chủ động mới khôi phục. ArchiveProject chỉ đổi metadata Archived của hội thoại thuộc đúng đường dẫn; không ghi đè job/TXT hoặc xóa file project. Menu project phát sự kiện riêng cho MainWindow, không tự tác động filesystem.

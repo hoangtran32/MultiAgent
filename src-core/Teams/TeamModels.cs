@@ -64,6 +64,7 @@ public sealed class TeamTask
     public string RequiredAction { get; set; } = "";
     public string BlockReviewedBy { get; set; } = "";
     public bool BlockConfirmed { get; set; }
+    public bool NeedsScopeReview { get; set; }
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
     public string Description { get; set; } = "";

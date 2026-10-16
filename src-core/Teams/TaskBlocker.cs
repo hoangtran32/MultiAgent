@@ -8,7 +8,7 @@ public static class TaskBlocker
     {
         task.State = "blocked"; task.BlockedBy = source;
         task.BlockedReason = Clip(string.IsNullOrWhiteSpace(reply.BlockedReason) ? reply.Message : reply.BlockedReason);
-        task.RequiredAction = Clip(reply.RequiredAction); task.BlockReviewedBy = ""; task.BlockConfirmed = false;
+        task.RequiredAction = Clip(reply.RequiredAction); task.BlockReviewedBy = ""; task.BlockConfirmed = false; task.NeedsScopeReview = false;
         task.Feedback = reply.Message;
     }
     public static void Reopen(TeamTask task)
@@ -30,6 +30,7 @@ public static class TaskBlocker
         task.Feedback = reply.Message;
         if (reply.Outcome == "revise" && task.Revisions < maxRevisions) {
             task.Revisions++; IdeaConsensus.Invalidate(task);
+            task.NeedsScopeReview = true;
             task.BlockReviewedBy = reviewer; task.BlockConfirmed = false;
             task.RequiredAction = "";
             task.Feedback = "Đồng đội tìm được hướng xử lý trong phạm vi; cần chốt lại phương án.\n" + reply.Message;
