@@ -57,6 +57,17 @@ internal static class ConsensusTests
             var fixture = new ConsensusFixture { FailPeer = true }; var runner = new JobRunner(fixture, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N")))); int quota = 0; runner.AgentQuotaReached += _ => quota++;
             runner.Start(Config(root), "Need both peers"); await Complete(runner); var job = runner.Snapshot()!;
             Assert(job.State == "partial" && job.Team!.Tasks.Single().State == "proposed" && fixture.WorkVersions.Count == 0 && quota == 0);
+            Assert(job.StopReason.Contains("B: fixture peer failure"));
+        });
+        await test("individual work timeout names the agent, preserves output and cannot approve work", async () => {
+            var fixture = new ConsensusFixture { TimeoutWork = true }; var config = Config(root);
+            var store = new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))); var runner = new JobRunner(fixture, store);
+            runner.Start(config, "A slow task"); await Complete(runner); var job = runner.Snapshot()!;
+            Assert(job.State == "partial" && job.Turns.Last().State == "timeout" && job.Turns.Last().Text == "Reported work saved before timeout");
+            Assert(job.StopReason.Contains("A:") && job.StopReason.Contains("30 phút") && fixture.ReviewCalls == 0 && job.Team!.Tasks.Single().State == "ready");
+            var resumedFixture = new ConsensusFixture(); var resumed = new JobRunner(resumedFixture, store);
+            resumed.Start(config, "Continue from existing files", previous: job); await Complete(resumed);
+            Assert(resumedFixture.Prompts.Any(p => p.Contains("Reported work saved before timeout") && p.Contains("CHƯA ĐƯỢC HUB XÁC NHẬN")));
         });
         await test("quota fallback is explicitly solo and never claims independent completion", async () => {
             var fixture = new ConsensusFixture { QuotaPeer = true, DesiredIdeas = 1 }; var runner = new JobRunner(fixture, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N")))); var exhausted = new List<string>(); runner.AgentQuotaReached += exhausted.Add;
@@ -160,6 +171,7 @@ internal static class ConsensusTests
         public bool BlockFirstWork { get; init; }
         public bool BlockEveryWork { get; init; }
         public bool ConfirmBlock { get; init; }
+        public bool TimeoutWork { get; init; }
         public Action? DuringBlockReview { get; set; }
         public int BlockReviews { get; private set; }
         public List<string> BlockReviewAgents { get; } = [];
@@ -178,6 +190,7 @@ internal static class ConsensusTests
             var board = JsonSerializer.Deserialize<List<TeamTask>>(prompt[start..end], Json.Options)!;
             TeamReply reply;
             if (prompt.Contains("Đây là lượt THỰC HIỆN task.")) {
+                if (TimeoutWork) { text("Reported work saved before timeout"); throw new OperationCanceledException("fixture work timeout"); }
                 WorkVersions.Add(IdeaConsensus.Active(new() { Tasks = board })!.ProposalVersion);
                 reply = BlockEveryWork || BlockFirstWork && WorkVersions.Count == 1 ?
                     new() { Message = "Runtime does not match; cannot measure.", Outcome = "blocked", BlockedReason = "Wrong runtime version.", RequiredAction = "Select the matching runtime." } :

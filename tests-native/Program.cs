@@ -4,9 +4,29 @@ using System.Text.Json;
 using MultiAgentHub.Core;
 
 Console.InputEncoding = new UTF8Encoding(false); Console.OutputEncoding = new UTF8Encoding(false);
+if (args.FirstOrDefault() == "exec" && args.Contains("--json"))
+{
+    // Native harness stands in for Codex; no installed CLI, account or network is used.
+    await Console.In.ReadToEndAsync();
+    Console.WriteLine("{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Completed fixture answer\"}}");
+    Console.WriteLine("{\"type\":\"turn.completed\",\"usage\":{}}");
+    await Console.Out.FlushAsync(); await Task.Delay(60000); return;
+}
 if (args.FirstOrDefault() == "--fixture")
 {
+    if (args.Contains("pipe-holder-long")) { await Task.Delay(12000); return; }
     if (args.Contains("pipe-holder")) { await Task.Delay(6000); return; }
+    if (args.Contains("terminal-hang") || args.Contains("nonterminal-hang")) {
+        await Console.In.ReadToEndAsync();
+        if (args.Contains("terminal-hang")) {
+            var child = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = AppContext.BaseDirectory };
+            child.ArgumentList.Add("--fixture"); child.ArgumentList.Add("pipe-holder-long");
+            using var holder = System.Diagnostics.Process.Start(child)!; Console.Error.WriteLine("fixture-child=" + holder.Id); await Console.Error.FlushAsync();
+        }
+        Console.WriteLine("{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Saved answer\"}}");
+        if (args.Contains("terminal-hang")) Console.WriteLine("{\"type\":\"turn.completed\",\"usage\":{}}");
+        await Console.Out.FlushAsync(); await Task.Delay(60000); return;
+    }
     if (args.Contains("background-pipe")) {
         // Keep inherited stdout/stderr, but do not retain the temporary workspace as the child's cwd.
         // Windows cannot remove that directory while the intentionally surviving pipe-holder is running.
@@ -119,6 +139,53 @@ try
             ("agy-cli", "{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"Đúng\"}}\n") })
         { var parser = new CliParser(pair.Item1, _ => { }, _ => { }); parser.Feed(pair.Item2[..10]); parser.Feed(pair.Item2[10..]); Assert(parser.Finish() == "Đúng"); }
         var failure = new CliParser("claude-cli", _ => { }, _ => { }); failure.Feed("{\"type\":\"result\",\"is_error\":true,\"result\":\"bad\"}\n"); Throws(() => failure.Finish()); return Task.CompletedTask;
+    });
+    await Test("provider completion requires a successful terminal event, not assistant prose", () => {
+        var codex = new CliParser("codex-cli", _ => { }, _ => { });
+        codex.Feed("{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"I will continue\"}}\n");
+        Assert(!codex.Completion.IsCompleted);
+        codex.Feed("{\"type\":\"turn.completed\"}\n"); Assert(codex.Completion.IsCompletedSuccessfully);
+        var failed = new CliParser("codex-cli", _ => { }, _ => { });
+        failed.Feed("{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_message\",\"text\":\"Partial\"}}\n{\"type\":\"turn.failed\",\"error\":{\"message\":\"provider failure\"}}\n{\"type\":\"turn.completed\"}\n");
+        Assert(!failed.Completion.IsCompleted); Throws(() => failed.Finish());
+        var empty = new CliParser("codex-cli", _ => { }, _ => { }); empty.Feed("{\"type\":\"turn.completed\"}\n");
+        Assert(!empty.Completion.IsCompleted); Throws(() => empty.Finish());
+        foreach (var pair in new[] {
+            ("claude-cli", "{\"type\":\"result\",\"is_error\":false,\"result\":\"Done\"}\n"),
+            ("agy-cli", "{\"event\":\"result\",\"result\":{\"status\":\"SUCCESS\",\"response\":\"Done\"}}\n") }) {
+            var parser = new CliParser(pair.Item1, _ => { }, _ => { }); parser.Feed(pair.Item2); Assert(parser.Completion.IsCompletedSuccessfully);
+        }
+        var claudeError = new CliParser("claude-cli", _ => { }, _ => { }); claudeError.Feed("{\"type\":\"result\",\"is_error\":true,\"result\":\"Failed\"}\n"); Assert(!claudeError.Completion.IsCompleted);
+        var agyError = new CliParser("agy-cli", _ => { }, _ => { }); agyError.Feed("{\"event\":\"result\",\"result\":{\"status\":\"ERROR\",\"error\":\"Failed\"}}\n"); Assert(!agyError.Completion.IsCompleted);
+        return Task.CompletedTask;
+    });
+    await Test("terminal result releases a hanging CLI without terminating its project child", async () => {
+        var logs = new StringBuilder(); var parser = new CliParser("codex-cli", _ => { }, _ => { });
+        using var timeout = new CancellationTokenSource(10000); var watch = System.Diagnostics.Stopwatch.StartNew();
+        try {
+            await ProcessTransport.Run(new(Environment.ProcessPath!, ["--fixture", "terminal-hang"], ""), root, parser.Feed, s => logs.Append(s), timeout.Token, parser.Completion);
+            Assert(parser.Finish() == "Saved answer" && watch.Elapsed < TimeSpan.FromSeconds(8));
+            Assert(logs.ToString().Contains("CLI đã phát tín hiệu hoàn tất"));
+            var match = System.Text.RegularExpressions.Regex.Match(logs.ToString(), @"fixture-child=(\d+)"); Assert(match.Success);
+            using var child = System.Diagnostics.Process.GetProcessById(int.Parse(match.Groups[1].Value)); Assert(!child.HasExited);
+        } finally {
+            var match = System.Text.RegularExpressions.Regex.Match(logs.ToString(), @"fixture-child=(\d+)");
+            if (match.Success) { try { using var child = System.Diagnostics.Process.GetProcessById(int.Parse(match.Groups[1].Value)); if (!child.HasExited) child.Kill(); } catch (ArgumentException) { } }
+        }
+    });
+    await Test("agent executor forwards protocol completion without waiting for CLI shutdown", async () => {
+        var agent = Agent("codex", "codex-cli"); agent.Command = Environment.ProcessPath!;
+        using var timeout = new CancellationTokenSource(8000);
+        string answer = await new AgentExecutor(new ApiTransport(new FakeSecrets())).Execute(agent, root, "Fixture prompt", _ => { }, _ => { }, timeout.Token);
+        Assert(answer == "Completed fixture answer");
+    });
+    await Test("cancellation after nonterminal text does not accept partial work as completed", async () => {
+        using var cancel = new CancellationTokenSource(8000); bool received = false;
+        var parser = new CliParser("codex-cli", s => { if (s.Length > 0) { received = true; cancel.Cancel(); } }, _ => { });
+        try {
+            await ProcessTransport.Run(new(Environment.ProcessPath!, ["--fixture", "nonterminal-hang"], ""), root, parser.Feed, _ => { }, cancel.Token, parser.Completion);
+            throw new Exception("Expected cancellation");
+        } catch (OperationCanceledException) { Assert(received && !parser.Completion.IsCompleted); }
     });
     await Test("pipeline mixes Codex, Claude, Antigravity with independent model and context", async () => {
         var store = Store(); var fixture = new FixtureExecutor(); var runner = new JobRunner(fixture, store);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.4.3 — 2026-10-16
+
+- CLI tách sự kiện kết thúc process gốc, EOF của pipe và sự kiện hoàn tất model. Codex turn.completed, Claude result thành công và Antigravity result SUCCESS có nội dung cho phép nhận kết quả mà không chờ CLI mắc ở bước thoát. Tin nhắn giữa lượt, đầu ra rỗng và result lỗi không phải hoàn tất.
+- Sau tín hiệu hoàn tất, cho CLI thời gian thoát ngắn; nếu vẫn kẹt chỉ dừng process CLI gốc, giữ tiến trình nền của project. Thu stdout/stderr có giới hạn, không chờ pipe do process con giữ mở. Kết quả vẫn phải qua kiểm tra định dạng và peer review.
+- Timeout từng lượt được phân biệt với người dùng hủy phiên; thông báo nêu agent, bước và giới hạn 30/10 phút. Giữ đầu ra trước timeout; khi tiếp tục đưa phần này vào ngữ cảnh với nhãn chưa xác nhận, yêu cầu đối chiếu file/bằng chứng trước khi làm lại.
+- Thêm 5 ca hồi quy về tín hiệu terminal, CLI treo sau hoàn tất, giữ process con, nối AgentExecutor, không nhận partial khi hủy và timeout/tiếp tục. Chỉ biên dịch/đóng gói cục bộ, không chạy test màn hình/chức năng cục bộ theo yêu cầu.
+
 ## 5.4.2 — 2026-10-16
 
 - Yêu cầu mới trực tiếp từ người dùng được ưu tiên hơn giới hạn trong kế hoạch/model report cũ. Giữ phần bổ sung mới nhất khi rút gọn prompt, không để lịch sử dài làm mất chỉ dẫn vừa gửi.

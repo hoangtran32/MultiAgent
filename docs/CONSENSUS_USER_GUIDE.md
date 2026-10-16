@@ -30,4 +30,6 @@ Sau khi điều kiện được đáp ứng hoặc bạn điều chỉnh phạm 
 
 Gửi bổ sung trong lúc chạy để điều chỉnh yêu cầu ở ranh giới bước. Các xác nhận cũ bị làm hết hiệu lực; cần chốt lại phạm vi. **⋯ → Dừng sau bước hiện tại** kết thúc sau bước đang làm; nút Dừng hủy ngay. Kết quả và ý còn dang dở được lưu trong hội thoại, JSON, TXT và Markdown. Mở lại rồi gửi tiếp để tiếp tục; ý chưa hoàn tất phải xác nhận lại, không tự chạy khi mở app.
 
+**Quá thời gian** khác với bạn bấm Dừng. Mỗi lượt thực hiện tối đa 30 phút; trao đổi/review tối đa 10 phút, đồng thời vẫn chịu ngân sách cả phiên. Nếu đã nhận tín hiệu model hoàn tất, Hub không chờ CLI bị kẹt ở bước thoát; tiến trình nền của project được giữ. Khi chưa có tín hiệu hoàn tất thì không coi phần chữ đã nhận là task xong. Tiếp tục phiên sẽ chuyển đầu ra lượt thực hiện lỗi cho nhóm đối chiếu với file hiện có trước khi làm phần còn thiếu; đầu ra này chưa phải nghiệm thu.
+
 Chọn được một hoặc nhiều agent, không cố định Codex/Gemini. Với nhiều hơn hai agent, tất cả thành viên khả dụng phải chốt. Hết quota tự bỏ chọn theo cơ chế hiện có; chỉ còn một agent thì ghi rõ tự rà soát, chưa có đồng thuận/review độc lập. Lỗi thông thường sẽ dừng và giữ ý chưa chốt, không tự loại bên phản biện để biến thành đồng thuận. Kết nối dán kết quả thủ công chưa tham gia chế độ tự động này.

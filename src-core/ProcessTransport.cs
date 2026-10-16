@@ -97,25 +97,29 @@ public static class ProcessTransport
         }
         return new(executable, args, input);
     }
-    public static async Task Run(Invocation invocation, string project, Action<string> stdout, Action<string> stderr, CancellationToken token)
+    public static async Task Run(Invocation invocation, string project, Action<string> stdout, Action<string> stderr, CancellationToken token, Task? completion = null)
     {
         if (Path.GetExtension(invocation.Executable).ToLowerInvariant() is ".cmd" or ".bat") throw new InvalidOperationException("Chọn executable .exe; Hub không chạy qua shell. Với script, chọn node.exe/python.exe và cấu hình đối số.");
         var info = new ProcessStartInfo(invocation.Executable) { WorkingDirectory = project, UseShellExecute = false, CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden, RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, StandardInputEncoding = new UTF8Encoding(false) };
         foreach (string argument in invocation.Arguments) info.ArgumentList.Add(argument);
-        using var process = new Process { StartInfo = info };
+        using var process = new Process { StartInfo = info, EnableRaisingEvents = true };
+        var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        process.Exited += (_, _) => exited.TrySetResult();
         token.ThrowIfCancellationRequested(); process.Start();
         using var ioStop = CancellationTokenSource.CreateLinkedTokenSource(token);
-        void Terminate()
+        int protocolComplete = 0;
+        bool stoppedAfterCompletion = false;
+        void Terminate(bool entireTree = true)
         {
-            try { if (!process.HasExited) process.Kill(true); }
+            try { if (!process.HasExited) process.Kill(entireTree); }
             catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception or AggregateException) {
                 try { if (!process.HasExited) process.Kill(); }
                 catch (Exception fallback) when (fallback is InvalidOperationException or System.ComponentModel.Win32Exception) { }
             }
         }
-        using var registration = token.Register(Terminate);
+        using var registration = token.Register(() => Terminate(Volatile.Read(ref protocolComplete) == 0));
         var callbackGate = new object();
         async Task Pump(StreamReader reader, Action<string> callback)
         {
@@ -147,7 +151,26 @@ public static class ProcessTransport
         // A descendant (for example an ADB server) can inherit the pipe handles and outlive
         // the CLI. EOF is not a reliable signal for the root process's completion.
         try {
-            await process.WaitForExitAsync(token).ConfigureAwait(false);
+            // Root exit and the provider's terminal protocol event are independent of pipe EOF.
+            // Final prose alone is not completion: agents can send intermediate messages before tools.
+            if (completion != null) {
+                var first = await Task.WhenAny(exited.Task, completion).WaitAsync(token).ConfigureAwait(false);
+                if (first == completion) {
+                    await completion.ConfigureAwait(false);
+                    Interlocked.Exchange(ref protocolComplete, 1);
+                    try { await exited.Task.WaitAsync(TimeSpan.FromSeconds(2), token).ConfigureAwait(false); }
+                    catch (TimeoutException) {
+                        token.ThrowIfCancellationRequested();
+                        stoppedAfterCompletion = true;
+                        // A finished CLI may hang in shutdown/hooks. Stop only that root;
+                        // servers launched for the user's project must remain alive.
+                        Terminate(entireTree: false);
+                        await exited.Task.WaitAsync(TimeSpan.FromSeconds(3), token).ConfigureAwait(false);
+                        lock (callbackGate) stderr("\n[Hub] CLI đã phát tín hiệu hoàn tất nhưng chưa thoát; đã giữ kết quả và kết thúc riêng CLI, giữ nguyên tiến trình nền của project.\n");
+                    }
+                }
+            }
+            await exited.Task.WaitAsync(token).ConfigureAwait(false);
             try { await streams.WaitAsync(TimeSpan.FromSeconds(3), token).ConfigureAwait(false); }
             catch (TimeoutException) {
                 ioStop.Cancel();
@@ -161,8 +184,8 @@ public static class ProcessTransport
             token.ThrowIfCancellationRequested();
         }
         catch {
-            ioStop.Cancel(); Terminate();
-            try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false); }
+            ioStop.Cancel(); Terminate(Volatile.Read(ref protocolComplete) == 0);
+            try { await exited.Task.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false); }
             catch (Exception e) when (e is InvalidOperationException or TimeoutException) { }
             token.ThrowIfCancellationRequested(); throw;
         }
@@ -178,12 +201,14 @@ public static class ProcessTransport
                 }
             }
         }
-        if (process.ExitCode != 0) throw new InvalidOperationException($"CLI kết thúc với mã {process.ExitCode}. Xem nhật ký để biết chi tiết.");
+        if (!stoppedAfterCompletion && process.ExitCode != 0) throw new InvalidOperationException($"CLI kết thúc với mã {process.ExitCode}. Xem nhật ký để biết chi tiết.");
     }
 }
 
 public sealed class CliParser(string connection, Action<string> text, Action<string> log)
 {
+    private readonly TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    public Task Completion => completion.Task;
     private string buffer = "", answer = "", failure = "";
     private bool quota;
     public void Feed(string chunk)
@@ -223,6 +248,7 @@ public sealed class CliParser(string connection, Action<string> text, Action<str
             var root = doc.RootElement;
             if (root.ValueKind != JsonValueKind.Object) { log(line + "\n"); return; }
             string type = root.Str("type");
+            bool terminal = false;
             if (connection == "codex-cli")
             {
                 if (root.TryGetProperty("item", out var item))
@@ -234,6 +260,7 @@ public sealed class CliParser(string connection, Action<string> text, Action<str
                     var error = root.TryGetProperty("error", out var e) ? e : root;
                     Failed(error, root.Str("message").Length > 0 ? root.Str("message") : error.Str("message").Length > 0 ? error.Str("message") : "Codex không hoàn thành.");
                 }
+                terminal = type == "turn.completed";
             }
             else if (connection == "claude-cli")
             {
@@ -244,6 +271,7 @@ public sealed class CliParser(string connection, Action<string> text, Action<str
                 }
                 if (type == "result")
                 {
+                    terminal = true;
                     if (root.TryGetProperty("is_error", out var err) && err.ValueKind == JsonValueKind.True) {
                         string errors = root.TryGetProperty("errors", out var entries) && entries.ValueKind == JsonValueKind.Array ? string.Join("\n", entries.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.String ? e.GetString() : e.Str("message"))) : "";
                         Failed(root, root.Str("result").Length > 0 ? root.Str("result") : errors.Length > 0 ? errors : "Claude kết thúc với lỗi.");
@@ -256,6 +284,7 @@ public sealed class CliParser(string connection, Action<string> text, Action<str
                 if (root.Str("event") == "step_update" && root.TryGetProperty("step_update", out var step) && step.Str("step_type") == "agent_response") answer = Limit(answer + step.Str("text_delta"));
                 if (root.Str("event") == "result" && root.TryGetProperty("result", out var result))
                 {
+                    terminal = true;
                     if (result.Str("status") != "SUCCESS") {
                         var error = result.TryGetProperty("error", out var detail) ? detail : result;
                         Failed(error, result.Str("error").Length > 0 ? result.Str("error") : error.Str("message").Length > 0 ? error.Str("message") : "Antigravity: " + result.Str("status"));
@@ -264,6 +293,7 @@ public sealed class CliParser(string connection, Action<string> text, Action<str
                 }
             }
             text(Limit(answer));
+            if (terminal && !quota && failure.Length == 0 && !string.IsNullOrWhiteSpace(answer)) completion.TrySetResult();
         }
     }
 }

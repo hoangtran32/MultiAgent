@@ -61,7 +61,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             var board = team.Tasks.Select(t => new { t.Id, t.Title, t.ProposalVersion, t.AgreedBy, t.NeedsScopeReview, description = Clip(t.Description, consensus ? 2000 : 600), acceptance = Clip(t.Acceptance, consensus ? 1500 : 1000), t.DependsOn, t.RequiresWorkspace, t.State, feedback = Clip(t.Feedback, 1000), t.Verification });
             string artifacts = string.Join("\n\n", team.Artifacts.TakeLast(8).Select(a => $"{a.Title} / {a.Kind}\n{Clip(a.Content, 2400)}"));
             string history = string.Join("\n\n", job.Turns.Where(t => t.State == "success").TakeLast(8).Select(t => $"[{t.Name} / {t.Role} / {t.TaskId}]\n{Clip(t.Text, 4500)}"));
-            string mode = phase == "work" ? "Đây là lượt THỰC HIỆN task. Đọc lại workspace vì agent khác hoặc người dùng có thể đã sửa. Chỉ xử lý task được giao; giữ thay đổi sẵn có. Không commit/push/deploy. Nếu không đủ quyền thì báo blocked." :
+            string mode = phase == "work" ? "Đây là lượt THỰC HIỆN task. Đọc lại workspace vì agent khác hoặc người dùng có thể đã sửa. Nếu lượt trước lỗi nhưng đã có file/báo cáo, đối chiếu bằng chứng hiện có trước; chỉ làm phần còn thiếu, không mặc định chạy lại phép đo hoặc thao tác đã hoàn tất. Chỉ xử lý task được giao; giữ thay đổi sẵn có. Không commit/push/deploy. Nếu không đủ quyền thì báo blocked." :
                 phase == "review" ? "Đây là lượt REVIEW ngang hàng. Đối chiếu tiêu chí, kết quả thực hiện và bằng chứng; dùng công cụ để xác minh theo quyền CLI đã chọn. Đưa sửa đổi cần thiết thành phản hồi cho task thực hiện, giữ nguyên workspace để bằng chứng review còn đối chiếu được. Không coi lời báo test của model là test đã chạy." :
                 "Đây là BÀN TRÒN ngang hàng. Không có vai trên/dưới. Phát triển điểm hữu ích của đồng đội, hỏi/đáp trực tiếp, giữ bất đồng có lý do, chốt task nhỏ có tiêu chí. Dùng công cụ theo quyền CLI để khảo sát; đưa thay đổi project vào task để Hub điều phối thực hiện. Chọn người tiếp theo theo chuyên môn, không theo chức danh. Có thể phản biện kế hoạch trước và đề xuất thử nghiệm.";
             return $"Bạn là {agent.Name}, ID={agent.Id}. Chuyên môn trong nhóm: {Expertise(agent)}. Vai của lượt này: {TeamRoles.Name(role)}.\n{mode}\n" +
@@ -107,7 +107,11 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     if (consensus) change(() => team.Decisions.Add(agent.Name + " hết quota; nhóm còn " + Available().Count + " thành viên. Một thành viên tự rà soát không phải đồng thuận độc lập."));
                     change(() => { turn.State = result.State = "quota"; turn.Error = result.Error = e.Message + " Đã bỏ chọn; nhóm sẽ tìm kết nối còn lại."; }); Save(); return null;
                 } catch (OperationCanceledException) {
-                    change(() => { turn.State = result.State = "cancelled"; turn.Error = result.Error = "Lượt bị dừng hoặc quá thời gian."; });
+                    change(() => {
+                        turn.State = result.State = runToken.IsCancellationRequested ? "cancelled" : "timeout";
+                        turn.Error = result.Error = runToken.IsCancellationRequested ? "Lượt bị dừng do hủy phiên hoặc hết ngân sách thời gian." :
+                            $"Lượt {(phase == "work" ? "thực hiện" : "trao đổi/review")} vượt giới hạn {(phase == "work" ? 30 : 10)} phút trước khi CLI xác nhận hoàn tất. Đã giữ nội dung nhận được; cần kiểm tra thay đổi trong workspace trước khi tiếp tục.";
+                    });
                     Save(); runToken.ThrowIfCancellationRequested(); unavailable.Add(agent.Id); failedParticipants.Add(agent.Id); return null;
                 } catch (Exception e) {
                     unavailable.Add(agent.Id); failedParticipants.Add(agent.Id); change(() => { turn.State = result.State = "error"; turn.Error = result.Error = e.Message; }); Save(); return null;
@@ -314,7 +318,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 bool verified = !team.Tasks.Any(t => t.RequiresWorkspace) || options.RunVerification && options.Checks.All(c => team.Evidence.Any(e => e.Name == c.Name && e.Current && e.State == "passed"));
                 job.State = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "cancelled" : "partial" : consensus && (failedParticipants.Count > 0 || team.PendingDirectives.Count > 0 || (!options.ExecuteTasks || job.Surface == "chat") && (!agreed || IdeaConsensus.Active(team) != null)) ? "partial" : !options.ExecuteTasks || job.Surface == "chat" ? "planned" : !implemented || team.PendingDirectives.Count > 0 ? "partial" : !agreed || !verified || team.Tasks.Any(t => !t.IndependentReview || consensus && t.AgreedBy.Count < 2) ? "unverified" : "completed";
                 job.StopReason = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "Người dùng dừng phiên." : "Đã đạt giới hạn thời gian." : team.StopAfterStep ? "Đã dừng sau bước hiện tại theo yêu cầu. Có thể tiếp tục từ hội thoại này." : Available().Count == 0 ? "Không còn agent khả dụng." : team.Calls >= options.MaxCalls ? "Đã đạt giới hạn gọi model." :
-                    consensus && failedParticipants.Count > 0 ? "Agent bị lỗi; giữ ý chưa chốt, không loại bên phản biện để giả đồng thuận." :
+                    consensus && failedParticipants.Count > 0 ? FailureReason(job, failedParticipants) :
                     consensus && IdeaConsensus.Active(team) is { State: "blocked" } obstacle ? TaskBlocker.Describe(obstacle) :
                     consensus && IdeaConsensus.Active(team) is { } unresolved ? $"Ý {unresolved.Id} v{unresolved.ProposalVersion} chưa xong; không chuyển sang ý khác." :
                     !options.ExecuteTasks || job.Surface == "chat" ? "Đã lưu kế hoạch / bàn tròn; chưa thực hiện task." : implemented ? "Các task đã được review; xem bằng chứng kiểm tra và ghi chú tự review." : "Chưa đủ điều kiện thực hiện tiếp; xem task và phản biện.";
@@ -327,6 +331,12 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 team.Phase = "finished"; team.ActiveTaskId = ""; job.Report = Report(job); job.ReportByModel = false;
             }); Save();
         }
+    }
+
+    private static string FailureReason(JobRecord job, HashSet<string> failed)
+    {
+        var turn = job.Turns.LastOrDefault(t => failed.Contains(t.AgentId) && t.Error.Length > 0);
+        return (turn == null ? "Agent bị lỗi." : turn.Name + ": " + turn.Error) + " Giữ ý chưa hoàn tất; chưa chuyển sang nghiệm thu.";
     }
 
     public static string Report(JobRecord job)
