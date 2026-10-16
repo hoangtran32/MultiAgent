@@ -107,7 +107,8 @@ internal static class ConsensusTests
             initial.Start(config, "Original task"); await Complete(initial); var previous = initial.Snapshot()!;
             previous.Team!.Tasks.Single().Description = "Old plan: do not replace the running process.";
             previous.Team.Directives.Add(new string('x', 20000)); // Older context must not truncate the newest authorization.
-            previous.Team.Tasks.Insert(0, new() { Id = "I0", Title = "Already reviewed", State = "done", IndependentReview = true });
+            previous.Team.Tasks.Insert(0, new() { Id = "I0", Title = "Already reviewed", State = "done", IndependentReview = true,
+                RequiresWorkspace = false, AgreedBy = config.Agents.Select(a => a.Id).ToList() });
             var fixture = new ConsensusFixture(); var runner = new JobRunner(fixture, store);
             const string request = "You may stop the old process to test the research copy; backup connectivity is for research only.";
             runner.Start(config, request, previous: previous); await Complete(runner); var job = runner.Snapshot()!;
