@@ -14,16 +14,14 @@ public sealed class AgentExecutor(ApiTransport api) : IAgentExecutor
 {
     public void Validate(AgentConfig agent)
     {
+        if (Catalog.IsManual(agent.Connection)) return;
         if (Catalog.IsApi(agent.Connection)) api.Validate(agent);
-        else if (ProcessTransport.Find(agent) is not { } binary || !File.Exists(binary))
-            throw new FileNotFoundException($"{agent.Name}: chưa tìm thấy CLI. Mở Thiết lập / model để chọn executable hoặc cách kết nối khác.");
-        else if (Path.GetExtension(binary).ToLowerInvariant() is ".cmd" or ".bat")
-            throw new ArgumentException($"{agent.Name}: chọn executable .exe; với script hãy chọn python.exe/node.exe rồi nhập đối số.");
+        else ProcessTransport.RequireExecutable(agent);
     }
     public async Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token)
     {
         if (Catalog.IsApi(agent.Connection)) return await api.Execute(agent, prompt, token);
-        string binary = ProcessTransport.Find(agent) ?? throw new FileNotFoundException("Chưa tìm thấy CLI. Cài / đăng nhập công cụ hoặc chọn đường dẫn .exe trong cấu hình agent.");
+        string binary = ProcessTransport.RequireExecutable(agent);
         var parser = new CliParser(agent.Connection, text, log);
         var errors = new System.Text.StringBuilder();
         try { await ProcessTransport.Run(ProcessTransport.Build(agent, project, prompt, binary), project, value => { parser.Feed(value); parser.ThrowIfQuota(); }, value => {

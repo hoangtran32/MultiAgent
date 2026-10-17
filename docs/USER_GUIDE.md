@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.5.1
+# Hướng dẫn Multi-Agent Hub 5.5.2
 
 ## Biết phiên đang làm gì
 
@@ -37,6 +37,8 @@ Hướng dẫn nhóm: [TEAM_USER_GUIDE.md](TEAM_USER_GUIDE.md). Kiến trúc và
 ## Giao diện hội thoại
 
 Trong **Agent & model → Dò công cụ & model**, Hub tự tìm CLI đã cài, lấy danh sách model và ghi nguồn. Quản lý agent trống mở màn hình dò trước. Chọn kết quả rồi Lưu để tạo/cập nhật agent; kết quả dò và tài khoản không tự được thêm/bật. Nút Dò lại cập nhật kết quả. API chỉ dò các endpoint đã cấu hình, không tìm tài khoản/API key trên máy. CLI tùy chỉnh không có giao thức model chung nên vẫn nhập ID/đối số nếu cần.
+
+Khi bấm Gửi/Tiếp tục mà không tìm thấy executable, Hub giữ yêu cầu trong ô nhập, báo **kết nối thực tế** cùng file đang tìm rồi mở đúng thiết lập agent. Tên hiển thị như “Antigravity IDE” không quyết định giao thức chạy; kiểm tra mục **Cách kết nối**. Chọn **Antigravity CLI (agy)** để tự động hoặc IDE/desktop để dán kết quả. Để trống executable để tự dò thư mục cài/PATH hiện tại, kể cả PATH Windows được cập nhật sau khi mở Hub. Đường dẫn chỉ định bị mất cần sửa/xóa; Hub không tự đổi sang installation khác. Chưa tìm thấy file không đồng nghĩa lỗi tài khoản hay quota.
 
 Thiết lập agent tự dò model khi mở/đổi kết nối; vẫn đổi kết nối hoặc lưu trong lúc dò. Antigravity dùng `agy models`; Codex đọc cache model; Claude đọc model khai báo trong cấu hình/biến môi trường thay vì gợi ý sonnet/opus/haiku cố định. Nguồn cục bộ không chứng minh model còn quyền truy cập; không có danh sách thì giữ lựa chọn đã nhập hoặc dùng mặc định CLI. Không gửi prompt suy luận để dò. Agent đang tắt do quota không tự bật lại. Khi phiên đang chạy/chờ dán, cần dừng phiên trước khi thay cấu hình agent; không tự chuyển hoặc chạy lại lượt cũ.
 

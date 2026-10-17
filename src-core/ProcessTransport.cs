@@ -10,16 +10,27 @@ public static class ProcessTransport
 {
     public static string? OnPath(string name)
     {
-        foreach (string folder in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
+        // An open desktop app keeps its inherited PATH after installers update Windows.
+        var paths = new[] { Environment.GetEnvironmentVariable("PATH"),
+            Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User),
+            Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine) };
+        foreach (string folder in paths.SelectMany(p => (p ?? "").Split(Path.PathSeparator))
+            .Select(p => Environment.ExpandEnvironmentVariables(p.Trim().Trim('"')))
+            .Where(Path.IsPathFullyQualified).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            string candidate = Path.Combine(folder.Trim('"'), name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name : name + ".exe");
+            string candidate = Path.Combine(folder, name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name : name + ".exe");
             if (File.Exists(candidate)) return candidate;
         }
         return null;
     }
     public static string? Find(AgentConfig agent)
     {
-        if (agent.Command.Length > 0) return File.Exists(agent.Command) ? Path.GetFullPath(agent.Command) : OnPath(agent.Command);
+        if (agent.Command.Length > 0) {
+            string command = Environment.ExpandEnvironmentVariables(agent.Command.Trim().Trim('"'));
+            if (File.Exists(command)) return Path.GetFullPath(command);
+            // An explicit path must not silently fall back to another installation.
+            return command.IndexOfAny([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar]) >= 0 ? null : OnPath(command);
+        }
         string variable = agent.Connection switch {
             "codex-cli" => "CODEX_BINARY", "claude-cli" => "CLAUDE_BINARY", "agy-cli" => "AGY_BINARY",
             "antigravity-ide" => "ANTIGRAVITY_IDE_BINARY", "antigravity-desktop" => "ANTIGRAVITY_BINARY", _ => "" };
@@ -61,6 +72,13 @@ public static class ProcessTransport
             if (File.Exists(progBin)) return progBin;
         }
         return OnPath(name);
+    }
+    public static string RequireExecutable(AgentConfig agent)
+    {
+        if (Find(agent) is not { } binary) throw new MissingAgentExecutableException(agent);
+        if (Path.GetExtension(binary).ToLowerInvariant() is ".cmd" or ".bat")
+            throw new ArgumentException($"{agent.Name} · {Catalog.ConnectionName(agent)}: chọn executable .exe; với script hãy chọn python.exe/node.exe rồi nhập đối số.");
+        return binary;
     }
     public static Invocation Build(AgentConfig agent, string project, string prompt, string executable)
     {

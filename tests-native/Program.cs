@@ -106,6 +106,35 @@ try
         Assert(File.ReadAllText(Path.Combine(store.DataDir, "config.json")) == legacy);
         Assert(store.LoadConfig().Agents[0].Id == "anti"); return Task.CompletedTask;
     });
+    await Test("CLI lookup expands configured paths and ignores empty PATH entries", () => {
+        string folder = Path.Combine(root, "cli lookup"); Directory.CreateDirectory(folder);
+        string binary = Path.Combine(folder, "fixture-agent.exe"); File.WriteAllText(binary, "fixture");
+        string? before = Environment.GetEnvironmentVariable("MULTIAGENT_TEST_BIN");
+        string? pathBefore = Environment.GetEnvironmentVariable("PATH");
+        try {
+            Environment.SetEnvironmentVariable("MULTIAGENT_TEST_BIN", folder);
+            var agent = Agent("custom", "custom-cli"); agent.Command = "\"%MULTIAGENT_TEST_BIN%" + Path.DirectorySeparatorChar + "fixture-agent.exe\"";
+            Assert(ProcessTransport.RequireExecutable(agent) == binary);
+            Environment.SetEnvironmentVariable("PATH", "" + Path.PathSeparator + "\"" + folder + "\"");
+            Assert(ProcessTransport.OnPath("fixture-agent") == binary);
+            agent.Command = Path.Combine(root, "missing", "fixture-agent.exe");
+            Assert(ProcessTransport.Find(agent) == null, "An explicit missing path cannot switch installations");
+        } finally {
+            Environment.SetEnvironmentVariable("MULTIAGENT_TEST_BIN", before); Environment.SetEnvironmentVariable("PATH", pathBefore);
+        }
+        return Task.CompletedTask;
+    });
+    await Test("missing CLI identifies actual adapter rather than display name", () => {
+        var agent = Agent("antigravity", "agy-cli", "Antigravity IDE"); agent.Command = Path.Combine(root, "not-installed", "agy.exe");
+        var executor = new AgentExecutor(new ApiTransport(new FakeSecrets()));
+        try { executor.Validate(agent); throw new Exception("Expected missing executable"); }
+        catch (MissingAgentExecutableException error) {
+            Assert(error.AgentId == agent.Id && error.Message.Contains("agy-cli") && error.Message.Contains(agent.Command));
+        }
+        agent.Connection = "antigravity-ide"; executor.Validate(agent);
+        Assert(agent.Connection == "antigravity-ide", "Manual IDE connections must not become CLI agents");
+        return Task.CompletedTask;
+    });
     await Test("CLI invocation has distinct model/permission protocols and stdin", () => {
         var codex = Agent("codex", "codex-cli"); codex.Model = "test-model"; codex.Reasoning = "high"; codex.Permission = "workspace-write";
         var invocation = ProcessTransport.Build(codex, root, "Tiếng Việt", "fixture.exe");

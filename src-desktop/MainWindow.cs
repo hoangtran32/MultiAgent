@@ -449,8 +449,9 @@ internal sealed partial class MainWindow : Form
         }
         Commit(next, next.Agents[^1].Id); status.Text = "Đã thêm agent. Agent chưa cấu hình được tắt; mở Thiết lập / model để hoàn thiện.";
     });
-    private void EditAgent() => Protect(() => {
-        if (runner.Busy || Selected is not { } selected) return; using var dialog = new AgentEditor(selected, secrets);
+    private void EditAgent() { if (Selected is { } selected) EditAgent(selected); }
+    private void EditAgent(AgentConfig selected) => Protect(() => {
+        if (runner.Busy) return; using var dialog = new AgentEditor(selected, secrets);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         var next = CopyConfig(); next.Agents[next.Agents.FindIndex(a => a.Id == selected.Id)] = dialog.Result; Commit(next, selected.Id); status.Text = "Đã lưu cấu hình agent. Đánh dấu Chạy để đưa agent vào tác vụ.";
     });
@@ -511,7 +512,15 @@ internal sealed partial class MainWindow : Form
         config.RecentProjects = new[] { config.Project }.Concat(config.RecentProjects).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         ProjectCatalog.Ensure(config, config.Project); Save(); LoadProjects();
         string context = contextFile == null ? "" : ProjectContext.Read(config.Project, contextFile);
-        runner.Start(config, prompt.Text.Trim(), context, continueFrom, topic.Text.Trim()); prompt.Clear(); ClearResults(); displayed = null;
+        try { runner.Start(config, prompt.Text.Trim(), context, continueFrom, topic.Text.Trim()); }
+        catch (MissingAgentExecutableException error) {
+            status.Text = "Chưa gửi yêu cầu: cần kiểm tra kết nối agent. Nội dung nhập được giữ lại.";
+            MessageBox.Show(this, error.Message + "\n\nHub sẽ mở đúng agent cần sửa. Yêu cầu chưa được gửi, nội dung nhập vẫn được giữ lại.",
+                "Kiểm tra kết nối agent", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (config.Agents.FirstOrDefault(a => a.Id == error.AgentId) is { } agent) EditAgent(agent);
+            return;
+        }
+        prompt.Clear(); ClearResults(); displayed = null;
         if (runner.Snapshot() is { } job) { selectedConversationId = job.ConversationId; config.LastConversationId = job.ConversationId; Protect(Save); topic.Text = job.Title; RenderJob(job); canvas.ScrollToEnd(); }
     });
     private void ClearResults()

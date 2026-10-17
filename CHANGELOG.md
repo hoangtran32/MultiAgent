@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.5.2 — 2026-10-17
+
+- Dò thêm PATH người dùng/hệ thống hiện tại khi app đang mở; mở rộng biến môi trường và bỏ dấu ngoặc kép ở đường dẫn executable đã cấu hình.
+- Lỗi không tìm thấy executable ghi tên file/đường dẫn và adapter thực tế, tách khỏi tên hiển thị tùy chỉnh; không quy lỗi đăng nhập hoặc quota khi chưa chạy CLI.
+- Giữ nguyên yêu cầu khi preflight thiếu CLI và mở đúng thiết lập agent để sửa. Không đổi IDE/dán kết quả thành CLI, không tự đổi installation khi đường dẫn đã chỉ định bị mất.
+- Biên dịch/đóng gói cục bộ; không chạy kiểm thử chức năng hoặc màn hình cục bộ.
+
 ## 5.5.1 — 2026-10-16
 
 - Chuyển tiến độ vào panel gọn bên trái, dưới danh sách project/chat. Bỏ thanh trải ngang và progress bar native; giữ trạng thái, task, agent, số đã review, thời gian và thao tác. Chiều cao cố định theo nội dung, không dùng FlowLayout kéo giãn. Nút Dừng trong sidebar vẫn dùng được khi điều hướng/cấu hình đang khóa.
