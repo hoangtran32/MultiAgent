@@ -162,10 +162,13 @@ internal sealed class AgentEditor : Form
         var bindings = browser?.Bindings.Where(b => b.Provider == Ui.Value(connection)).ToList() ?? [];
         var choices = new List<Choice> { new("", "Chọn tab đã kết nối từ extension…") };
         choices.AddRange(bindings.Select(b => new Choice(b.Id, b.Model + " · " + b.Title + (b.Ready ? "" : " (chưa sẵn sàng)"))));
-        if (selected.Length > 0 && !bindings.Any(b => b.Id == selected)) choices.Add(new(selected, "Tab cũ đã mất kết nối • chọn lại"));
+        bool stale = selected.Length > 0 && !bindings.Any(b => b.Id == selected);
+        if (stale) selected = "";
         Ui.Choices(browserBinding, choices, selected);
         if (bindings.FirstOrDefault(b => b.Id == Ui.Value(browserBinding)) is { } binding) model.Text = binding.Model;
-        status.Text = bindings.Count == 0 ? "Chưa có tab chatbot. Mở Agent & model → Chatbot từ trình duyệt để chuẩn bị bridge và kết nối." : "Chọn đúng tab; model/High được bạn chọn và xác nhận trên website.";
+        status.Text = bindings.Count == 0 ? "Hub chưa nhận tab. Mở extension và bấm Đồng bộ lại với Hub, rồi bấm Dò lại tab tại đây."
+            : stale ? "Chrome đã nối tab, nhưng liên kết agent cũ không còn hợp lệ. Chọn tab đang hiển thị trong danh sách rồi Lưu; yêu cầu trong chat vẫn được giữ."
+            : "Chọn đúng tab; model/High được bạn chọn và xác nhận trên website.";
     }
     private void Browse()
     {
