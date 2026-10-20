@@ -113,7 +113,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     change(() => { turn.State = result.State = "quota"; turn.Error = result.Error = e.Message + " Đã bỏ chọn; nhóm sẽ tìm kết nối còn lại."; }); Save(); return null;
                 } catch (OperationCanceledException) {
                     change(() => {
-                        turn.State = result.State = runToken.IsCancellationRequested ? "cancelled" : "timeout";
+                        turn.State = result.State = runToken.IsCancellationRequested ? "cancelled" : options.TurnTimeoutMinutes(phase) > 0 ? "timeout" : "error";
                         turn.Error = result.Error = runToken.IsCancellationRequested ? "Lượt bị dừng do hủy phiên hoặc hết ngân sách thời gian." :
                             options.TurnTimeoutMinutes(phase) > 0 ? $"Lượt {(phase == "work" ? "thực hiện" : "trao đổi/review")} vượt giới hạn {options.TurnTimeoutMinutes(phase)} phút đã cấu hình trước khi CLI xác nhận hoàn tất. Đã giữ nội dung nhận được; cần kiểm tra thay đổi trong workspace trước khi tiếp tục." :
                             "CLI đã hủy lượt trước khi xác nhận hoàn tất. Hub không đặt timeout cho lượt này; nội dung nhận được đã giữ lại.";

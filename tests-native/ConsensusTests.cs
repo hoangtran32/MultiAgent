@@ -69,6 +69,12 @@ internal static class ConsensusTests
             resumed.Start(config, "Continue from existing files", previous: job); await Complete(resumed);
             Assert(resumedFixture.Prompts.Any(p => p.Contains("Reported work saved before timeout") && p.Contains("CHƯA ĐƯỢC HUB XÁC NHẬN")));
         });
+        await test("CLI cancellation without configured timeout is not mislabeled as a Hub time limit", async () => {
+            var config = Config(root); var runner = new JobRunner(new ConsensusFixture { TimeoutWork = true }, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
+            runner.Start(config, "A provider cancels its own request."); await Complete(runner);
+            var job = runner.Snapshot()!;
+            Assert(job.State == "partial" && job.Turns.Last().State == "error" && job.Turns.Last().Error.Contains("Hub không đặt timeout"));
+        });
         await test("unlimited consensus passes thirty calls and still finishes only after peer review", async () => {
             var config = Config(root); config.Team.MaxCalls = 0; config.Team.DurationMinutes = 0;
             var runner = new JobRunner(new ConsensusFixture { DesiredIdeas = 9 }, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
