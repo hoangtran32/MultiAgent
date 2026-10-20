@@ -1,4 +1,6 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -9,7 +11,9 @@ namespace MultiAgentHub.Core;
 public static class BrowserChatProtocol
 {
     public const string HostName = "com.multiagenthub.browser_chat";
-    public const string PipeName = "MultiAgentHub.BrowserChat.v1";
+    // Keep separate Windows accounts/sessions from colliding on the globally named pipe namespace.
+    public static string PipeName { get; } = "MultiAgentHub.BrowserChat.v1." + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+        Environment.UserDomainName + "\\" + Environment.UserName + ":" + (OperatingSystem.IsWindows() ? Process.GetCurrentProcess().SessionId : 0))))[..24];
     public const string ExtensionId = "koeckebjfmkgjanknbifdcgahkbbalpb";
     public const int MaxFrameBytes = 1024 * 1024;
     public const int MaxPromptCharacters = 200000;

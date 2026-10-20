@@ -30,7 +30,7 @@ internal sealed class AgentConnectionsDialog : Form
                     grid.Rows[i].Cells[2].Value = "Đang kiểm tra…";
                     var state = await AgentConnections.Inspect(agents[i], secrets, lifetime.Token);
                     if (IsDisposed) return; states[agents[i].Id] = state;
-                    grid.Rows[i].Cells[2].Value = state.State switch { "ready" => "Đã xác nhận", "missing" => "Thiếu CLI", "manual" => "Thủ công", "model" => "Kiểm tra model", "permission" => "Thiếu quyền công cụ", "auth" => "Cần đăng nhập", _ => "Chưa xác nhận" }; ShowDetail();
+                    grid.Rows[i].Cells[2].Value = state.State switch { "ready" => "Đã xác nhận", "missing" => "Thiếu CLI", "manual" => "Thủ công", "browser" => "Kiểm tra tab trong bridge", "model" => "Kiểm tra model", "permission" => "Thiếu quyền công cụ", "auth" => "Cần đăng nhập", _ => "Chưa xác nhận" }; ShowDetail();
                 }
             } catch (OperationCanceledException) { }
             finally { if (!IsDisposed) inspect.Enabled = login.Enabled = true; }

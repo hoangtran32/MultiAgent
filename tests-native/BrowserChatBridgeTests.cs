@@ -9,7 +9,7 @@ internal static class BrowserChatBridgeTests
     private static async Task Reject(Func<Task> action)
     {
         try { await action(); }
-        catch (Exception e) when (e is IOException or ArgumentException) { return; }
+        catch (Exception e) when (e is IOException or InvalidDataException or ArgumentException) { return; }
         throw new Exception("Invalid browser frame was accepted.");
     }
     public static async Task Run(Func<string, Func<Task>, Task> test, string root)
