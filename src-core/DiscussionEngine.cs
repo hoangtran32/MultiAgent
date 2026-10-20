@@ -176,7 +176,7 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
         }
         finally {
             change(() => { job.NextTurnAt = null; job.DiscussionPhase = "finished";
-                if (job.Report.Length == 0) job.Report = LocalReport(job); });
+                if (job.Report.Length == 0 && !groupChat) job.Report = LocalReport(job); });
             checkpoint();
         }
     }

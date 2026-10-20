@@ -69,6 +69,7 @@ internal static class GroupConversationTests
                 await Until(() => runner.Snapshot()!.DiscussionPhase == "awaiting-user");
                 Assert(fixture.Names.SequenceEqual(new[] { "A", "C", "B" }));
             } finally { runner.Cancel(); await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10)); }
+            Assert(runner.Snapshot()!.Report.Length == 0 && !runner.Snapshot()!.ReportByModel);
         });
         await test("a user interjection during a model call invalidates old wait votes without cancelling that call", async () => {
             TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously), release = new(TaskCreationOptions.RunContinuationsAsynchronously), resumed = new(TaskCreationOptions.RunContinuationsAsynchronously);
