@@ -13,6 +13,7 @@ let nativeError = "Chưa kết nối cầu nối trên máy.";
 let restorePromise;
 let reconnecting = null;
 let reconnectAfter = 0;
+const tabUpdates = new Map();
 
 function providerOf(value) {
   try {
@@ -325,33 +326,70 @@ chrome.tabs.onRemoved.addListener(tabId => {
   for (const binding of [...bindings.values()].filter(item => item.tabId === tabId)) void removeBinding(binding.id, "Tab chatbot đã đóng.");
 });
 
-chrome.tabs.onUpdated.addListener((tabId, change) => {
-  void (async () => {
-    await restore();
-    for (const binding of [...bindings.values()].filter(item => item.tabId === tabId)) {
-      if (change.status === "loading") {
-        await removeBinding(binding.id, "Tab đã tải lại. Kết nối lại để xác nhận đúng cuộc trò chuyện và model.");
-      } else if (change.url && change.url !== binding.url) {
+async function reconcileTab(tabId, change) {
+  await restore();
+  for (const binding of [...bindings.values()].filter(item => item.tabId === tabId)) {
+    if (change.discarded === true) {
+      await removeBinding(binding.id, "Trình duyệt đã đưa tab vào trạng thái ngủ. Nội dung nhận được vẫn được giữ; mở lại tab và liên kết lại.");
+      continue;
+    }
+    let documentState = null;
+    let tab = null;
+    // Chrome also reports loading during SPA updates. Only document identity can prove a reload.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      documentState = null;
+      let timer;
+      try {
+        tab = await chrome.tabs.get(tabId);
+        documentState = await Promise.race([
+          chrome.tabs.sendMessage(tabId, {type: "hub-ping", nonce: binding.nonce}, {frameId: 0}),
+          new Promise(resolve => { timer = setTimeout(() => resolve(null), 1500); })
+        ]);
+        if (documentState?.nonce && documentState.nonce !== binding.nonce) break;
+        if (documentState?.nonce && tab.url !== documentState.url) tab = await chrome.tabs.get(tabId);
+        if (documentState?.nonce && tab.url === documentState.url) break;
+      } catch { /* Retry a briefly unavailable content channel; never inject/replay into a new document. */ }
+      finally { clearTimeout(timer); }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (bindings.get(binding.id) !== binding) continue;
+    if (documentState?.nonce !== binding.nonce) {
+      await removeBinding(binding.id, "Document của tab đã thay đổi hoặc mất kết nối. Đã giữ phần trả lời; liên kết lại đúng cuộc trò chuyện, Hub không tự gửi lại prompt.");
+      continue;
+    }
+    const url = documentState.url;
+    if (tab?.url !== url || providerOf(url) !== binding.provider) {
+      await removeBinding(binding.id, "Tab đã đổi trang chatbot. Kết nối lại trước khi tiếp tục.");
+      continue;
+    }
+    if (url !== binding.url) {
         const active = [...requests.values()].find(item => item.bindingId === binding.id);
         try {
           let check = null;
-          if (active && providerOf(change.url) === binding.provider) {
+          if (active) {
             // The SPA can assign its first conversation URL just before it inserts our user turn.
             for (let attempt = 0; attempt < 8; attempt++) {
               if (!bindings.has(binding.id) || requests.get(active.id) !== active) break;
               check = await chrome.tabs.sendMessage(tabId, {type: "hub-navigation", id: active.id,
-                nonce: binding.nonce, from: binding.url, to: change.url}, {frameId: 0});
+                nonce: binding.nonce, from: binding.url, to: url}, {frameId: 0});
               if (check?.allowed) break;
               await new Promise(resolve => setTimeout(resolve, 200));
             }
           }
-          if (check?.allowed && check.nonce === binding.nonce && check.url === change.url) {
-            binding.url = change.url;
-            active.url = change.url;
+          if (check?.allowed && check.nonce === binding.nonce && check.url === url) {
+            binding.url = url;
+            active.url = url;
             await persist(); publishState();
           } else await removeBinding(binding.id, "Tab đã chuyển cuộc trò chuyện. Kết nối lại trước khi gửi tiếp.");
         } catch { await removeBinding(binding.id, "Tab đã đổi trang hoặc mất kết nối."); }
-      }
     }
-  })();
+  }
+}
+
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (!change.url && !change.status && change.discarded !== true) return;
+  // Serialize loading/url/complete notifications for this tab so a stale event cannot undo a newer URL.
+  const next = (tabUpdates.get(tabId) || Promise.resolve()).catch(() => {}).then(() => reconcileTab(tabId, change));
+  tabUpdates.set(tabId, next);
+  void next.finally(() => { if (tabUpdates.get(tabId) === next) tabUpdates.delete(tabId); }).catch(() => {});
 });

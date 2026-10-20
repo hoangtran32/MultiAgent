@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.8.2 — 2026-10-20
+
+- Sửa extension ngắt tab ngay khi Chrome báo loading. Kiểm tra nonce/document và URL trước khi kết luận tải lại; loading/complete trong cùng document giữ binding và request đang chạy.
+- Xử lý sự kiện loading kèm URL của cuộc chat mới qua xác nhận own-submit hiện có; tuần tự hóa các sự kiện của từng tab để tránh trạng thái cũ ghi đè URL mới.
+- Tải lại thật, đổi chat không được xác nhận hoặc tab bị discard vẫn ngắt, giữ phần trả lời và không replay prompt. Lỗi phân biệt document mất, đổi trang và tab ngủ.
+- Thêm hồi quy offline cho Gemini/ChatGPT, SPA và reload/discard thật trong CI; chỉ build/kiểm tra cú pháp trên máy, chưa kiểm thử website live.
+
 ## 5.8.1 — 2026-10-20
 
 - Giữ ID khi kết nối lại cùng tab, document và model; không làm agent Hub gắn mã cũ chỉ vì bấm Kết nối lần nữa.

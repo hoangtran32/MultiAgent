@@ -12,7 +12,7 @@ function browser(saved = [], options = {}) {
   let listener;
   const tab = {id: 1, title: "Gemini", url: options.url || "https://gemini.google.com/app"};
   let nonce = options.nonce || "document-one";
-  const session = {bindings: structuredClone(saved)}, local = {}, ports = [], sent = [], cancels = [];
+  const session = {bindings: structuredClone(saved)}, local = {}, ports = [], sent = [], cancels = [], navigations = [];
   const event = () => { const handlers = []; return {addListener: f => handlers.push(f), emit: (...args) => handlers.forEach(f => f(...args))}; };
   const storage = data => ({get: async key => ({[key]: structuredClone(data[key])}), set: async value => Object.assign(data, structuredClone(value))});
   const chrome = {
@@ -29,13 +29,15 @@ function browser(saved = [], options = {}) {
         if (message.type === "hub-ping") return {nonce, url: tab.url};
         if (message.type === "hub-request") { sent.push(structuredClone(message)); return {accepted: true}; }
         if (message.type === "hub-cancel") { cancels.push(message.id); return {ok: true}; }
+        if (message.type === "hub-navigation") { navigations.push(structuredClone(message)); return {allowed: options.allowNavigation !== false, nonce, url: tab.url}; }
         throw new Error("Unexpected content command: " + message.type);
       }}
   };
   const context = vm.createContext({chrome, crypto: {randomUUID}, URL, Date, setTimeout, clearTimeout, structuredClone});
   vm.runInContext(source, context, {filename: "background.js"});
   const popup = message => new Promise(resolve => listener(message, {id: chrome.runtime.id}, resolve));
-  return {tab, ports, sent, cancels, session, popup, setNonce: value => { nonce = value; },
+  return {tab, ports, sent, cancels, navigations, session, popup, setNonce: value => { nonce = value; },
+    update: async change => { if (change.url) tab.url = change.url; chrome.tabs.onUpdated.emit(tab.id, change); await settle(); },
     connect: (model = "Argon") => popup({type: "popup-connect", tabId: tab.id, confirmed: true, model, selectors: {}})};
 }
 
@@ -82,4 +84,46 @@ test("manual synchronization cannot interrupt an active request", async () => {
   await settle();
   const result = await b.popup({type: "popup-resync"});
   assert.equal(result.ok, false); assert.equal(b.sent.length, 1); assert.equal(b.cancels.length, 0); assert.equal(b.ports.length, 1);
+});
+
+for (const url of ["https://gemini.google.com/app", "https://chatgpt.com/"]) {
+  test("loading and complete in the same document keep the pending request: " + url, async () => {
+    const b = browser([], {url}); await b.connect(); const id = b.session.bindings[0].id;
+    b.ports[0].onMessage.emit({type: "request", id: "working", bindingId: id, expectedModel: "Argon", prompt: "Offline test"});
+    await settle(); await b.update({status: "loading"}); await b.update({status: "complete"});
+    assert.equal(b.session.bindings[0].id, id); assert.equal(b.cancels.length, 0); assert.equal(b.sent.length, 1);
+    assert.ok(!b.ports[0].frames.some(frame => frame.type === "error"));
+  });
+}
+test("own initial conversation URL survives a combined loading and URL event", async () => {
+  const b = browser(); await b.connect(); const id = b.session.bindings[0].id;
+  b.ports[0].onMessage.emit({type: "request", id: "first-message", bindingId: id, expectedModel: "Argon", prompt: "Offline test"});
+  await settle(); await b.update({status: "loading", url: "https://gemini.google.com/app/assigned-id"});
+  await b.update({status: "complete"});
+  assert.equal(b.session.bindings[0].id, id); assert.equal(b.session.bindings[0].url, b.tab.url);
+  assert.equal(b.navigations.length, 1); assert.equal(b.navigations[0].id, "first-message");
+  assert.equal(b.cancels.length, 0); assert.equal(b.sent.length, 1);
+});
+test("real document replacement after loading fails the pending request without replay", async () => {
+  const b = browser(); await b.connect(); const id = b.session.bindings[0].id;
+  b.ports[0].onMessage.emit({type: "request", id: "not-replayed", bindingId: id, expectedModel: "Argon", prompt: "Offline test"});
+  await settle(); await b.update({status: "loading"}); b.setNonce("new-document"); await b.update({status: "complete"});
+  assert.equal(b.session.bindings.length, 0); assert.equal(b.sent.length, 1); assert.deepEqual(b.cancels, ["not-replayed"]);
+  assert.ok(b.ports[0].frames.some(frame => frame.type === "error" && frame.id === "not-replayed"));
+});
+test("switching conversations outside an active request does not adopt the new URL", async () => {
+  const b = browser(); await b.connect(); await b.update({status: "loading", url: "https://gemini.google.com/app/unrelated"});
+  assert.equal(b.session.bindings.length, 0); assert.equal(b.sent.length, 0); assert.equal(b.navigations.length, 0);
+});
+test("discarding a tab reports loss of the document instead of silently reconnecting", async () => {
+  const b = browser(); await b.connect(); await b.update({discarded: true});
+  assert.equal(b.session.bindings.length, 0); assert.equal(b.sent.length, 0);
+});
+test("an unapproved URL change during a request is rejected without replay", async () => {
+  const b = browser([], {allowNavigation: false}); await b.connect(); const id = b.session.bindings[0].id;
+  b.ports[0].onMessage.emit({type: "request", id: "do-not-move", bindingId: id, expectedModel: "Argon", prompt: "Offline test"});
+  await settle(); await b.update({status: "loading", url: "https://gemini.google.com/app/other-chat"});
+  const until = Date.now() + 4000;
+  while (b.session.bindings.length && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(b.session.bindings.length, 0); assert.equal(b.sent.length, 1); assert.deepEqual(b.cancels, ["do-not-move"]);
 });

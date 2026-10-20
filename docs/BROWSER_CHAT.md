@@ -29,6 +29,8 @@ Sau khi cập nhật EXE, bấm **Chuẩn bị bridge & mở thư mục…** đ�
 
 ## Chrome đã liên kết nhưng Hub chưa nhận tab
 
+Từ 5.8.2, trạng thái `loading`/`complete` của Chrome không tự ngắt tab. Extension kiểm tra nonce của document và URL hiện tại; chỉ chấp nhận URL cuộc chat mới sau khi chính lượt Hub vừa gửi được content script xác nhận. Khi tải lại thật, đổi cuộc chat khác hoặc trình duyệt discard tab, binding vẫn bị ngắt để tránh gửi nhầm/ngầm gửi lại. Nội dung đã nhận được giữ trong Hub và website.
+
 Từ 5.8.1, mở popup extension sẽ kiểm tra và tự khôi phục cầu nối với Hub cho các tab đã gắn còn đúng URL/document. Có thể bấm **Đồng bộ lại với Hub** để thực hiện ngay. Không cần mở chat mới hoặc đăng nhập lại khi document cũ còn hợp lệ. Đồng bộ không gửi prompt, không replay lượt bị gián đoạn; không thực hiện khi còn request đang chạy. Tab tải lại/đổi chat cần liên kết mới.
 
 Trạng thái **tab đã liên kết** là danh sách tab extension đang giữ; dòng trạng thái cầu nối cho biết Hub có đang mở kết nối hay chưa. Nếu Hub đã nhận danh sách nhưng agent vẫn giữ ID cũ, bấm Gửi sẽ mở thiết lập đúng agent: chọn tab hiện tại ở **Tab chatbot**, lưu rồi Gửi lại. Yêu cầu nhập và hội thoại được giữ nguyên; Hub không tự chọn tab khác theo tên model. Bấm Kết nối nhiều lần trên cùng document/model từ bản này giữ nguyên ID để không lặp lỗi đó.
