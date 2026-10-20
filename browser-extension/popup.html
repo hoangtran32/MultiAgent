@@ -10,6 +10,7 @@
   <header><strong>Browser Chat</strong><span>Multi-Agent Hub</span></header>
   <p class="intro">Dùng tài khoản Gemini / ChatGPT đã đăng nhập. Mở một chat mới trống trên mỗi website và chọn model trước khi kết nối. Mở Hub và cài cầu nối trình duyệt trước.</p>
   <div id="status" role="status">Đang đọc trạng thái…</div>
+  <button id="resync" type="button">Đồng bộ lại với Hub</button>
   <div class="scan-actions"><button id="scan" type="button">Tự quét lại</button><button id="pick" type="button">Chọn ô nhập trên trang</button></div>
   <p id="scan-status" role="status" class="hint">Tự quét khung chat, nút gửi và nhãn model khi mở tiện ích.</p>
   <form id="connect-form">
@@ -25,7 +26,7 @@
     <button id="connect" type="submit">Kết nối tab hiện tại</button>
   </form>
   <section aria-labelledby="bindings-title">
-    <h2 id="bindings-title">Các tab đã kết nối</h2>
+    <h2 id="bindings-title">Các tab đã liên kết</h2>
     <div id="bindings"></div>
   </section>
   <footer>Mỗi chatbot dùng một tab riêng. Chat đã gắn tiếp tục dùng được trong phiên; không cần kết nối lại sau mỗi lượt. Để tiếp tục chủ đề cũ, mở lịch sử Hub rồi gắn một chat web mới, Hub sẽ gửi ngữ cảnh. Giữ tab mở; tải lại hoặc chuyển chat sẽ ngắt kết nối. Tiện ích không xóa lịch sử, nội dung bạn đang gõ hay đọc cookie, mật khẩu, token.</footer>

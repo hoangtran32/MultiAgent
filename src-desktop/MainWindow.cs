@@ -552,6 +552,12 @@ internal sealed partial class MainWindow : Form
         Save();
         string context = contextFile == null ? "" : config.Surface == "chat" ? ProjectContext.ReadAttachment(contextFile) : ProjectContext.Read(config.Project, contextFile);
         try { runner.Start(config, prompt.Text.Trim(), context, continueFrom, topic.Text.Trim()); }
+        catch (BrowserChatConnectionException error) {
+            status.Text = error.Message + " Yêu cầu chưa được gửi, nội dung nhập vẫn được giữ lại.";
+            if (config.Agents.FirstOrDefault(a => a.Id == error.AgentId) is { } agent) EditAgent(agent);
+            status.Text = "Chọn tab đang kết nối, lưu rồi bấm Gửi lại. Nội dung yêu cầu và hội thoại được giữ nguyên; không tự gửi lại.";
+            return;
+        }
         catch (MissingAgentExecutableException error) {
             status.Text = "Chưa gửi yêu cầu: cần kiểm tra kết nối agent. Nội dung nhập được giữ lại.";
             MessageBox.Show(this, error.Message + "\n\nHub sẽ mở đúng agent cần sửa. Yêu cầu chưa được gửi, nội dung nhập vẫn được giữ lại.",

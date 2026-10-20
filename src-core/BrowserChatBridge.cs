@@ -89,7 +89,9 @@ public sealed class BrowserChatBridge : IDisposable
         if (string.IsNullOrWhiteSpace(bindingId)) throw new ArgumentException("Chọn đúng tab chatbot đã liên kết trong thiết lập model.");
         if (expectedModel.Length > 120 || expectedModel.Any(char.IsControl)) throw new ArgumentException("Nhãn model không hợp lệ.");
         var found = clients.Values.SelectMany(c => c.Bindings.Select(b => (Client: c, Binding: b))).Where(item => item.Binding.Id == bindingId).ToArray();
-        if (found.Length != 1) throw new InvalidOperationException("Tab chatbot đã chọn chưa kết nối. Mở đúng tab, đăng nhập và liên kết lại trong tiện ích Multi-Agent Hub.");
+        if (found.Length != 1) throw new InvalidOperationException(clients.Values.Any(c => c.Bindings.Length > 0)
+            ? "Hub đã nhận tab từ trình duyệt, nhưng agent này còn gắn mã tab cũ. Chọn đúng tab đang kết nối trong Thiết lập / model; không cần đăng nhập lại."
+            : "Hub chưa nhận danh sách tab. Mở extension và bấm Đồng bộ lại với Hub; nếu tab đã tải lại, liên kết lại tab đó. Không cần đăng nhập lại khi website vẫn giữ tài khoản.");
         var selected = found[0];
         if (selected.Binding.Provider != connection) throw new InvalidOperationException("Tab đã liên kết thuộc chatbot khác. Chọn đúng Gemini hoặc ChatGPT cho agent này.");
         if (!selected.Binding.Ready) throw new InvalidOperationException("Tab chatbot chưa sẵn sàng. Kiểm tra đăng nhập, model và ô nhập trong tab đã chọn.");

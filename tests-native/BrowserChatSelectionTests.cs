@@ -46,6 +46,15 @@ internal static class BrowserChatSelectionTests
             catch (ArgumentException error) { rejected = error.Message.Contains("chủ đề Hub khác"); }
             Assert(rejected && !runner.Busy && config.BrowserTopics["used-tab"] == "old-topic"); return Task.CompletedTask;
         });
+        await test("missing browser binding is identified before any job starts", () => {
+            using var bridge = new BrowserChatBridge();
+            var agent = new AgentConfig { Id = "missing-browser", Provider = "gemini", Connection = "gemini-web", Model = "Argon", BrowserBindingId = "old-tab" };
+            var runner = new JobRunner(new AgentExecutor(new ApiTransport(new FakeSecrets()), bridge), new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
+            bool rejected = false;
+            try { runner.Start(new() { Surface = "chat", Agents = [agent] }, "Keep this draft"); }
+            catch (BrowserChatConnectionException error) { rejected = error.AgentId == agent.Id && error.Message.Contains("Đồng bộ lại với Hub"); }
+            Assert(rejected && !runner.Busy && runner.Completion == null && runner.Snapshot() == null); return Task.CompletedTask;
+        });
     }
     private sealed class TextAdviser : IAgentExecutor
     {

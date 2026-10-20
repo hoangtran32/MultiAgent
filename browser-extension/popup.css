@@ -9,6 +9,7 @@ p { line-height: 1.5; } .intro { margin: 12px 0; }
 form { margin-top: 16px; } label { display: block; margin: 10px 0 6px; font-weight: 600; }
 .scan-actions { display: flex; gap: 8px; margin-top: 10px; }
 .scan-actions button { flex: 1; padding: 8px; font-size: 12px; }
+#resync { width: 100%; margin-top: 10px; }
 #scan-status { white-space: pre-line; overflow-wrap: anywhere; }
 #scan-status.error { color: #b42c2c; }
 input:not([type="checkbox"]) { width: 100%; padding: 9px 10px; border: 1px solid #cdd8d1; border-radius: 8px; color: inherit; background: #fff; font: inherit; }

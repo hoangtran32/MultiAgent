@@ -178,6 +178,7 @@ internal sealed class AgentEditor : Form
         agent.Model = model.Text.Trim(); agent.Reasoning = effort.Enabled ? Ui.Value(effort) : ""; agent.Permission = Ui.Value(permission);
         agent.BrowserBindingId = Catalog.IsBrowserChat(agent.Connection) ? Ui.Value(browserBinding) : "";
         if (Catalog.IsBrowserChat(agent.Connection) && agent.BrowserBindingId.Length == 0) throw new ArgumentException("Chọn một tab chatbot đã kết nối từ extension.");
+        if (Catalog.IsBrowserChat(agent.Connection)) (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Validate(agent.Connection, agent.BrowserBindingId, agent.Model);
         agent.Instructions = instructions.Text.Trim(); agent.Command = command.Enabled ? command.Text.Trim() : "";
         agent.Arguments = agent.Connection == "custom-cli" ? JsonSerializer.Deserialize<List<string>>(arguments.Text) ?? [] : [];
         agent.Endpoint = endpoint.Enabled ? endpoint.Text.Trim() : ""; agent.KeyEnvironment = variable.Enabled ? variable.Text.Trim() : "";

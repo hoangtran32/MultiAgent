@@ -11,6 +11,8 @@ let nativeReady = false;
 let nativeHandshake = null;
 let nativeError = "Chưa kết nối cầu nối trên máy.";
 let restorePromise;
+let reconnecting = null;
+let reconnectAfter = 0;
 
 function providerOf(value) {
   try {
@@ -68,9 +70,11 @@ function restore() {
 
 function closeNative(port, reason, disconnect = false) {
   if (nativePort !== port) return;
+  const wasReady = nativeReady;
   nativeError = reason;
   nativePort = null;
   nativeReady = false;
+  reconnectAfter = wasReady ? 0 : Date.now() + 15000;
   const handshake = nativeHandshake;
   nativeHandshake = null;
   if (handshake) {
@@ -82,6 +86,29 @@ function closeNative(port, reason, disconnect = false) {
   }
   requests.clear();
   if (disconnect) { try { port.disconnect(); } catch { /* The transport may already be closed. */ } }
+}
+
+async function reconnectNative() {
+  if (reconnecting) return reconnecting;
+  reconnecting = (async () => {
+    await restore();
+    // Reconnect only the exact documents previously linked by the user, including existing conversations.
+    for (const binding of [...bindings.values()]) {
+      try {
+        const tab = await chrome.tabs.get(binding.tabId);
+        const check = await chrome.tabs.sendMessage(binding.tabId, {type: "hub-ping", nonce: binding.nonce}, {frameId: 0});
+        if (tab.url !== binding.url || providerOf(tab.url) !== binding.provider || check?.nonce !== binding.nonce || check.url !== binding.url) throw new Error("stale");
+      } catch {
+        if (bindings.get(binding.id) === binding) await removeBinding(binding.id, "Tab đã tải lại hoặc đổi trang; cần liên kết lại đúng tab.");
+      }
+    }
+    if (!bindings.size) throw new Error("Chưa có tab hợp lệ để đồng bộ. Mở chat mới và Kết nối tab hiện tại.");
+    reconnectAfter = Date.now() + 15000;
+    await openNative();
+    if (!publishState()) throw new Error(nativeError || "Chưa gửi được danh sách tab đến Hub.");
+  })();
+  try { return await reconnecting; }
+  finally { reconnecting = null; }
 }
 
 function openNative() {
@@ -200,9 +227,17 @@ function cleanSelectors(value) {
 async function onPopup(message) {
   await restore();
   if (message.type === "popup-status") {
+    if (bindings.size && !nativePort && !nativeHandshake && !reconnecting && Date.now() >= reconnectAfter) {
+      void reconnectNative().catch(error => { nativeError = error.message; });
+    }
     const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
     return {connected: !!nativePort && nativeReady, connecting: !!nativeHandshake, error: nativeError, canBindNew: freshChatUrl(tab?.url), tab: tab ? {id: tab.id, url: tab.url,
       provider: providerOf(tab.url)} : null, bindings: [...bindings.values()].map(publicBinding)};
+  }
+  if (message.type === "popup-resync") {
+    if (requests.size) return {ok: false, error: "Có lượt chatbot đang chạy. Đợi hoàn tất trước khi đồng bộ lại để giữ nguyên lượt này."};
+    await reconnectNative();
+    return {ok: true, count: bindings.size};
   }
   if (message.type === "popup-disconnect") {
     await removeBinding(message.id, "Bạn đã ngắt kết nối tab. Website có thể vẫn đang tạo phản hồi.");
@@ -252,8 +287,10 @@ async function onPopup(message) {
   if (!nativeReady || !nativePort) return {ok: false, error: nativeError || "Cầu nối đã ngắt trước khi gắn tab."};
   if ([...requests.values()].some(item => item.tabId === tab.id)) return {ok: false, error: "Tab vừa nhận yêu cầu khác. Đợi lượt đó hoàn tất trước khi đổi kết nối/model."};
   const previous = [...bindings.values()].find(item => item.tabId === tab.id);
+  const sameDocument = previous?.provider === provider && previous.url === tab.url && previous.nonce === check.nonce
+    && previous.model.trim().toLowerCase() === message.model.trim().toLowerCase();
   if (previous) bindings.delete(previous.id);
-  const binding = {id: crypto.randomUUID(), provider, tabId: tab.id, url: tab.url,
+  const binding = {id: sameDocument ? previous.id : crypto.randomUUID(), provider, tabId: tab.id, url: tab.url,
     title: (tab.title || provider).slice(0, 200), model: message.model.trim(), nonce: check.nonce, selectors};
   bindings.set(binding.id, binding);
   await persist();

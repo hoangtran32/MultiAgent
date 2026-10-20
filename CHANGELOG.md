@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.8.1 — 2026-10-20
+
+- Giữ ID khi kết nối lại cùng tab, document và model; không làm agent Hub gắn mã cũ chỉ vì bấm Kết nối lần nữa.
+- Extension tự kiểm tra tab đã liên kết và nối lại cầu nối khi mở popup sau khi Hub khởi động lại; thêm Đồng bộ lại với Hub. Không yêu cầu chat mới cho document cũ còn hợp lệ, không gửi lại prompt hoặc đổi tab khi mất kết nối.
+- Phân biệt tab đã liên kết với trạng thái cầu nối Hub. Preflight mở đúng thiết lập agent nếu mã tab/model cũ, giữ nguyên yêu cầu, project và conversation; không tự chọn tab khác. Lưu agent browser kiểm tra liên kết hiện tại.
+- Build/cú pháp cục bộ; kiểm tra protocol đồng bộ giả lập và native qua CI. Không chạy test màn hình hoặc gửi yêu cầu thật trên máy.
+
 ## 5.8.0 — 2026-10-20
 
 - Tách Trò chuyện khỏi workspace: không kiểm tra/bắt chọn thư mục, không đưa path project cũ vào prompt hoặc bản ghi chat. CLI dùng một thư mục runtime riêng khi cần; project/quyền của Làm việc được giữ nguyên.

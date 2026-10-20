@@ -8,6 +8,7 @@ const connect = document.getElementById("connect");
 const scanButton = document.getElementById("scan");
 const pickButton = document.getElementById("pick");
 const scanStatus = document.getElementById("scan-status");
+const resync = document.getElementById("resync");
 const fields = {
   input: "Khung nhập", send: "Nút gửi", user: "Tin nhắn người dùng", assistant: "Tin nhắn AI",
   response: "Phần nội dung trong tin AI", stop: "Nút dừng tạo", actions: "Nút sao chép khi AI đã xong", busy: "Dấu hiệu đang tạo trong tin AI"
@@ -73,6 +74,18 @@ function show(text, error = false) {
   statusBox.textContent = text;
   statusBox.classList.toggle("error", error);
 }
+resync.addEventListener("click", async () => {
+  if (busy) return;
+  busy = true; resync.disabled = true; connect.disabled = true;
+  show("Đang kiểm tra các tab đã liên kết và nối lại Hub…");
+  try {
+    const response = await chrome.runtime.sendMessage({type: "popup-resync"});
+    if (!response?.ok) throw new Error(response?.error || "Chưa đồng bộ được với Hub.");
+    await refresh();
+    show("Đã gửi lại " + response.count + " tab cho Hub. Nếu agent trong Hub vẫn gắn tab cũ, chọn tab đang kết nối trong Thiết lập / model; yêu cầu đang soạn được giữ nguyên.");
+  } catch (error) { show(error.message, true); }
+  finally { busy = false; resync.disabled = false; connect.disabled = !currentTab?.provider || !canBindNewTab; }
+});
 
 async function refresh(loadSettings = false) {
   const state = await chrome.runtime.sendMessage({type: "popup-status"});
@@ -82,7 +95,11 @@ async function refresh(loadSettings = false) {
   connect.disabled = busy || !providerName || !canBindNewTab;
   scanButton.disabled = busy || scanning || !providerName;
   pickButton.disabled = busy || scanning || !providerName;
+  resync.disabled = busy || state.connecting || !state.bindings.length;
+  const linked = state.bindings.find(binding => binding.tabId === currentTab?.id && binding.url === currentTab?.url);
   if (!providerName) show("Mở tab gemini.google.com/app hoặc chatgpt.com để kết nối.");
+  else if (linked && state.connected) show(providerName + " · Tab hiện tại đã liên kết, cầu nối Hub đang mở.\nNếu Hub đang chọn tab cũ, chọn lại tab trong Thiết lập / model của agent.");
+  else if (state.connecting) show(providerName + " · Đang khôi phục cầu nối với Hub (tối đa 12 giây)…");
   else if (!canBindNewTab) show(providerName + " · " + (state.connected ? "Cầu nối đã kết nối.\n" : "")
     + "Để tạo liên kết mới, mở chat mới trống trên website. Tiếp tục chủ đề cũ từ lịch sử Hub để gửi ngữ cảnh sang tab mới. Các liên kết đang chạy được giữ nguyên."
     + (state.error ? "\n" + state.error : ""), !!state.error);
@@ -98,7 +115,7 @@ async function refresh(loadSettings = false) {
     const row = document.createElement("div"); row.className = "binding";
     const description = document.createElement("div"); description.className = "description";
     const name = document.createElement("strong"); name.textContent = binding.provider === "gemini-web" ? "Gemini" : "ChatGPT";
-    const label = document.createElement("small"); label.textContent = binding.model + " · do bạn xác nhận";
+    const label = document.createElement("small"); label.textContent = binding.model + " · " + (state.connected ? "đã gửi liên kết cho Hub" : "chờ nối lại Hub");
     const title = document.createElement("small"); title.textContent = binding.title; title.title = binding.url;
     description.append(name, label, title);
     const button = document.createElement("button"); button.type = "button"; button.textContent = "Ngắt";

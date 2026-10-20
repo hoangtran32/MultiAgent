@@ -15,7 +15,11 @@ public sealed class AgentExecutor(ApiTransport api, BrowserChatBridge? browser =
     public void Validate(AgentConfig agent)
     {
         if (Catalog.IsManual(agent.Connection)) return;
-        if (Catalog.IsBrowserChat(agent.Connection)) { (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Validate(agent.Connection, agent.BrowserBindingId, agent.Model); return; }
+        if (Catalog.IsBrowserChat(agent.Connection)) {
+            try { (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Validate(agent.Connection, agent.BrowserBindingId, agent.Model); }
+            catch (Exception error) when (error is InvalidOperationException or ArgumentException) { throw new BrowserChatConnectionException(agent.Id, error.Message, error); }
+            return;
+        }
         if (Catalog.IsApi(agent.Connection)) api.Validate(agent);
         else ProcessTransport.RequireExecutable(agent);
     }

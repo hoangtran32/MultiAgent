@@ -17,7 +17,8 @@ jobs:
             node --check $_.FullName
             if ($LASTEXITCODE -ne 0) { throw 'Browser extension syntax check failed.' }
           }
-          node --test tests-browser/discovery.test.cjs
+          $browserTests = @(Get-ChildItem -LiteralPath tests-browser -Filter '*.test.cjs' | ForEach-Object { $_.FullName })
+          node --test @browserTests
           if ($LASTEXITCODE -ne 0) { throw 'Browser discovery tests failed.' }
           ./scripts/build-desktop.ps1 -PackageOnly
       - uses: actions/upload-artifact@v4
