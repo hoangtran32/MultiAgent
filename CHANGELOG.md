@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.7.0 — 2026-10-20
+
+- Bridge trình duyệt thử nghiệm cho Gemini/ChatGPT dùng tài khoản web, không qua API key/agy. Extension nhúng vào single EXE; người dùng chủ động cài/nối tab. Lựa chọn Hub Chat riêng với agent Hub Code.
+- Model do người dùng chọn/xác nhận trên website. Chủ đề Hub mới không dùng tiếp webchat thuộc chủ đề khác; kết nối mới yêu cầu chat web trống.
+- Native Messaging C# + named pipe CurrentUserOnly, handshake và framing có giới hạn, không tự replay/fallback. Chỉ chốt lượt khi có tin mới và tín hiệu hoàn tất UI; giữ partial khi không nhận diện chắc.
+- Bàn luận hỗ trợ 0 = không giới hạn lượt/thời gian/timeout, mặc định liên tục, tổng hợp chủ đề và sổ ý tưởng. Giữ link nguồn trong câu trả lời web. Cài đặt mới không bị lịch sử cũ ghi đè.
+- Build/cú pháp cục bộ, harness qua CI; chưa test UI/live website hoặc suy luận thật. Hướng dẫn tại docs/BROWSER_CHAT.md.
+
 ## 5.6.0 — 2026-10-20
 
 - Thêm Trao đổi liên tục cho Chốt từng ý/Bàn tròn: 0 là không giới hạn số lần gọi, thời gian phiên hoặc thời gian mỗi lượt. Bỏ timeout cứng 10 phút review/30 phút thực hiện; timeout từng lượt mặc định tắt.

@@ -10,16 +10,18 @@ public interface IAgentExecutor
     Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token);
 }
 
-public sealed class AgentExecutor(ApiTransport api) : IAgentExecutor
+public sealed class AgentExecutor(ApiTransport api, BrowserChatBridge? browser = null) : IAgentExecutor
 {
     public void Validate(AgentConfig agent)
     {
         if (Catalog.IsManual(agent.Connection)) return;
+        if (Catalog.IsBrowserChat(agent.Connection)) { (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Validate(agent.Connection, agent.BrowserBindingId, agent.Model); return; }
         if (Catalog.IsApi(agent.Connection)) api.Validate(agent);
         else ProcessTransport.RequireExecutable(agent);
     }
     public async Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token)
     {
+        if (Catalog.IsBrowserChat(agent.Connection)) return await (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Execute(agent.Connection, agent.BrowserBindingId, agent.Model, prompt, text, log, token);
         if (Catalog.IsApi(agent.Connection)) return await api.Execute(agent, prompt, token);
         string binary = ProcessTransport.RequireExecutable(agent);
         var parser = new CliParser(agent.Connection, text, log);
@@ -66,7 +68,9 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         Storage.Validate(config);
         if (!Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
         if (string.IsNullOrWhiteSpace(prompt) || prompt.Length > 200000) throw new ArgumentException("Yêu cầu cần có 1–200.000 ký tự.");
-        var agents = config.Agents.Where(a => a.Enabled).Select(a => a.Copy()).ToList();
+        var agents = config.SelectedAgents().Select(a => a.Copy()).ToList();
+        if (agents.Any(a => Catalog.IsBrowserChat(a.Connection)) && (config.Surface != "chat" || config.Mode != "discussion"))
+            throw new ArgumentException("Chatbot trình duyệt dùng trong Hub Chat → Bàn luận qua lại. Agent làm việc và lựa chọn chatbot được giữ riêng.");
         if (config.Surface == "chat") foreach (var agent in agents) agent.Permission = "read-only";
         if (agents.Count == 0) throw new ArgumentException("Chọn ít nhất một agent.");
         if (config.Mode is "discussion" or "team" or "consensus") DiscussionEngine.ValidateAgents(agents);
@@ -82,12 +86,25 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         lock (gate)
         {
             if (cancellation != null) throw new InvalidOperationException("Đang có tác vụ chạy.");
+            string conversationId = previous == null ? Guid.NewGuid().ToString("N") : previous.ConversationId.Length > 0 ? previous.ConversationId : previous.Id;
+            var browserAgents = agents.Where(a => Catalog.IsBrowserChat(a.Connection)).ToList();
+            if (browserAgents.Count > 0) {
+                foreach (var agent in browserAgents) {
+                    if (config.BrowserTopics.TryGetValue(agent.BrowserBindingId, out string? owner) && owner != conversationId)
+                        throw new ArgumentException($"{agent.Name}: tab này đang thuộc chủ đề Hub khác. Mở chat mới trên website và kết nối lại qua Chatbot từ trình duyệt để tránh trộn ngữ cảnh. Lịch sử chủ đề cũ vẫn được giữ.");
+                }
+                var reserved = JsonSerializer.Deserialize<HubConfig>(JsonSerializer.Serialize(config, Json.Options), Json.Options)!;
+                var currentBindings = reserved.Agents.Where(a => Catalog.IsBrowserChat(a.Connection)).Select(a => a.BrowserBindingId).ToHashSet();
+                foreach (string oldBinding in reserved.BrowserTopics.Keys.Where(id => !currentBindings.Contains(id)).ToArray()) reserved.BrowserTopics.Remove(oldBinding);
+                foreach (var agent in browserAgents) reserved.BrowserTopics[agent.BrowserBindingId] = conversationId;
+                Storage.Validate(reserved); storage.Write("native-config", reserved); config.BrowserTopics = reserved.BrowserTopics;
+            }
             cancellation = new(); token = cancellation.Token;
             teamInstructions.Clear();
             discussionControl = config.Mode == "discussion" ? new() : null;
             current = new() { Surface = config.Surface, Prompt = prompt, Project = config.Project, Mode = config.Mode, Discussion = config.Mode == "discussion" ? config.Discussion.Copy() : null,
                 Team = Catalog.IsTeamMode(config.Mode) ? new() { Options = config.Team.Copy() } : null,
-                ConversationId = previous == null ? Guid.NewGuid().ToString("N") : previous.ConversationId.Length > 0 ? previous.ConversationId : previous.Id,
+                ConversationId = conversationId,
                 Title = previous == null ? Storage.Topic(title.Length > 0 ? title : prompt) : previous.Title.Length > 0 ? previous.Title : Storage.Topic(previous.Prompt), PreviousJobId = previous?.Id ?? "",
                 Results = agents.Select(a => new AgentResult { AgentId = a.Id, Name = a.Name, Provider = a.Provider, Connection = a.Connection, Model = a.Model }).ToList() };
             if (Catalog.IsTeamMode(config.Mode) && previous?.Team is { } earlier) {

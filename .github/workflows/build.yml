@@ -12,7 +12,12 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Test and build
         shell: pwsh
-        run: ./scripts/build-desktop.ps1 -PackageOnly
+        run: |
+          Get-ChildItem -LiteralPath browser-extension -Filter '*.js' | ForEach-Object {
+            node --check $_.FullName
+            if ($LASTEXITCODE -ne 0) { throw 'Browser extension syntax check failed.' }
+          }
+          ./scripts/build-desktop.ps1 -PackageOnly
       - uses: actions/upload-artifact@v4
         with:
           name: MultiAgentHub-win-x64

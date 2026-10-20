@@ -1,0 +1,25 @@
+:root { color-scheme: light dark; font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px; color: #202622; background: #fafcfb; }
+* { box-sizing: border-box; }
+body { width: 386px; margin: 0; padding: 18px; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+header strong { font-size: 19px; } header span, .hint, footer { color: #66716c; }
+p { line-height: 1.5; } .intro { margin: 12px 0; }
+#status { padding: 10px 12px; background: #eef3f0; border: 1px solid #dfe7e2; border-radius: 10px; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.45; }
+#status.error { color: #a12626; background: #fff1f0; border-color: #efd2d0; }
+form { margin-top: 16px; } label { display: block; margin: 10px 0 6px; font-weight: 600; }
+input:not([type="checkbox"]) { width: 100%; padding: 9px 10px; border: 1px solid #cdd8d1; border-radius: 8px; color: inherit; background: #fff; font: inherit; }
+input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid #3478e7; outline-offset: 2px; }
+.confirmation { display: flex; align-items: start; gap: 7px; font-weight: 400; line-height: 1.45; }
+.confirmation input { flex: 0 0 auto; margin-top: 3px; } .hint { font-size: 12px; }
+details { padding: 10px 0; border-top: 1px solid #e3e9e5; } summary { cursor: pointer; }
+button { cursor: pointer; font: inherit; border: 1px solid #d6e0d9; border-radius: 8px; padding: 9px 12px; color: inherit; background: #fff; }
+button:disabled { opacity: .55; cursor: default; } #connect { margin-top: 8px; width: 100%; color: #fff; background: #276e4c; border-color: #276e4c; font-weight: 600; }
+section { border-top: 1px solid #e3e9e5; margin-top: 18px; padding-top: 12px; } h2 { margin: 0 0 8px; font-size: 13px; }
+.binding { padding: 10px 0; border-bottom: 1px solid #e3e9e5; display: flex; gap: 10px; align-items: center; }
+.binding .description { min-width: 0; flex: 1; overflow-wrap: anywhere; line-height: 1.5; } .binding small { display: block; color: #66716c; } .binding button { flex: 0 0 auto; padding: 6px 9px; }
+.empty { color: #66716c; margin: 5px 0; } footer { margin-top: 14px; line-height: 1.5; font-size: 11px; }
+@media (prefers-color-scheme: dark) {
+  :root { color: #e1e8e3; background: #1b211d; } header span, .hint, footer, .empty, .binding small { color: #a5b1a9; }
+  #status { background: #26312a; border-color: #36483b; } #status.error { color: #f3b5b0; background: #3d2525; border-color: #623b39; }
+  input:not([type="checkbox"]), button { background: #242d27; border-color: #46574b; } details, section, .binding { border-color: #35443a; }
+}

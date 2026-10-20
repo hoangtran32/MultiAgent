@@ -492,7 +492,7 @@ try
     await Test("discussion preflight rejects manual and invalid limits before inference", () => {
         var fixture = new DiscussionFixture(); var runner = new JobRunner(fixture, Store());
         Throws(() => runner.Start(new() { Project = root, Mode = "discussion", Agents = [Agent("codex", "codex-cli"), Agent("antigravity", "antigravity-ide")] }, "topic"));
-        foreach (var invalid in new[] { new DiscussionOptions { MaxTurns = 0 }, new DiscussionOptions { MaxTurns = 401 }, new DiscussionOptions { DurationMinutes = 1441 }, new DiscussionOptions { PauseSeconds = -1 } }) Throws(invalid.Validate);
+        foreach (var invalid in new[] { new DiscussionOptions { MaxTurns = -1 }, new DiscussionOptions { MaxTurns = 100001 }, new DiscussionOptions { DurationMinutes = 10081 }, new DiscussionOptions { TurnTimeoutMinutes = -1 }, new DiscussionOptions { PauseSeconds = -1 } }) Throws(invalid.Validate);
         Assert(fixture.Calls.Count == 0 && !runner.Busy); return Task.CompletedTask;
     });
     await Test("discussion summary falls back after quota and active cancellation kills the turn", async () => {
@@ -614,6 +614,9 @@ try
     });
     await ProgressTests.Run(Test);
     await ConsensusTests.Run(Test, root);
+    await DiscussionBudgetTests.Run(Test, root);
+    await BrowserChatBridgeTests.Run(Test, root);
+    await BrowserChatSelectionTests.Run(Test, root);
     Console.WriteLine($"{passed} native tests passed");
 }
 catch (Exception e) { Console.Error.WriteLine(e); Environment.ExitCode = 1; }

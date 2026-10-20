@@ -23,7 +23,7 @@ tests-native/              Harness kiểm tra native hiện có
 scripts/                   Build/publish/đóng gói
 ```
 
-Bàn luận mặc định liên tục từ 5.3.4 (PauseSeconds=0); preset 8 giờ cũng không thêm nghỉ. RestoreDiscussionLimits giữ nhịp chạy hiện tại khi mở/dùng lại job cũ, chỉ lấy lại giới hạn lượt/thời gian. Các mode CLI/API còn lại chuyển bước sau kết quả mà không chèn timer nghỉ.
+Bàn luận mặc định liên tục từ 5.3.4 (PauseSeconds=0); preset 8 giờ cũng không thêm nghỉ. Từ 5.7.0, RestoreDiscussionLimits giữ toàn bộ cài đặt bàn luận hiện tại khi mở/dùng lại job cũ; không lấy ngân sách cũ từ transcript. Các mode CLI/API còn lại chuyển bước sau kết quả mà không chèn timer nghỉ.
 
 Bàn luận 5.3.3: DiscussionControl dùng tín hiệu đồng bộ để đánh thức thời gian nghỉ hoặc yêu cầu kết thúc sau lượt; không hủy token của lượt model. JobRunner nhận bổ sung và ghi checkpoint trong cùng khóa với snapshot engine. DiscussionTurn.Kind=user có ID ổn định, không tăng số lượt model; gửi vào prompt kế tiếp/tổng hợp và lưu trong export/ngữ cảnh tiếp tục. UI giữ composer nhập được, chỉ khóa gửi lúc tổng hợp/kết thúc; không tạo lượt ngoài ngân sách.
 
@@ -109,3 +109,11 @@ Không đặt credentials, dữ liệu hội thoại hoặc cache vào Git. `app
 ## Phạm vi bản 5.0
 
 Thực hiện bàn tròn có cấu trúc, task tuần tự, tài liệu, review, tùy chọn lệnh kiểm tra, quota fallback, tiếp tục và giao diện native. Chưa có nhiều coder/worktree, manager tự học, tool executor tổng quát cho API hoặc cơ chế phân tích coverage tự động. Harness cũ không được coi là kiểm chứng luồng nhóm mới; bản giao theo yêu cầu chỉ được kiểm tra biên dịch, người dùng tự test chức năng/giao diện.
+
+## Browser Chat từ 5.7.0
+
+BrowserChatBridge là transport text riêng (gemini-web/chatgpt-web), không giả thành CLI/API. Program dispatch native-host origin trước WinForms/mutex; cùng EXE relay Chrome Native Messaging ↔ named pipe CurrentUserOnly. Pipe có mutex owner theo Windows user để các profile Hub không tranh kết nối. Frame LE UTF-8 1MiB, prompt200k/result64k, request ID, handshake, mỗi binding một pending; cancel không retry/fallback, disconnect fail pending giữ partial.
+
+Extension MV3 chỉ dùng activeTab/scripting/nativeMessaging/storage. Model là nhãn người dùng xác nhận trên website, không backend claim. User/bot turn mới + generating + explicit terminal UI mới được nhận là result; quiet text không đủ. Connect yêu cầu chat web trống; nonce/document/url tránh đổi chat, một lần URL SPA gán chat mới sau own-submit được theo dõi riêng. BrowserTopics reserve binding→HubConversationId trước inference; ChatAgentIds giữ lựa chọn Hub Chat riêng, không thay Enabled của Work agents. Nâng cấp Bridge không đọc cookie/token, không gọi API model và không tự sideload extension.
+
+BrowserChatSetup xuất resource extension, ghi manifest allowed_origins đúng public extension key và HKCU Chrome/Edge. Đăng ký chỉ sau user nhấn Chuẩn bị bridge; registry không được sửa lúc khởi động hoặc build. CLI/API flows và profile cũ giữ tương thích. Bridge DOM thử nghiệm chưa test live; cấu trúc/thiết lập tại BROWSER_CHAT.md.

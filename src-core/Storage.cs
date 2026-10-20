@@ -32,6 +32,8 @@ public sealed partial class Storage
         if (config.Agents.Count > Catalog.MaxAgents || config.Agents.Select(a => a.Id).Distinct().Count() != config.Agents.Count || config.Agents.Any(a => !System.Text.RegularExpressions.Regex.IsMatch(a.Id, "^[a-zA-Z0-9-]{1,80}$"))) throw new InvalidDataException("Danh sách agent không hợp lệ.");
         if (!Catalog.Modes.Contains(config.Mode)) throw new InvalidDataException("Chế độ chạy không hợp lệ.");
         if (config.Surface is not ("work" or "chat")) throw new InvalidDataException("Không gian không hợp lệ.");
+        if (config.ChatAgentIds is { } chatIds && (chatIds.Count > Catalog.MaxAgents || chatIds.Distinct().Count() != chatIds.Count || chatIds.Any(id => !config.Agents.Any(a => a.Id == id)))) throw new InvalidDataException("Danh sách chatbot đã chọn không hợp lệ.");
+        if (config.BrowserTopics.Count > 4096 || config.BrowserTopics.Any(pair => pair.Key.Length is < 1 or > 128 || pair.Key.Any(char.IsControl) || pair.Value.Length is < 1 or > 128 || pair.Value.Any(char.IsControl))) throw new InvalidDataException("Liên kết chủ đề chatbot không hợp lệ.");
         if (new[] { config.WorkMode, config.ChatMode }.Any(m => !Catalog.Modes.Contains(m))) throw new InvalidDataException("Cách phối hợp không hợp lệ.");
         config.Discussion.Validate();
         config.Team.Validate();

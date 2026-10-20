@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Browser Chat · Multi-Agent Hub</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header><strong>Browser Chat</strong><span>Multi-Agent Hub</span></header>
+  <p class="intro">Dùng tài khoản Gemini / ChatGPT đã đăng nhập. Mở một chat mới trống trên mỗi website và chọn model trước khi kết nối. Mở Hub và cài cầu nối trình duyệt trước.</p>
+  <div id="status" role="status">Đang đọc trạng thái…</div>
+  <form id="connect-form">
+    <label for="model">Tên model bạn đang chọn trên website</label>
+    <input id="model" name="model" maxlength="120" autocomplete="off" placeholder="Nhập đúng nhãn model đang hiển thị" required>
+    <label class="confirmation"><input id="confirmed" type="checkbox" required><span>Tôi đã đăng nhập và tự chọn model/chế độ mong muốn trong tab này.</span></label>
+    <p class="hint">Tên này do bạn xác nhận. Tiện ích không tự chọn model và không xác minh model phía máy chủ. Quota vẫn theo tài khoản website.</p>
+    <details>
+      <summary>Bộ chọn CSS nâng cao</summary>
+      <p class="hint">Để trống dùng bộ nhận diện có sẵn. Khi website đổi giao diện, có thể đặt lại từng mục. Chỉ dùng bộ chọn cho đúng nội dung cuộc trò chuyện.</p>
+      <div id="selectors"></div>
+    </details>
+    <button id="connect" type="submit">Kết nối tab hiện tại</button>
+  </form>
+  <section aria-labelledby="bindings-title">
+    <h2 id="bindings-title">Các tab đã kết nối</h2>
+    <div id="bindings"></div>
+  </section>
+  <footer>Mỗi chatbot dùng một tab riêng. Chat đã gắn tiếp tục dùng được trong phiên; không cần kết nối lại sau mỗi lượt. Để tiếp tục chủ đề cũ, mở lịch sử Hub rồi gắn một chat web mới, Hub sẽ gửi ngữ cảnh. Giữ tab mở; tải lại hoặc chuyển chat sẽ ngắt kết nối. Tiện ích không xóa lịch sử, nội dung bạn đang gõ hay đọc cookie, mật khẩu, token.</footer>
+  <script src="popup.js"></script>
+</body>
+</html>

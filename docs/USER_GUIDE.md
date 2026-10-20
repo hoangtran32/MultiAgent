@@ -1,4 +1,6 @@
-# Hướng dẫn Multi-Agent Hub 5.6.0
+# Hướng dẫn Multi-Agent Hub 5.7.0
+
+Muốn hai **chatbot Gemini/ChatGPT dùng tài khoản app/web đang có**, không dùng API hoặc agy: vào **Agent & model → Chatbot từ trình duyệt…**. Xem [Browser Chat](BROWSER_CHAT.md) để cài extension đi kèm, chọn model trên website, nối hai chat mới và bàn luận theo chủ đề. Bridge đang thử nghiệm, chưa kiểm thử UI/live website.
 
 ## Để nhóm trao đổi liên tục
 
@@ -18,7 +20,7 @@ Nhấn **Công việc** để xem task và bằng chứng, **Chi tiết** để 
 
 Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, chọn công cụ/kết nối rồi cấu hình model, tài khoản và quyền. Dùng một agent bất kỳ hoặc nhóm tùy chọn; không cần Codex hay Antigravity. Cấu hình hiện có được giữ khi nâng cấp. Hub Code giữ nguyên quyền CLI trong mọi lượt, Hub Chat chỉ trao đổi văn bản.
 
-Ứng dụng Windows bằng **C# / .NET 10 WinForms** để phối hợp các công cụ AI, với model, vai trò và quyền riêng cho từng agent. Desktop không dùng Node.js, JavaScript, web server hay WebView2.
+Ứng dụng Windows bằng **C# / .NET 10 WinForms** để phối hợp các công cụ AI, với model, vai trò và quyền riêng cho từng agent. Desktop không cần Node.js, web server hay WebView2; bridge tùy chọn dùng JavaScript trong extension Chrome/Edge.
 
 ## Chốt từng ý
 
@@ -126,13 +128,13 @@ Song song gửi cùng yêu cầu, kèm vai trò riêng. Pipeline gửi thêm k�
 
 ## Thảo luận ý tưởng / chạy qua đêm
 
-Chọn các agent dùng **CLI/API**, chọn **Bàn luận qua lại**, mở **Agent & model → Giới hạn bàn luận…**, nhập chủ đề rồi gửi. Có thể dùng Codex CLI + Gemini API, Claude CLI + Antigravity CLI hoặc các model khác đã cấu hình. Codex CLI là một kết nối riêng với tài khoản trên máy; cuộc chat Codex hiện tại không tự tham gia. Model ID phụ thuộc quyền tài khoản, dùng **Tải model** trong thiết lập hoặc nhập ID hợp lệ.
+Chọn chatbot web đã nối qua extension hoặc agent dùng **CLI/API**, chọn **Bàn luận qua lại**, mở **Agent & model → Giới hạn bàn luận…**, nhập chủ đề rồi gửi. Có thể dùng Codex CLI + Gemini API, Claude CLI + Antigravity CLI hoặc các model khác đã cấu hình. Codex CLI là một kết nối riêng với tài khoản trên máy; cuộc chat Codex hiện tại không tự tham gia. Model ID phụ thuộc quyền tài khoản, dùng **Tải model** trong thiết lập hoặc nhập ID hợp lệ.
 
 - **Số lượt** tính mỗi lần một model đóng góp, bao gồm lượt lỗi. Các model chạy lần lượt theo thứ tự danh sách, đọc ý kiến trước và phát triển/phản biện ý tưởng. Một model vẫn dùng được để tự phản biện.
-- **Thời gian** là giới hạn cả phiên; dành tối đa 2 phút cuối (10% với phiên ngắn) để tổng hợp. Phiên kết thúc khi chạm số lượt hoặc thời gian, điều kiện nào đến trước. Mẫu **8 giờ • liên tục**: 48 lượt, tối đa 480 phút, nghỉ 0 giây giữa lượt; có thể kết thúc sớm hơn.
-- Mỗi lượt tối đa 10 phút và được giới hạn bởi thời gian còn lại. Cuối phiên có tối đa một lần thử tổng hợp cho mỗi agent còn khả dụng; tổng số lần gọi không vượt `số lượt + số agent`. Đây không phải giới hạn tiền/token. CLI/API tiêu thụ quota/chi phí theo tài khoản.
+- **Thời gian** và **Số lượt**: 0 = không giới hạn, mặc định liên tục. Khi đặt thời gian hữu hạn, dành tối đa 2 phút cuối (10% với phiên ngắn) để tổng hợp. Mẫu **8 giờ** đặt 48 lượt/480 phút, nghỉ 0 giây.
+- Timeout mỗi lượt cũng chỉnh được, 0 = không giới hạn; không còn mốc 10 phút cứng trong engine bàn luận. Cuối phiên có tối đa một lần thử tổng hợp cho mỗi agent còn khả dụng, trong ngân sách hữu hạn nếu được đặt. Đây không phải quota/token của CLI/API/website.
 - Hết quota: tự bỏ tích agent và tiếp tục với các model còn lại; còn một thì chạy đơn. Lỗi khác bỏ qua agent đó trong phiên để tránh lặp lỗi, không bỏ tích cấu hình. Hết tất cả agent thì kết thúc, không tự thử lại.
-- Mở tab **Hội thoại & tổng hợp** để xem toàn bộ lượt và **Tổng hợp buổi sáng**: ý tưởng tốt, điểm đồng thuận/bất đồng, giả định, rủi ro và cách kiểm chứng. Nếu dừng hoặc không model nào tổng hợp được, Hub tạo bản ghi trích nội dung đã có, ghi rõ chưa có tổng hợp từ model. Có thể xem lại trong lịch sử hoặc xuất Markdown.
+- Mở tab **Hội thoại & tổng hợp** để xem toàn bộ lượt và **Bản tổng hợp chủ đề**: ý tưởng tốt, điểm đồng thuận/bất đồng, giả định, rủi ro và cách kiểm chứng. Nếu dừng hoặc không model nào tổng hợp được, Hub tạo bản ghi trích nội dung đã có, ghi rõ chưa có tổng hợp từ model. Có thể xem lại trong lịch sử hoặc xuất Markdown.
 
 Giữ **Hub mở và máy không sleep/hibernate** khi chạy qua đêm. Hub lưu checkpoint trước/sau mỗi lượt. Nếu app tắt bất ngờ, vào **Lịch sử** xem phiên bị gián đoạn; không tự gửi lại yêu cầu hoặc tiếp tục tính phí. Nội dung đang stream giữa một lượt có thể chưa được lưu. Dừng phiên giữ phần đã hoàn tất và không gọi model để tổng hợp thêm.
 

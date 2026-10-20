@@ -6,6 +6,9 @@ internal sealed class AgentEditor : Form
 {
     private readonly AgentConfig original;
     private readonly ISecretStore secrets;
+    private readonly BrowserChatBridge? browser;
+    private readonly ComboBox browserBinding = Ui.Combo();
+    private readonly Button refreshBrowser = Ui.Button("Dò lại tab đã kết nối");
     private readonly TextBox name = Ui.Text(), instructions = Ui.Text(true), command = Ui.Text(), arguments = Ui.Text(true), endpoint = Ui.Text(), variable = Ui.Text(), key = Ui.Text();
     private readonly ComboBox provider = Ui.Combo(), connection = Ui.Combo(), model = Ui.Combo(), effort = Ui.Combo(), permission = Ui.Combo();
     private readonly Label help = Ui.Label(""), status = Ui.Label(""), credentialStatus = Ui.Label("");
@@ -21,10 +24,10 @@ internal sealed class AgentEditor : Form
     private bool initializing = true, loading;
     public AgentConfig Result { get; private set; }
 
-    public AgentEditor(AgentConfig agent, ISecretStore secrets, ModelInventory? discovered = null)
+    public AgentEditor(AgentConfig agent, ISecretStore secrets, ModelInventory? discovered = null, BrowserChatBridge? browser = null)
     {
         SuspendLayout(); AutoScaleMode = AutoScaleMode.None;
-        original = agent.Copy(); Result = agent.Copy(); this.secrets = secrets;
+        original = agent.Copy(); Result = agent.Copy(); this.secrets = secrets; this.browser = browser;
         Text = "Thiết lập agent"; Font = new Font("Segoe UI", 10); BackColor = Ui.Background; ForeColor = Ui.Ink;
         var area = Screen.PrimaryScreen!.WorkingArea;
         Size = new Size(Math.Min(800, area.Width - 40), Math.Min(840, area.Height - 40)); MinimumSize = new Size(660, 600);
@@ -43,6 +46,7 @@ internal sealed class AgentEditor : Form
         help.AutoSize = false; Field(fields, "Cách hoạt động", help, 86);
         model.DropDownStyle = ComboBoxStyle.DropDown; model.AccessibleName = "Model ID / alias";
         Field(fields, "Model ID / alias", model);
+        Field(fields, "Tab chatbot", browserBinding); Field(fields, "Kết nối trình duyệt", refreshBrowser);
         var tools = Ui.Flow(); tools.Controls.AddRange([loadModels, check]); Field(fields, "Kiểm tra", tools, 46);
         Field(fields, "Mức suy luận", effort); Field(fields, "Quyền CLI", permission);
         instructions.AcceptsReturn = true; Field(fields, "Vai trò / hướng dẫn", instructions, 140);
@@ -69,6 +73,8 @@ internal sealed class AgentEditor : Form
         };
         connection.SelectedIndexChanged += (_, _) => { if (!initializing && connection.SelectedIndex >= 0) { StoreDraft(); RefreshConnection(); } };
         model.SelectedIndexChanged += (_, _) => RefreshEffort(); model.TextChanged += (_, _) => RefreshEffort();
+        browserBinding.SelectedIndexChanged += (_, _) => { if (Catalog.IsBrowserChat(Ui.Value(connection)) && browser?.Bindings.FirstOrDefault(b => b.Id == Ui.Value(browserBinding)) is { } selected) model.Text = selected.Model; };
+        refreshBrowser.Click += (_, _) => RefreshBrowserBindings();
         showKey.CheckedChanged += (_, _) => key.UseSystemPasswordChar = !showKey.Checked;
         loadModels.Click += async (_, _) => await Inspect(true); check.Click += async (_, _) => await Inspect(false); save.Click += (_, _) => Save();
         command.Leave += async (_, _) => await AutoModels();
@@ -105,7 +111,7 @@ internal sealed class AgentEditor : Form
     {
         CancelInspection();
         string kind = Ui.Value(connection); activeKey = Ui.Value(provider) + "/" + kind;
-        bool api = Catalog.IsApi(kind), manual = Catalog.IsManual(kind), executable = kind.Length > 0 && !api && kind != "manual";
+        bool api = Catalog.IsApi(kind), manual = Catalog.IsManual(kind), web = Catalog.IsBrowserChat(kind), executable = kind.Length > 0 && !api && !web && kind != "manual";
         help.Text = kind switch {
             "" => "Chọn cách kết nối. CLI đã cài được ưu tiên phát hiện; IDE/app dùng luồng dán kết quả thủ công.",
             "codex-cli" => "Codex CLI chạy trên project và trả kết quả trực tiếp. Dùng tài khoản đã đăng nhập. Để model trống để dùng cấu hình CLI.",
@@ -114,10 +120,12 @@ internal sealed class AgentEditor : Form
             "antigravity-ide" => "Mở Antigravity IDE và file prompt. Bạn chọn model trong IDE, gửi prompt rồi dán câu trả lời về Hub.",
             "antigravity-desktop" => "Mở Antigravity 2.0 desktop riêng. Bạn dán prompt sang app, chọn model rồi dán câu trả lời về Hub.",
             "manual" => "Sao chép prompt tới app / web AI của bạn. Chọn model ở đó và dán câu trả lời về đúng agent trong Hub.",
+            "gemini-web" or "chatgpt-web" => "Dùng tài khoản trên website qua extension của Hub, không dùng CLI/API key. Chọn model ngay trên web rồi xác nhận trong extension. Nhãn model ở đây không tự đổi model; dùng Hub Chat → Bàn luận qua lại.",
             "custom-cli" => "Hub chạy executable của bạn với prompt qua stdin, đọc stdout làm kết quả. Đối số JSON hỗ trợ {model} và {project}.",
             _ => "Gọi API trực tiếp. API nhận yêu cầu và file đính kèm đã chọn, trả văn bản; không tự đọc project hay sửa file." };
         ShowRow(effort, kind is "codex-cli" or "claude-cli" or "agy-cli"); ShowRow(permission, kind is "codex-cli" or "claude-cli" or "agy-cli");
         ShowRow(command, executable);
+        ShowRow(browserBinding, web); ShowRow(refreshBrowser, web); model.Enabled = !web;
         var browse = connectionFields.Controls.Cast<Control>().First(c => c.AccessibleName == "Chọn đường dẫn"); ShowRow(browse, executable);
         ShowRow(arguments, kind == "custom-cli");
         foreach (var control in new Control[] { endpoint, variable, key, showKey, credentialStatus, deleteKey }) ShowRow(control, api);
@@ -136,6 +144,7 @@ internal sealed class AgentEditor : Form
         command.Text = values.Command; arguments.Text = values.Arguments; endpoint.Text = values.Endpoint; variable.Text = values.Variable; key.Text = values.Key; deleteKey.Checked = values.DeleteKey;
         credentialStatus.Text = secrets.Read(original.Id).Length > 0 ? "Có key trong Windows Credential Manager. Để trống API key mới để giữ nguyên." : "Chưa lưu key riêng. Có thể nhập key hoặc dùng biến môi trường.";
         status.Text = kind.Length == 0 ? "Chọn cách kết nối để cấu hình." : executable ? AgentDiscovery.FindExecutable(new() { Connection = kind, Command = command.Text.Trim() }) is { } binary ? "Đã tìm thấy: " + binary : "Chưa tìm thấy executable. Chọn file .exe hoặc cài công cụ rồi mở lại thiết lập." : "";
+        if (web) RefreshBrowserBindings();
         if (Visible && !initializing) {
             string requested = activeKey;
             BeginInvoke((Action)(async () => { if (!IsDisposed && requested == activeKey) await AutoModels(); }));
@@ -147,6 +156,17 @@ internal sealed class AgentEditor : Form
         var levels = LocalModels.Efforts(new() { Connection = kind, Model = model.Text });
         Ui.Choices(effort, new[] { new Choice("", "Theo cấu hình CLI") }.Concat(levels.Select(l => new Choice(l, l))), value);
     }
+    private void RefreshBrowserBindings()
+    {
+        string selected = Ui.Value(browserBinding); if (selected.Length == 0) selected = original.BrowserBindingId;
+        var bindings = browser?.Bindings.Where(b => b.Provider == Ui.Value(connection)).ToList() ?? [];
+        var choices = new List<Choice> { new("", "Chọn tab đã kết nối từ extension…") };
+        choices.AddRange(bindings.Select(b => new Choice(b.Id, b.Model + " · " + b.Title + (b.Ready ? "" : " (chưa sẵn sàng)"))));
+        if (selected.Length > 0 && !bindings.Any(b => b.Id == selected)) choices.Add(new(selected, "Tab cũ đã mất kết nối • chọn lại"));
+        Ui.Choices(browserBinding, choices, selected);
+        if (bindings.FirstOrDefault(b => b.Id == Ui.Value(browserBinding)) is { } binding) model.Text = binding.Model;
+        status.Text = bindings.Count == 0 ? "Chưa có tab chatbot. Mở Agent & model → Chatbot từ trình duyệt để chuẩn bị bridge và kết nối." : "Chọn đúng tab; model/High được bạn chọn và xác nhận trên website.";
+    }
     private void Browse()
     {
         using var dialog = new OpenFileDialog { Filter = "Executable (*.exe)|*.exe", CheckFileExists = true };
@@ -156,6 +176,8 @@ internal sealed class AgentEditor : Form
     {
         var agent = original.Copy(); agent.Name = name.Text.Trim(); agent.Provider = Ui.Value(provider); agent.Connection = Ui.Value(connection);
         agent.Model = model.Text.Trim(); agent.Reasoning = effort.Enabled ? Ui.Value(effort) : ""; agent.Permission = Ui.Value(permission);
+        agent.BrowserBindingId = Catalog.IsBrowserChat(agent.Connection) ? Ui.Value(browserBinding) : "";
+        if (Catalog.IsBrowserChat(agent.Connection) && agent.BrowserBindingId.Length == 0) throw new ArgumentException("Chọn một tab chatbot đã kết nối từ extension.");
         agent.Instructions = instructions.Text.Trim(); agent.Command = command.Enabled ? command.Text.Trim() : "";
         agent.Arguments = agent.Connection == "custom-cli" ? JsonSerializer.Deserialize<List<string>>(arguments.Text) ?? [] : [];
         agent.Endpoint = endpoint.Enabled ? endpoint.Text.Trim() : ""; agent.KeyEnvironment = variable.Enabled ? variable.Text.Trim() : "";
@@ -187,6 +209,7 @@ internal sealed class AgentEditor : Form
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(30)); inspection = timeout;
         try {
             var draft = Draft(); loading = true; loadModels.Enabled = check.Enabled = false;
+            if (Catalog.IsBrowserChat(draft.Connection)) { (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Validate(draft.Connection, draft.BrowserBindingId, draft.Model); status.Text = "Tab chatbot sẵn sàng. Model do bạn chọn/xác nhận trên web."; return; }
             status.Text = "Đang dò công cụ/model… Bạn vẫn có thể đổi kết nối hoặc lưu cấu hình.";
             var preview = new PreviewSecrets(secrets, draft.Id, key.Text.Trim(), deleteKey.Checked);
             if (populate) {

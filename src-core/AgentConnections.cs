@@ -12,6 +12,7 @@ public static class AgentConnections
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
         try {
             if (Catalog.IsManual(agent.Connection)) return new("manual", "Kết nối sao chép/dán; đăng nhập được quản lý trong ứng dụng ngoài, Hub không xác minh tài khoản.");
+            if (Catalog.IsBrowserChat(agent.Connection)) return new("browser", "Dùng tài khoản trong tab trình duyệt bạn kết nối qua extension; kiểm tra tab trong Chatbot từ trình duyệt. Hub không đọc token hoặc xác minh quota/model phía máy chủ.");
             if (Catalog.IsApi(agent.Connection)) {
                 var models = await new ApiTransport(secrets).Models(agent, timeout.Token);
                 return new("ready", $"API trả danh sách {models.Count} model. Chưa gửi yêu cầu suy luận hoặc kiểm tra quota.");

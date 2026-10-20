@@ -5,6 +5,7 @@ public static class WorkspacePolicy
 {
     public static string Instructions(JobRecord job, AgentConfig agent, bool allowChanges = false)
     {
+        if (Catalog.IsBrowserChat(agent.Connection)) return "BÀN LUẬN CHATBOT TRÊN WEB: trao đổi và nghiên cứu chủ đề bằng các khả năng sẵn có của chatbot, gồm tìm kiếm web nếu giao diện hiện tại hỗ trợ. Không có quyền đọc/sửa thư mục hoặc chạy terminal trên máy qua Hub. Phân biệt bằng chứng đã xác minh với ý tưởng; dẫn nguồn cho nhận định nghiên cứu. Không giả là đã chạy code hay đọc project chỉ từ đường dẫn.\n";
         if (job.Surface == "chat") return "Chế độ TRÒ CHUYỆN: trả lời bằng văn bản. Không dùng công cụ, không đọc/sửa file hoặc chạy lệnh. Muốn đọc project cần chuyển sang Hub Code.\n";
         string project = $"PROJECT ĐANG CHỌN: {job.Project}\nThư mục làm việc của CLI: {job.Project}\n";
         if (Catalog.IsApi(agent.Connection)) return project + "Kết nối này chỉ nhận văn bản qua API, không có công cụ đọc filesystem trên máy. Dùng nội dung file được đính kèm hoặc đồng đội CLI cung cấp; nếu thiếu, nêu rõ giới hạn. Không khẳng định đã đọc file chỉ từ đường dẫn.\n";
