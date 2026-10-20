@@ -16,6 +16,15 @@ internal static class ProgressTests
             Assert(state.Detail.Contains("A — I2") && state.Done == 1 && state.Total == 2 && state.Progress.Contains("1/2 task đã review"));
             Assert(state.Timing.Contains("3/30 lần gọi (giới hạn)") && state.Agents.Contains("B: đã góp ý, chờ lượt")); return Task.CompletedTask;
         });
+        await test("unlimited budgets round trip without being shown as a reached zero limit", () => {
+            var options = System.Text.Json.JsonSerializer.Deserialize<TeamOptions>("{\"maxCalls\":0,\"durationMinutes\":0}", Json.Options)!;
+            options.Validate(); Assert(options.HasCallCapacity(800) && options.TurnTimeoutMinutes("review") == 0 && options.TurnTimeoutMinutes("work") == 0);
+            options.ExchangeTimeoutMinutes = 45; options.WorkTimeoutMinutes = 90;
+            var copy = options.Copy(); copy.Validate(); Assert(copy.TurnTimeoutMinutes("review") == 45 && copy.TurnTimeoutMinutes("work") == 90);
+            var job = Job(); job.Team!.Options = options;
+            Assert(RunProgress.From(job, true, now).Timing.Contains("không giới hạn lượt") && !RunProgress.From(job, true, now).Timing.Contains("/0"));
+            return Task.CompletedTask;
+        });
         await test("all tasks reviewed does not imply a running session has finished", () => {
             var job = Job(); job.Team!.Tasks[1].State = "done"; job.Team.Phase = "roundtable";
             var state = RunProgress.From(job, true, now); Assert(state.Done == 2 && state.Title == "Đang thống nhất ý" && state.IsRunning);

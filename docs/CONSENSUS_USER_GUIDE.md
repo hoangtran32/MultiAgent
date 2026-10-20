@@ -14,7 +14,7 @@ Mỗi lượt bàn ý chỉ khoảng 100–200 từ. Các lượt chuyển tiế
 
 ## Giới hạn và trạng thái
 
-**Agent & model → Phân vai & giới hạn nhóm…** đặt số lần gọi, thời gian, số ý/task, vòng sửa, model cho từng chuyên môn và lệnh kiểm tra tùy chọn. Chốt từng ý dùng chung các giới hạn này với Bàn tròn. Mọi lần gọi, gồm sửa định dạng, đều tính vào ngân sách. Nhiều ý/phản biện có thể cần tăng giới hạn mặc định 30 lần gọi. Hết giới hạn thì lưu ý chưa chốt; không ép đồng ý hoặc tự mở ý khác.
+**Agent & model → Trao đổi & giới hạn / phân vai…** đặt số lần gọi, thời gian, số ý/task, vòng sửa, model cho từng chuyên môn và lệnh kiểm tra tùy chọn. Chốt từng ý dùng chung các giới hạn này với Bàn tròn. Mọi lần gọi, gồm sửa định dạng, đều tính vào ngân sách. Nhiều ý/phản biện có thể cần tăng giới hạn mặc định 30 lần gọi. Hết giới hạn thì lưu ý chưa chốt; không ép đồng ý hoặc tự mở ý khác.
 
 **Công việc & đầu ra** hiển thị `v2 · 1/2`: phương án phiên bản 2 mới có một trong hai thành viên khả dụng xác nhận. Chọn ý để xem ai đã chốt, phạm vi, tiêu chí, kết quả và phản biện. Xác nhận là ý kiến của model, không phải bằng chứng code đã đúng; kết quả sửa code vẫn cần kiểm chứng.
 
@@ -30,6 +30,6 @@ Sau khi điều kiện được đáp ứng hoặc bạn điều chỉnh phạm 
 
 Gửi bổ sung trong lúc chạy để điều chỉnh yêu cầu ở ranh giới bước. Các xác nhận cũ bị làm hết hiệu lực; cần chốt lại phạm vi. **⋯ → Dừng sau bước hiện tại** kết thúc sau bước đang làm; nút Dừng hủy ngay. Kết quả và ý còn dang dở được lưu trong hội thoại, JSON, TXT và Markdown. Mở lại rồi gửi tiếp để tiếp tục; ý chưa hoàn tất phải xác nhận lại, không tự chạy khi mở app.
 
-**Quá thời gian** khác với bạn bấm Dừng. Mỗi lượt thực hiện tối đa 30 phút; trao đổi/review tối đa 10 phút, đồng thời vẫn chịu ngân sách cả phiên. Nếu đã nhận tín hiệu model hoàn tất, Hub không chờ CLI bị kẹt ở bước thoát; tiến trình nền của project được giữ. Khi chưa có tín hiệu hoàn tất thì không coi phần chữ đã nhận là task xong. Tiếp tục phiên sẽ chuyển đầu ra lượt thực hiện lỗi cho nhóm đối chiếu với file hiện có trước khi làm phần còn thiếu; đầu ra này chưa phải nghiệm thu.
+**Quá thời gian** khác với bạn bấm Dừng. Từ 5.6.0, timeout mỗi lượt mặc định tắt; trong **Trao đổi & giới hạn** có thể đặt riêng thời gian trao đổi/review và thời gian thực hiện, đơn vị phút, **0 = không giới hạn**. Không còn mốc cứng 10/30 phút. Ngân sách cả phiên vẫn có hiệu lực nếu được bật. Nếu đã nhận tín hiệu model hoàn tất, Hub không chờ CLI bị kẹt ở bước thoát; tiến trình nền của project được giữ. Khi chưa có tín hiệu hoàn tất thì không coi phần chữ đã nhận là task xong. Tiếp tục phiên sẽ chuyển đầu ra lượt thực hiện lỗi cho nhóm đối chiếu với file hiện có trước khi làm phần còn thiếu; đầu ra này chưa phải nghiệm thu.
 
 Chọn được một hoặc nhiều agent, không cố định Codex/Gemini. Với nhiều hơn hai agent, tất cả thành viên khả dụng phải chốt. Hết quota tự bỏ chọn theo cơ chế hiện có; chỉ còn một agent thì ghi rõ tự rà soát, chưa có đồng thuận/review độc lập. Lỗi thông thường sẽ dừng và giữ ý chưa chốt, không tự loại bên phản biện để biến thành đồng thuận. Kết nối dán kết quả thủ công chưa tham gia chế độ tự động này.

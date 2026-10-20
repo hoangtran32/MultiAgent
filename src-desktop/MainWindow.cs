@@ -189,7 +189,7 @@ internal sealed partial class MainWindow : Form
         }));
         var accounts = Ui.Button("Tài khoản / kết nối", (_, _) => { using var dialog = new AgentConnectionsDialog(config.Agents, secrets); dialog.ShowDialog(this); });
         actions.Controls.AddRange([edit, duplicate, remove, up, down, accounts, info]); agents.Controls.Add(actions, 0, 2); locked.AddRange([edit, duplicate, remove, up, down, accounts, mode, discussionSettings]);
-        teamSettings = Ui.Button("Phân vai & giới hạn nhóm…", (_, _) => Protect(() => {
+        teamSettings = Ui.Button("Trao đổi & giới hạn / phân vai…", (_, _) => Protect(() => {
             using var dialog = new TeamDialog(config.Team, config.Agents, config.Project, config.Mode == "consensus");
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
             var next = CopyConfig(); next.Team = dialog.Result; Commit(next, Selected?.Id);
@@ -356,7 +356,7 @@ internal sealed partial class MainWindow : Form
         if (attachmentMenu.Tag is Control button) attachmentMenu.Show(button, new Point(0, -attachmentMenu.PreferredSize.Height));
     }
     private static string ModeExplanation(string id) => id switch {
-        "consensus" => "Chốt từng ý: A nêu một ý ngắn, B phản hồi ngay; hai bên sửa và xác nhận cùng phiên bản trước khi thực hiện/review phần đó rồi mở ý tiếp.\nKhông tự coi im lặng là đồng ý; hết giới hạn vẫn chưa chốt thì giữ lại bất đồng. Cấu hình trong Agent & model → Phân vai & giới hạn nhóm.",
+        "consensus" => "Chốt từng ý: A nêu một ý ngắn, B phản hồi ngay; hai bên sửa và xác nhận cùng phiên bản trước khi thực hiện/review phần đó rồi mở ý tiếp.\nKhông tự coi im lặng là đồng ý; hết giới hạn vẫn chưa chốt thì giữ lại bất đồng. Cấu hình trong Agent & model → Trao đổi & giới hạn / phân vai.",
         "parallel" => "Song song: các agent cùng nhận yêu cầu và trả lời độc lập.\nPhù hợp để so sánh nhiều phương án; không truyền kết quả cho nhau trong lượt này.",
         "pipeline" => "Lần lượt / phản biện: chạy theo thứ tự trong danh sách agent.\nAgent sau nhận kết quả của các agent trước để bổ sung hoặc phản biện; mỗi agent một lượt.",
         "collaboration" => "Cùng làm việc: agent đầu thực hiện, các agent còn lại rà soát, rồi agent khả dụng đầu tiên hoàn thiện.\nVí dụ: viết code → review → sửa theo góp ý. Chỉ chọn một agent thì chạy một lượt.",
@@ -431,7 +431,7 @@ internal sealed partial class MainWindow : Form
         teamSettings.Enabled = !runner.Busy;
         boardToggle.Visible = Catalog.IsTeamMode(config.Mode) || Catalog.IsTeamMode(displayed?.Mode);
         if (!boardToggle.Visible) boardPanel.Visible = false;
-        summary.Text = Catalog.IsTeamMode(config.Mode) ? $"{(config.Mode == "consensus" ? "Chốt một ý mỗi lần" : "Ngang hàng")} • ≤{config.Team.MaxCalls} lần gọi • {(config.Team.RunVerification ? "có lệnh kiểm tra" : "bạn tự kiểm tra")}" : config.Mode == "discussion" ? $"{chosen.Count} model • ≤{config.Discussion.MaxTurns} lượt • ≤{config.Discussion.DurationMinutes} phút" : config.Mode == "collaboration" ? "Thực hiện → rà soát → hoàn thiện" : config.Mode == "pipeline" ? string.Join(" → ", chosen.Select(a => a.Name)) : $"{chosen.Count} agent cùng nhận yêu cầu"; summary.MaximumSize = new Size(420, 32);
+        summary.Text = Catalog.IsTeamMode(config.Mode) ? $"{(config.Mode == "consensus" ? "Chốt một ý mỗi lần" : "Ngang hàng")} • {(config.Team.MaxCalls == 0 ? "không giới hạn lượt" : $"≤{config.Team.MaxCalls} lần gọi")} • {(config.Team.RunVerification ? "có lệnh kiểm tra" : "bạn tự kiểm tra")}" : config.Mode == "discussion" ? $"{chosen.Count} model • ≤{config.Discussion.MaxTurns} lượt • ≤{config.Discussion.DurationMinutes} phút" : config.Mode == "collaboration" ? "Thực hiện → rà soát → hoàn thiện" : config.Mode == "pipeline" ? string.Join(" → ", chosen.Select(a => a.Name)) : $"{chosen.Count} agent cùng nhận yêu cầu"; summary.MaximumSize = new Size(420, 32);
         discussionSettings.Enabled = !runner.Busy;
         run.Text = ""; run.AccessibleName = runner.Busy && displayed?.Mode is "team" or "consensus" or "discussion" ? "Gửi bổ sung" : "Gửi yêu cầu"; Ui.Hint(run, run.AccessibleName);
         Ui.Hint(teamButton, string.Join("\n", chosen.Select(a => $"{a.Name} • {a.Model}"))); Ui.Hint(status, summary.Text);
@@ -576,7 +576,8 @@ internal sealed partial class MainWindow : Form
             contextFile = null; attachment.Text = "Không đính kèm file";
             updating = true;
             try {
-                config.Discussion = RestoreDiscussionLimits(continueFrom.Discussion); config.Team = continueFrom.Team?.Options.Copy() ?? config.Team;
+                config.Discussion = RestoreDiscussionLimits(continueFrom.Discussion);
+                // Saved job options describe that run. New runs use the user's current settings.
                 config.Surface = continueFrom.Surface; config.Mode = continueFrom.Mode;
                 if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode;
                 surface.SelectedItem = surface.Items.Cast<Choice>().First(c => c.Id == config.Surface);

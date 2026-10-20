@@ -60,14 +60,38 @@ internal static class ConsensusTests
             Assert(job.StopReason.Contains("B: fixture peer failure"));
         });
         await test("individual work timeout names the agent, preserves output and cannot approve work", async () => {
-            var fixture = new ConsensusFixture { TimeoutWork = true }; var config = Config(root);
+            var fixture = new ConsensusFixture { TimeoutWork = true }; var config = Config(root); config.Team.WorkTimeoutMinutes = 45;
             var store = new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))); var runner = new JobRunner(fixture, store);
             runner.Start(config, "A slow task"); await Complete(runner); var job = runner.Snapshot()!;
             Assert(job.State == "partial" && job.Turns.Last().State == "timeout" && job.Turns.Last().Text == "Reported work saved before timeout");
-            Assert(job.StopReason.Contains("A:") && job.StopReason.Contains("30 phút") && fixture.ReviewCalls == 0 && job.Team!.Tasks.Single().State == "ready");
+            Assert(job.StopReason.Contains("A:") && job.StopReason.Contains("45 phút") && fixture.ReviewCalls == 0 && job.Team!.Tasks.Single().State == "ready");
             var resumedFixture = new ConsensusFixture(); var resumed = new JobRunner(resumedFixture, store);
             resumed.Start(config, "Continue from existing files", previous: job); await Complete(resumed);
             Assert(resumedFixture.Prompts.Any(p => p.Contains("Reported work saved before timeout") && p.Contains("CHƯA ĐƯỢC HUB XÁC NHẬN")));
+        });
+        await test("unlimited consensus passes thirty calls and still finishes only after peer review", async () => {
+            var config = Config(root); config.Team.MaxCalls = 0; config.Team.DurationMinutes = 0;
+            var runner = new JobRunner(new ConsensusFixture { DesiredIdeas = 9 }, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
+            runner.Start(config, "Complete nine ideas with independent review."); await Complete(runner);
+            var job = runner.Snapshot()!;
+            Assert(job.State == "completed" && job.Deadline == null && job.Team!.Calls > 30);
+            Assert(job.Team!.Tasks.Count == 9 && job.Team.Tasks.All(t => t.State == "done" && t.IndependentReview));
+        });
+        await test("resuming a capped conversation uses newly saved unlimited limits", async () => {
+            var config = Config(root, 2); var store = new Storage(Path.Combine(root, Guid.NewGuid().ToString("N")));
+            var first = new JobRunner(new ConsensusFixture(), store); first.Start(config, "Complete one idea."); await Complete(first);
+            var earlier = first.Snapshot()!; Assert(earlier.State == "partial");
+            config.Team.MaxCalls = 0; config.Team.DurationMinutes = 0;
+            var resumed = new JobRunner(new ConsensusFixture(), store); resumed.Start(config, "Continue the unfinished task.", previous: earlier); await Complete(resumed);
+            var job = resumed.Snapshot()!;
+            Assert(job.State == "completed" && job.Team!.Options.MaxCalls == 0 && job.Team.Options.DurationMinutes == 0 && job.Team.Calls > 2);
+        });
+        await test("unlimited consensus still honors explicit user cancellation", async () => {
+            var config = Config(root); config.Team.MaxCalls = 0; config.Team.DurationMinutes = 0;
+            var runner = new JobRunner(new BlockingDiscussionFixture(), new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
+            runner.Start(config, "An unfinished conversation.");
+            await Task.Delay(20); runner.Cancel(); await Complete(runner);
+            Assert(runner.Snapshot()!.State == "cancelled");
         });
         await test("quota fallback is explicitly solo and never claims independent completion", async () => {
             var fixture = new ConsensusFixture { QuotaPeer = true, DesiredIdeas = 1 }; var runner = new JobRunner(fixture, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N")))); var exhausted = new List<string>(); runner.AgentQuotaReached += exhausted.Add;

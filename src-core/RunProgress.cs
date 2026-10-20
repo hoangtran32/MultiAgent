@@ -78,7 +78,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
             return r.Name + ": " + state;
         }));
         double seconds = active ? Math.Max(0, (now - job.Timestamp).TotalSeconds) : Math.Max(0, job.Seconds);
-        string timing = $"{(int)(seconds / 60)} phút {(int)seconds % 60:00} giây" + (team != null ? $" · {team.Calls}/{team.Options.MaxCalls} lần gọi (giới hạn)" : "");
+        string timing = $"{(int)(seconds / 60)} phút {(int)seconds % 60:00} giây" + (team != null ? " · " + team.Options.CallUsage(team.Calls) : "");
         return new(title, detail, reason, progress, agents, timing, tone, done, total, active, canContinue);
     }
     public static string TaskState(TeamTask task) => task.NeedsScopeReview ? "cần cập nhật phạm vi" : task.State switch {

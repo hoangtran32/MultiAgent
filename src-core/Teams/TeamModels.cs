@@ -36,6 +36,8 @@ public sealed class TeamOptions
 {
     public int MaxCalls { get; set; } = 30;
     public int DurationMinutes { get; set; } = 120;
+    public int ExchangeTimeoutMinutes { get; set; }
+    public int WorkTimeoutMinutes { get; set; }
     public int MaxTasks { get; set; } = 12;
     public int MaxRevisions { get; set; } = 2;
     public bool ExecuteTasks { get; set; } = true;
@@ -44,9 +46,12 @@ public sealed class TeamOptions
     public List<RoleBinding> Roles { get; set; } = TeamRoles.All.Select(r => new RoleBinding { Role = r.Id }).ToList();
     public List<VerificationCommand> Checks { get; set; } = [];
     public TeamOptions Copy() => JsonSerializer.Deserialize<TeamOptions>(JsonSerializer.Serialize(this, Json.Options), Json.Options)!;
+    public bool HasCallCapacity(int calls) => MaxCalls == 0 || calls < MaxCalls;
+    public int TurnTimeoutMinutes(string phase) => phase == "work" ? WorkTimeoutMinutes : ExchangeTimeoutMinutes;
+    public string CallUsage(int calls) => MaxCalls == 0 ? $"{calls} lần gọi · không giới hạn lượt" : $"{calls}/{MaxCalls} lần gọi (giới hạn)";
     public void Validate()
     {
-        if (MaxCalls is < 2 or > 400 || DurationMinutes is < 1 or > 1440 || MaxTasks is < 1 or > 50 || MaxRevisions is < 0 or > 5) throw new ArgumentException("Giới hạn nhóm không hợp lệ.");
+        if (MaxCalls is < 0 or > 100000 || DurationMinutes is < 0 or > 10080 || ExchangeTimeoutMinutes is < 0 or > 10080 || WorkTimeoutMinutes is < 0 or > 10080 || MaxTasks is < 1 or > 50 || MaxRevisions is < 0 or > 5) throw new ArgumentException("Giới hạn nhóm không hợp lệ. Số lần gọi và thời gian: 0 = không giới hạn.");
         if (Roles.Count > 5 || Roles.Select(r => r.Role).Distinct().Count() != Roles.Count || Roles.Any(r => !TeamRoles.All.Any(a => a.Id == r.Role) || r.Model.Length > 120 || r.Model.Any(char.IsControl))) throw new ArgumentException("Phân vai không hợp lệ.");
         if (Checks.Count > 8) throw new ArgumentException("Tối đa 8 lệnh kiểm tra.");
         if (Checks.Select(c => c.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count() != Checks.Count) throw new ArgumentException("Tên mỗi lệnh kiểm tra cần khác nhau.");

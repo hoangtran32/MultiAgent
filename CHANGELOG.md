@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.6.0 — 2026-10-20
+
+- Thêm Trao đổi liên tục cho Chốt từng ý/Bàn tròn: 0 là không giới hạn số lần gọi, thời gian phiên hoặc thời gian mỗi lượt. Bỏ timeout cứng 10 phút review/30 phút thực hiện; timeout từng lượt mặc định tắt.
+- Đưa Trao đổi & giới hạn thành tab đầu trong cài đặt nhóm; số lần gọi, thời gian và phân vai/model có mục riêng, nội dung cuộn được.
+- Mở hội thoại cũ giữ cài đặt nhóm hiện tại cho lần tiếp tục, không khôi phục giới hạn 30 cũ từ lịch sử. Hiển thị rõ không giới hạn thay vì bộ đếm /0.
+- Không giới hạn không bỏ qua review, lỗi/quota, vướng mắc thực tế hoặc thao tác Dừng. Mặc định 30 lần/120 phút ở profile mới vẫn sửa/tắt được.
+- Chỉ biên dịch/đóng gói cục bộ; không chạy kiểm thử chức năng/màn hình cục bộ. Harness chạy trên GitHub CI.
+
 ## 5.5.2 — 2026-10-17
 
 - Dò thêm PATH người dùng/hệ thống hiện tại khi app đang mở; mở rộng biến môi trường và bỏ dấu ngoặc kép ở đường dẫn executable đã cấu hình.

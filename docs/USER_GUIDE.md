@@ -1,4 +1,12 @@
-# Hướng dẫn Multi-Agent Hub 5.5.2
+# Hướng dẫn Multi-Agent Hub 5.6.0
+
+## Để nhóm trao đổi liên tục
+
+Với **Chốt từng ý** hoặc **Bàn tròn & thực hiện**, mở **Agent & model → Trao đổi & giới hạn / phân vai… → Trao đổi & giới hạn**, tích **Trao đổi liên tục**, rồi **Lưu**. Lần gửi/tiếp tục sau dùng số lần gọi và các thời gian bằng **0 = không giới hạn**. Không tự khởi chạy hay chạy lại lượt cũ. Nếu phiên đang chạy, đợi hoặc dừng phiên trước khi đổi cài đặt.
+
+Có thể bỏ tích để nhập riêng số lần gọi (0–100.000), tổng thời gian, thời gian mỗi lượt trao đổi/review hoặc thực hiện (0–10.080 phút). Một lượt A rồi một lượt B tính 2 lần gọi. Số **8/30** chưa đạt 30; thông báo quá thời gian từng lượt là một giới hạn khác. Timeout mỗi lượt mặc định không đặt, thay cho mốc cứng 10/30 phút cũ. Cài đặt mới không bị lịch sử hội thoại ghi đè khi mở lại.
+
+Không giới hạn chỉ bỏ các ngân sách gọi/thời gian của nhóm trong Hub. Nhóm vẫn dừng khi hoàn tất, gặp lỗi/quota/vướng mắc thực tế, đạt giới hạn task/vòng sửa hoặc khi bạn bấm Dừng; không tự bỏ review hay xác nhận hoàn tất. Giới hạn của CLI/API hoặc nhà cung cấp vẫn áp dụng. Phân vai/model nằm ở tab riêng bên cạnh; lịch sử vẫn ghi ngân sách của chính lần chạy cũ.
 
 ## Biết phiên đang làm gì
 
@@ -14,11 +22,11 @@ Profile mới bắt đầu không có agent: bấm **Thêm agent của bạn**, 
 
 ## Chốt từng ý
 
-Chọn **Chốt từng ý** để A nêu một ý ngắn, B phản hồi ngay và hai bên chốt cùng phiên bản trước khi thực hiện/review phần đó rồi mới mở ý tiếp. Sửa ý làm hết hiệu lực xác nhận cũ. Không ép đồng ý khi hết giới hạn. Xem [hướng dẫn Chốt từng ý](CONSENSUS_USER_GUIDE.md). Giới hạn nằm tại **Agent & model → Phân vai & giới hạn nhóm…**.
+Chọn **Chốt từng ý** để A nêu một ý ngắn, B phản hồi ngay và hai bên chốt cùng phiên bản trước khi thực hiện/review phần đó rồi mới mở ý tiếp. Sửa ý làm hết hiệu lực xác nhận cũ. Không ép đồng ý khi hết giới hạn. Xem [hướng dẫn Chốt từng ý](CONSENSUS_USER_GUIDE.md). Giới hạn nằm tại **Agent & model → Trao đổi & giới hạn / phân vai…**.
 
 ## Bàn tròn & thực hiện
 
-Chọn **Bàn tròn & thực hiện** dưới ô nhập, mở **Agent & model → Phân vai & giới hạn nhóm…**, rồi gửi yêu cầu. Các model trao đổi ngang hàng: phát triển ý tưởng của nhau, giữ bất đồng có lý do, đề xuất task có tiêu chí và phụ thuộc. Một task cần được thành viên khác chấp nhận trước khi thực hiện; khi chỉ còn một kết nối, nó tự rà soát và kết quả ghi rõ thiếu review độc lập. Chọn người nói tiếp theo bằng đề xuất của model trong các thành viên chưa phát biểu của vòng, tránh một model chiếm hết lượt.
+Chọn **Bàn tròn & thực hiện** dưới ô nhập, mở **Agent & model → Trao đổi & giới hạn / phân vai…**, rồi gửi yêu cầu. Các model trao đổi ngang hàng: phát triển ý tưởng của nhau, giữ bất đồng có lý do, đề xuất task có tiêu chí và phụ thuộc. Một task cần được thành viên khác chấp nhận trước khi thực hiện; khi chỉ còn một kết nối, nó tự rà soát và kết quả ghi rõ thiếu review độc lập. Chọn người nói tiếp theo bằng đề xuất của model trong các thành viên chưa phát biểu của vòng, tránh một model chiếm hết lượt.
 
 Năm chuyên môn **Product Manager / Architect / Coder / Tester / Reviewer** không phải năm cấp bậc và không đòi hỏi năm tài khoản. Mỗi vai chọn kết nối/model ưu tiên; để Tự phân công để chia chuyên môn trong nhóm. Hub luân phiên góc nhìn khi một kết nối đảm nhiệm nhiều vai. Sau thực hiện, Tester phân tích kiểm chứng, Reviewer phản biện rồi kết quả được đưa lại ra bàn tròn; không khóa toàn phiên vào chuỗi chức danh.
 
@@ -26,7 +34,7 @@ Năm chuyên môn **Product Manager / Architect / Coder / Tester / Reviewer** kh
 
 Coder sửa file cần CLI có quyền **workspace-write/full**; Hub không tự nâng quyền. API thuần văn bản tham gia bàn tròn, tài liệu và review, không tự có công cụ sửa file. Antigravity ở quyền `default` cần được đặt `workspace-write` nếu bạn muốn nó nhận task sửa code. Chế độ Trò chuyện chỉ bàn luận/lập kế hoạch. Kết nối dán kết quả thủ công không tham gia phiên nhóm tự động.
 
-Mặc định **bạn tự kiểm tra**: Hub không chạy lệnh build/test, ghi trạng thái **Chưa kiểm chứng** cho kết quả sửa code. Trong **Agent & model → Phân vai & giới hạn nhóm… → Lệnh kiểm tra**, có thể cấu hình executable, mảng đối số JSON và timeout, rồi bật tự kiểm tra cho project hiện tại. Hub chạy đúng lệnh đã cấu hình; model không được tự thêm lệnh vào danh sách thực thi. Tester/Reviewer giữ quyền CLI đã chọn, tập trung đối chiếu bằng chứng và chuyển đề xuất sửa về task thực hiện. CLI tùy chỉnh tự quản lý quyền. Lệnh build/test có thể thực thi script project, nên chỉ cấu hình lệnh bạn tin cậy.
+Mặc định **bạn tự kiểm tra**: Hub không chạy lệnh build/test, ghi trạng thái **Chưa kiểm chứng** cho kết quả sửa code. Trong **Agent & model → Trao đổi & giới hạn / phân vai… → Lệnh kiểm tra**, có thể cấu hình executable, mảng đối số JSON và timeout, rồi bật tự kiểm tra cho project hiện tại. Hub chạy đúng lệnh đã cấu hình; model không được tự thêm lệnh vào danh sách thực thi. Tester/Reviewer giữ quyền CLI đã chọn, tập trung đối chiếu bằng chứng và chuyển đề xuất sửa về task thực hiện. CLI tùy chỉnh tự quản lý quyền. Lệnh build/test có thể thực thi script project, nên chỉ cấu hình lệnh bạn tin cậy.
 
 Bằng chứng lưu exit code, log và fingerprint source (ngoài các thư mục sinh tự động). Sửa source làm hết hiệu lực kết quả trước; lệnh đạt không đồng nghĩa tất cả tiêu chí đã được bao phủ. Khi không xác minh được fingerprint, Hub không ghi thành đã kiểm chứng. Nhóm dùng một writer tại một thời điểm và khóa workspace giữa các phiên nhóm; chưa chạy nhiều coder trong các worktree riêng.
 
