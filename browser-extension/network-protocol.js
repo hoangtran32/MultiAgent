@@ -20,8 +20,8 @@
     return false;
   }
   function decoder(notify) {
-    let buffer = "", raw = "", total = 0, text = "", model = "", protocol = "", recognized = false, done = false, failed = false;
-    function publish(extra = {}) { notify({text, model, protocol, done, ...extra}); }
+    let buffer = "", raw = "", total = 0, text = "", model = "", protocol = "", recognized = false, done = false, failed = false, error = "";
+    function publish() { notify({text, model, protocol, done, ...(error ? {error} : {})}); }
     function answer(value, append, kind) {
       if (typeof value !== "string" || !value) return;
       recognized = true; protocol = kind;
@@ -54,24 +54,27 @@
         answer(choice?.delta?.content, true, "chat-completions");
         answer(choice?.message?.role === "assistant" ? choice.message.content : null, false, "chat-completions");
         candidateModel = value.model;
-        if (recognized && choice?.finish_reason === "stop") done = true;
+        if (recognized && choice?.finish_reason === "stop" && !failed) done = true;
+        if (choice?.finish_reason === "tool_calls" || choice?.finish_reason === "function_call") failed = true;
         if (choice?.finish_reason === "length" || choice?.finish_reason === "content_filter") {
-          failed = true; publish({error: "Website đã cắt phản hồi trước khi hoàn tất."}); return;
+          failed = true; error = "Website đã cắt phản hồi trước khi hoàn tất."; publish(); return;
         }
       } else if (typeof value.type === "string" && value.type.startsWith("response.")) {
         protocol = "responses";
         if (value.type === "response.output_text.delta") answer(value.delta, true, "responses");
         if (value.type === "response.output_text.done") answer(value.text, false, "responses");
         candidateModel = value.response?.model || value.model;
-        if (value.type === "response.completed" && recognized) done = true;
+        if (value.type === "response.completed" && recognized && !failed) done = true;
         if (value.type === "response.failed" || value.type === "response.incomplete") {
-          failed = true; publish({error: "Website báo phản hồi lỗi hoặc chưa hoàn tất."}); return;
+          failed = true; error = "Website báo phản hồi lỗi hoặc chưa hoàn tất."; publish(); return;
         }
       } else if (value.type === "message_start" && value.message?.role === "assistant") {
         protocol = "messages"; candidateModel = value.message.model;
       } else if (value.type === "content_block_delta" && value.delta?.type === "text_delta") {
         answer(value.delta.text, true, "messages");
-      } else if (value.type === "message_stop" && protocol === "messages" && recognized) {
+      } else if (value.type === "message_delta" && protocol === "messages" && value.delta?.stop_reason === "max_tokens") {
+        failed = true; error = "Website đã cắt phản hồi trước khi hoàn tất.";
+      } else if (value.type === "message_stop" && protocol === "messages" && recognized && !failed) {
         done = true;
       } else if (value.message?.author?.role === "assistant") {
         const message = value.message;
@@ -84,7 +87,8 @@
         const parts = candidate?.content?.parts;
         if (Array.isArray(parts)) answer(parts.filter(p => p && !p.thought && typeof p.text === "string").map(p => p.text).join(""), true, "generate-content");
         candidateModel = value.modelVersion;
-        if (recognized && candidate?.finishReason === "STOP") done = true;
+        if (recognized && candidate?.finishReason === "STOP" && !failed) done = true;
+        if (candidate?.finishReason && candidate.finishReason !== "STOP") { failed = true; error = "Website dừng phản hồi trước khi hoàn tất."; }
       }
       const nextModel = cleanModel(candidateModel);
       if (nextModel) model = nextModel;

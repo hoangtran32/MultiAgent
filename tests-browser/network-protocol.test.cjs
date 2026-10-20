@@ -35,10 +35,18 @@ test("EOF and an unrecognized DONE never certify completion", () => {
 test("truncated output fails instead of accepting a following DONE", () => {
   const {seen, state} = parse(['data: {"choices":[{"index":0,"delta":{"content":"Cut off"},"finish_reason":"length"}]}\ndata: [DONE]\n']);
   assert.equal(state.done, false); assert.ok(seen.some(v => v.error));
+  assert.ok(seen.at(-1).error);
 });
 test("alternative choices and tool calls are not merged into a final answer", () => {
-  const {state} = parse(['{"choices":[{"index":1,"delta":{"content":"Wrong"}},{"index":0,"delta":{"content":"Right"},"finish_reason":"tool_calls"}]}\n']);
+  const {state} = parse(['{"choices":[{"index":1,"delta":{"content":"Wrong"}},{"index":0,"delta":{"content":"Right"},"finish_reason":"tool_calls"}]}\ndata: [DONE]\n']);
   assert.equal(state.text, "Right"); assert.equal(state.done, false);
+});
+
+test("message token limits retain a terminal error instead of accepting message_stop", () => {
+  const {state, seen} = parse(['{"type":"message_start","message":{"role":"assistant","model":"model"}}\n',
+    '{"type":"content_block_delta","delta":{"type":"text_delta","text":"Partial"}}\n',
+    '{"type":"message_delta","delta":{"stop_reason":"max_tokens"}}\n', '{"type":"message_stop"}\n']);
+  assert.equal(state.done, false); assert.ok(seen.at(-1).error);
 });
 test("ChatGPT snapshots carry observed model and require successful end_turn", () => {
   const first = {message: {author: {role: "assistant"}, content: {content_type: "text", parts: ["Hello"]}, metadata: {model_slug: "web-model"}}};
