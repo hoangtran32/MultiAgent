@@ -17,11 +17,11 @@ Chỉ cần **một agent bất kỳ đã cấu hình** để chạy độc lậ
 
 ## Kết nối
 
-### Hai chatbot dùng tài khoản Gemini/ChatGPT đang có
+### Chatbot từ extension, dùng tài khoản website đang có
 
-Từ 5.7.0 có **bridge trình duyệt thử nghiệm**, không dùng API key hoặc `agy`: vào **Agent & model → Chatbot từ trình duyệt…**, chuẩn bị bridge, cài extension bằng Load unpacked, mở hai chat web mới rồi kết nối. Chọn Argon/High trên Gemini và model ChatGPT trên website trước khi xác nhận trong extension. Nhập chủ đề ở Hub Chat để hai bot luân phiên nghiên cứu, phản biện và lưu bản ghi; kết thúc qua **⋯ → Kết thúc & tổng hợp**. Lựa chọn chatbot tách khỏi nhóm Hub Code.
+Từ **5.9.0**, extension nhận diện website/model từ tab bạn liên kết; Hub không tạo sẵn cặp agent hay danh sách model. Vào **Agent & model → Chatbot từ trình duyệt…**, chuẩn bị bridge, cài Load unpacked, mở chat web mới và kết nối. Để nhãn trống để theo model đang chọn ở website. Một chatbot để hỏi đáp, nhiều chatbot để luân phiên nghiên cứu/phản biện trong Hub Chat, không cần project hay API key.
 
-Model là lựa chọn bạn xác nhận trên website; bridge không đổi model từ nhãn hay xác minh backend. Bridge qua DOM chưa được kiểm thử live ở bản này; website thay đổi giao diện có thể cần chỉnh bộ chọn trong extension. Chi tiết: [Bàn luận chatbot bằng tài khoản trình duyệt](docs/BROWSER_CHAT.md).
+Extension đọc phản hồi fetch/XHR nhận diện được rồi parse văn bản/model về app, giữ DOM làm dự phòng. Không xuất phiên đăng nhập hoặc gọi lại endpoint nội bộ. Gemini/ChatGPT có adapter riêng, website HTTPS khác dùng bộ nhận diện chung thử nghiệm và có thể cần CSS; chưa kiểm thử live. Không bảo đảm nhận diện model website che giấu. Chi tiết: [Chatbot từ extension](docs/BROWSER_CHAT.md).
 
 | Công cụ | Cách sử dụng |
 |---|---|

@@ -1,13 +1,13 @@
-# Gemini + ChatGPT bằng tài khoản trình duyệt
+# Chatbot từ extension, dùng tài khoản trình duyệt
 
-Bridge thử nghiệm từ 5.7.0 dùng Gemini web (`gemini.google.com`) và ChatGPT web (`chatgpt.com`) trong Chrome/Edge. Không gọi API key, Antigravity hay Codex CLI; tài khoản trên website quyết định model/quota. Không điều khiển trực tiếp native desktop app.
+Từ 5.9.0, extension nhận diện website và model từ tab người dùng chọn, chuyển phản hồi đã chuẩn hóa về Hub qua Native Messaging. Không dùng API key hay CLI. Model/quota theo tài khoản website. Gemini/ChatGPT có adapter UI riêng; website HTTPS khác dùng adapter chung **thử nghiệm**, chỉ chạy được khi cấu trúc chat/luồng phản hồi nhận diện được, không phải hỗ trợ mọi website.
 
 ## Kết nối lần đầu
 
 1. Trong Hub, mở **Agent & model → Chatbot từ trình duyệt… → Chuẩn bị bridge & mở thư mục…**. Thao tác xuất extension đi kèm EXE, đăng ký native host ở HKCU cho tài khoản Windows hiện tại, không cần admin. Chưa gửi prompt/đăng nhập thay bạn.
 2. Mở `chrome://extensions` hoặc `edge://extensions`, bật **Developer mode → Load unpacked**, chọn thư mục `extension` vừa mở. Tiện ích tên **Multi-Agent Hub · Browser Chat**, ID `koeckebjfmkgjanknbifdcgahkbbalpb`. Chrome yêu cầu người dùng chủ động cài; EXE không cài ngầm.
-3. Mở hai **chat mới, trống** trên Gemini và ChatGPT; đăng nhập trực tiếp nếu cần. Chọn Argon và High trong Gemini nếu tài khoản có, chọn model ChatGPT mong muốn trên website. Bấm extension ở từng tab: tiện ích tự quét khung chat, nút gửi và nhãn model đang hiển thị. Kiểm tra/sửa nhãn nếu cần, xác nhận rồi **Kết nối**. Chỉ báo nối sau khi bắt tay với Hub.
-4. Chọn hai tab trong hộp **Chatbot từ trình duyệt** rồi **Dùng các chatbot đã chọn**. Hub chuyển sang **Hub Chat → Bàn luận qua lại**, giữ lựa chọn agent Hub Code riêng. Nhập chủ đề rồi gửi; không tự chạy chỉ vì đã nối tab.
+3. Mở **chat mới, trống** trên website chatbot, đăng nhập và chọn model tại website. Bấm extension để tự quét rồi **Kết nối**. Để **Nhãn riêng** trống để theo website, không cần nhập tên model. Nếu trang công khai tên model trong giao diện hoặc phản hồi, extension tự gửi tên đó cho Hub. Chưa công khai thì ghi rõ chưa nhận diện, không đoán model. Xác nhận chat mới trước khi nối; chỉ báo nối sau khi bắt tay với Hub.
+4. Chọn một hoặc nhiều tab trong hộp **Chatbot từ trình duyệt** rồi **Dùng các chatbot đã chọn**. Hub chuyển sang **Hub Chat → Bàn luận qua lại**, giữ lựa chọn agent Hub Code riêng. Nhập chủ đề rồi gửi; không tự chạy chỉ vì đã nối tab.
 
 Không tạo sẵn cặp agent cho profile mới; danh sách từ tab bạn nối. Không xóa thư mục extension sau khi Load unpacked. Đổi chỗ EXE thì chạy lại **Chuẩn bị bridge** để cập nhật đường dẫn native host.
 
@@ -43,13 +43,19 @@ Gửi bổ sung trong Hub để đưa vào lượt tiếp theo. **⋯ → Kết 
 
 Thư viện JSON/TXT/Markdown giữ các lượt như trước. Mỗi binding tab thuộc một chủ đề Hub: **Đoạn chat mới** trong Hub cần chat web mới và nối lại. Tiếp tục chủ đề cũ từ lịch sử Hub. Nếu tab cũ mất nối, kết nối chat web trống mới rồi mở lịch sử Hub; ngữ cảnh được gửi từ bản ghi. Không xóa chat web cũ.
 
+## Đọc luồng phản hồi và model
+
+Extension cài observer `fetch`/XHR trong MAIN world của **tab đang được chọn**, qua quyền activeTab hiện có. Observer chỉ được kích hoạt khi Hub chuẩn bị gửi một lượt; chỉ đọc bản sao phản hồi POST cùng origin có body chứa đúng prompt vừa gửi. Không gọi lại endpoint đã bắt được, không xuất API key, cookie, Authorization header hay phiên đăng nhập sang app. Website vẫn tự gửi yêu cầu bằng phiên đăng nhập của nó qua nút Gửi; app nhận văn bản, model quan sát được, nguồn nhận diện, kiểu luồng và dấu hiệu hoàn tất.
+
+`network-protocol.js` có bộ đọc các dạng nhận diện được: SSE/JSON/NDJSON Chat Completions, Responses, Messages, snapshot tin assistant của ChatGPT, generate-content, envelope/candidate RPC Gemini. Đây là **decoder theo cấu trúc**, không có danh sách model cố định. Chỉ đọc phần trả lời, bỏ tool calls/thoughts; không giải nghĩa mọi giao thức riêng. Model ID từ phản hồi được đánh dấu **phản hồi web**, nhãn từ picker là **giao diện**, nhãn riêng là **nhãn người dùng**. Chúng không phải chứng thực backend. Chọn/đổi model trực tiếp trên website; khi để nhãn trống, metadata nhận diện cập nhật theo lượt mà không làm mất liên kết.
+
+Mỗi lượt có request ID, document nonce, kiểm tra URL và tin người dùng mới. Khi parse được tín hiệu hoàn tất rõ ràng cùng nội dung, Hub chốt lượt; EOF/chữ đứng yên không đủ. Gemini RPC chưa có tín hiệu hoàn tất ổn định thì dùng trạng thái UI, không coi đóng stream là thành công. Nếu observer không bắt được fetch đã được website giữ sẵn, request khác origin, WebSocket hoặc cấu trúc không biết, tiếp tục dùng DOM. Website đổi UI có thể cần CSS nâng cao cho tin người dùng, tin AI và trạng thái hoàn tất. Nếu vẫn chưa rõ thì giữ partial, báo lỗi và không replay prompt.
+
+MAIN world và DOM do website kiểm soát: payload được coi là dữ liệu không tin cậy, giới hạn 4 MiB luồng / 64.000 ký tự trả lời / 120 ký tự model, không được thực thi lệnh Hub. Không đọc tài khoản hay model của các tab chưa được người dùng liên kết. Không dùng debugger, all-sites permission hoặc đọc kho credential.
+
 ## Giới hạn cần biết
 
-Đây là bridge DOM thử nghiệm, **không phải API chính thức của Gemini/ChatGPT**. Bản này chỉ build, kiểm tra cú pháp và harness giả lập; **chưa kiểm thử live thao tác gửi/nhận trên website**. Nhãn model do bạn xác nhận, không xác minh backend hay tự đổi model. Đổi model cần nối/xác nhận lại.
-
-Lượt chỉ thành công khi nhận diện tin người dùng mới, câu trả lời mới, trạng thái đang tạo đã xuất hiện rồi tín hiệu hoàn tất UI. Chữ đứng yên không đủ. Không nhận diện rõ thì giữ partial, báo lỗi cần xử lý và không gửi lượt kế tiếp vào tab đó; engine có thể tiếp tục bằng model còn khả dụng và ghi rõ thiếu đồng đội.
-
-Website đổi UI/ngôn ngữ có thể cần **Tự quét lại**, chọn ô nhập hoặc chỉnh **Bộ chọn CSS nâng cao** trong extension, nhất là cấu trúc nội dung phản hồi/tín hiệu hoàn tất. Không vượt đăng nhập/CAPTCHA hoặc hạn mức. Extension không đọc cookie, access token hay localStorage của website. Chỉ quét ở tab đang mở popup và gửi tại tab người dùng chủ động nối; không ghi đè bản nháp hoặc tự replay khi lỗi.
+Đây là bridge DOM + observer phản hồi **thử nghiệm**, không phải API chính thức của website. Không thể lấy API công khai chỉ bằng một tài khoản web hay bảo đảm một parser chạy mọi chatbot. Bản này build/cú pháp cục bộ và kiểm tra fixture offline qua CI; **chưa kiểm thử gửi/nhận trên website live**. Trang thay đổi hoặc che model có thể khiến nhận diện không đầy đủ. Không vượt đăng nhập/CAPTCHA hoặc quota. Không gõ thêm/đổi cuộc chat trong tab đang nối; không ghi đè bản nháp hoặc tự gửi lại khi mất kết nối.
 
 ## Gỡ bridge
 
@@ -58,5 +64,4 @@ Gỡ extension tại trang quản lý tiện ích. Có thể xóa đúng subkey 
 ## Tài liệu thiết kế
 
 - [Chrome Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging) và [activeTab](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab).
-- [Gemini 4 Argon](https://ai.google.dev/gemini-api/docs/models/gemini-4-argon): tham khảo tên model, không gọi API trong bridge này.
-- [ChatGPT, Work và Codex](https://learn.chatgpt.com/docs/use-chatgpt): phân biệt chat web và chế độ làm việc trong app.
+- [Chrome scripting / MAIN world](https://developer.chrome.com/docs/extensions/reference/api/scripting) và [Response.clone](https://developer.mozilla.org/en-US/docs/Web/API/Response/clone).

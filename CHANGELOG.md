@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.9.0 — 2026-10-20
+
+- Kết nối Chatbot từ extension chung; website/model do tab đã liên kết báo về, không gán trước hai agent hoặc model mặc định. Giữ kết nối Gemini/ChatGPT cũ tương thích; website HTTPS khác dùng adapter chung thử nghiệm, có thể cần CSS.
+- Observer fetch/XHR theo từng lượt trong tab, correlate đúng prompt POST cùng origin, parse response/stream thành văn bản/model/trạng thái. Không xuất credential, không replay endpoint, không thêm quyền đọc tất cả website; DOM dự phòng cho giao thức/đường truyền chưa nhận diện.
+- Model quan sát từ phản hồi, nhãn giao diện và nhãn riêng hiển thị nguồn riêng. Nhãn riêng để trống để theo website; model bị che ghi rõ chưa nhận diện. Metadata thay đổi không ngắt lượt.
+- Giữ kiểm tra document/URL và chống gửi lại; chỉ chốt bằng tín hiệu hoàn tất rõ, không coi EOF/đáp án bị cắt là thành công. Bổ sung fixture parser/observer/generic binding trong CI. Không chạy test chức năng/màn hình hoặc gọi model thật cục bộ.
+
 ## 5.8.2 — 2026-10-20
 
 - Sửa extension ngắt tab ngay khi Chrome báo loading. Kiểm tra nonce/document và URL trước khi kết luận tải lại; loading/complete trong cùng document giữ binding và request đang chạy.

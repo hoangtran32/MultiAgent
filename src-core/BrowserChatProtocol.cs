@@ -53,5 +53,16 @@ public static class BrowserChatProtocol
     public static bool IsExtensionOrigin(string value) => string.Equals(value, $"chrome-extension://{ExtensionId}/", StringComparison.Ordinal);
 }
 
-/// <summary>Model is the user's confirmed selection in the browser, not a claim about the service's backend.</summary>
-public sealed record BrowserChatBinding(string Id, string Provider, int TabId, string Url, string Title, string Model, bool Ready);
+/// <summary>Selection is stable across turns. Observed metadata is website data, not backend attestation.</summary>
+public sealed record BrowserChatBinding(string Id, string Provider, int TabId, string Url, string Title, string Model, bool Ready)
+{
+    public string SiteName { get; init; } = "";
+    public string DetectedModel { get; init; } = "";
+    public string ModelSource { get; init; } = "unknown";
+    public string Transport { get; init; } = "dom";
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DisplayModel => DetectedModel.Length > 0 ? DetectedModel + (ModelSource == "response" ? " • phản hồi web" : " • giao diện")
+        : Model == "Theo website" ? "Theo website • chưa lộ model" : Model + " • nhãn người dùng";
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string DisplaySite => SiteName.Length > 0 ? SiteName : new Uri(Url).Host;
+}

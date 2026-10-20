@@ -96,7 +96,25 @@ internal static class BrowserChatBridgeTests
             await Fails<InvalidDataException>(() => invalidAnswer);
             using var invalidCancel = await Read(); Assert(invalidCancel.RootElement.GetProperty("type").GetString() == "cancel");
             Assert(bridge.IsConnected && bridge.Bindings.Count == 2);
-            var disconnected = bridge.Execute("gemini-web", a, "Argon High", "Disconnect during this prompt", _ => { }, _ => { }, deadline.Token);
+            string generic = Guid.NewGuid().ToString("N");
+            await Send(new { type = "state", bindings = new[] {
+                new { id = generic, provider = "browser-web", tabId = 3, url = "https://research.example/chat", title = "Research", model = "Theo website", ready = true,
+                    siteName = "research.example", detectedModel = "arbitrary-model-42", modelSource = "response", transport = "chat-completions" }
+            } });
+            await Until(() => bridge.Bindings.Count == 1 && bridge.Bindings[0].Id == generic);
+            Assert(bridge.Bindings[0].DetectedModel == "arbitrary-model-42" && bridge.Bindings[0].DisplayModel.Contains("phản hồi web"));
+            bridge.Validate("browser-web", generic, "Theo website");
+            Catalog.Validate(new AgentConfig { Provider = "browser", Connection = "browser-web", Model = "Theo website", BrowserBindingId = generic });
+            var genericAnswer = bridge.Execute("browser-web", generic, "Theo website", "New research", _ => { }, _ => { }, deadline.Token);
+            using var genericRequest = await Read(); string genericId = genericRequest.RootElement.GetProperty("id").GetString()!;
+            await Send(new { type = "state", bindings = new[] {
+                new { id = generic, provider = "browser-web", tabId = 3, url = "https://research.example/chat", title = "Research", model = "Theo website", ready = true,
+                    siteName = "research.example", detectedModel = "observed-next-model", modelSource = "response", transport = "responses" }
+            } });
+            await Until(() => bridge.Bindings[0].DetectedModel == "observed-next-model");
+            Assert(!genericAnswer.IsCompleted);
+            await Send(new { type = "result", id = genericId, text = "Generic answer" }); Assert(await genericAnswer == "Generic answer");
+            var disconnected = bridge.Execute("browser-web", generic, "Theo website", "Disconnect during this prompt", _ => { }, _ => { }, deadline.Token);
             using var disconnectedRequest = await Read(); client.Dispose();
             await Fails<IOException>(() => disconnected);
             await Until(() => bridge.Bindings.Count == 0);

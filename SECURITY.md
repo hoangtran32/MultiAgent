@@ -13,3 +13,6 @@ Trước khi đăng issue, chia sẻ transcript hoặc đưa source lên Git:
 Với lỗ hổng làm lộ credential hoặc thực thi ngoài quyền, dùng kênh báo cáo riêng của repository nếu có. Nếu chưa có, yêu cầu maintainer một kênh riêng trước khi gửi chi tiết nhạy cảm; không đăng credential hoặc khai thác vào issue công khai.
 
 Phạm vi hiện tại: một tác vụ trong một instance; luồng nhóm khóa một writer trong workspace nhưng không kiểm soát editor/công cụ ngoài. CLI tùy chỉnh tự quản lý sandbox. `full` không tạo công cụ filesystem cho API. Không có cập nhật tự động hoặc telemetry do Hub gửi.
+
+
+Bridge chatbot tùy chọn chỉ dùng tab người dùng đã liên kết, qua activeTab + Native Messaging. Observer đọc bản sao response POST cùng origin chứa đúng prompt Hub trong lượt đang arm; chỉ chuyển answer/model/trạng thái đã parse. Không đọc cookie/localStorage/Authorization hoặc đưa phiên đăng nhập về app; không replay endpoint nội bộ, không tự dò tab/tài khoản khác. MAIN-world/DOM response là dữ liệu website không tin cậy, không được phép điều khiển native host ngoài giao thức answer của lượt hiện tại. Không hỗ trợ mọi giao thức website; xem docs/BROWSER_CHAT.md về giới hạn và cách ngắt/gỡ.

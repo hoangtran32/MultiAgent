@@ -1,5 +1,7 @@
 "use strict";
 
+importScripts("providers.js");
+
 const HOST = "com.multiagenthub.browser_chat";
 const MAX_PROMPT = 200000;
 const MAX_RESULT = 64000;
@@ -15,27 +17,18 @@ let reconnecting = null;
 let reconnectAfter = 0;
 const tabUpdates = new Map();
 
-function providerOf(value) {
-  try {
-    const url = new URL(value);
-    if (url.username || url.password) return null;
-    if (url.origin === "https://gemini.google.com" && /^\/app(?:\/[^/]+)?\/?$/.test(url.pathname)) return "gemini-web";
-    if (url.origin === "https://chatgpt.com" && /^\/(?:c\/[^/]+)?\/?$/.test(url.pathname)) return "chatgpt-web";
-  } catch { /* An unsupported page cannot become a binding. */ }
-  return null;
+const providers = globalThis.MultiAgentHubProviders;
+const providerOf = value => providers.providerOf(value);
+const freshChatUrl = value => providers.fresh(value);
+async function inject(tabId) {
+  await chrome.scripting.executeScript({target: {tabId, frameIds: [0]}, files: ["providers.js", "discovery.js", "content.js"]});
+  try { await chrome.scripting.executeScript({target: {tabId, frameIds: [0]}, world: "MAIN", files: ["network-protocol.js", "network.js"]}); }
+  catch { /* MAIN observer blocked: keep DOM fallback without escalating permissions. */ }
 }
-
-function freshChatUrl(value) {
-  try {
-    const provider = providerOf(value);
-    const path = new URL(value).pathname;
-    return provider === "gemini-web" ? /^\/app\/?$/.test(path) : provider === "chatgpt-web" && path === "/";
-  } catch { return false; }
-}
-
 function publicBinding(binding) {
   return {id: binding.id, provider: binding.provider, tabId: binding.tabId,
-    url: binding.url, title: binding.title, model: binding.model, ready: true};
+    url: binding.url, title: binding.title, model: binding.model, ready: true, siteName: (providers.site(binding.url)?.name || "").slice(0, 200),
+    detectedModel: binding.detectedModel || "", modelSource: binding.modelSource || "unknown", transport: binding.transport || "dom"};
 }
 
 async function persist() {
@@ -233,7 +226,7 @@ async function onPopup(message) {
     }
     const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
     return {connected: !!nativePort && nativeReady, connecting: !!nativeHandshake, error: nativeError, canBindNew: freshChatUrl(tab?.url), tab: tab ? {id: tab.id, url: tab.url,
-      provider: providerOf(tab.url)} : null, bindings: [...bindings.values()].map(publicBinding)};
+      provider: providerOf(tab.url), siteName: providers.site(tab.url)?.name, experimental: providers.site(tab.url)?.experimental === true} : null, bindings: [...bindings.values()].map(publicBinding)};
   }
   if (message.type === "popup-resync") {
     if (requests.size) return {ok: false, error: "Có lượt chatbot đang chạy. Đợi hoàn tất trước khi đồng bộ lại để giữ nguyên lượt này."};
@@ -247,12 +240,12 @@ async function onPopup(message) {
   if (message.type === "popup-scan" || message.type === "popup-pick") {
     const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
     const provider = providerOf(tab?.url);
-    if (!provider || tab.id !== message.tabId) return {ok: false, error: "Mở tab Gemini hoặc ChatGPT cần quét rồi thử lại."};
+    if (!provider || tab.id !== message.tabId) return {ok: false, error: "Mở tab chatbot HTTPS cần quét rồi thử lại."};
     if (message.type === "popup-pick" && [...requests.values()].some(item => item.tabId === tab.id)) {
       return {ok: false, error: "Tab đang chạy. Đợi lượt đang chạy hoàn tất trước khi chọn ô nhập."};
     }
     const selectors = cleanSelectors(message.selectors);
-    await chrome.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, files: ["discovery.js", "content.js"]});
+    await inject(tab.id);
     const result = await chrome.tabs.sendMessage(tab.id,
       {type: message.type === "popup-pick" ? "hub-pick" : "hub-scan", provider, selectors}, {frameId: 0});
     const current = await chrome.tabs.get(tab.id);
@@ -261,20 +254,20 @@ async function onPopup(message) {
     return result;
   }
   if (message.type !== "popup-connect") return {ok: false, error: "Lệnh không được hỗ trợ."};
-  if (message.confirmed !== true || typeof message.model !== "string" || !message.model.trim()
+  if (message.confirmed !== true || typeof message.model !== "string"
       || message.model.length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(message.model)) {
-    return {ok: false, error: "Nhập tên model và xác nhận bạn đã chọn model đó trên website."};
+    return {ok: false, error: "Xác nhận đã mở chat mới trống và chọn model trên website."};
   }
   const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
   const provider = providerOf(tab?.url);
-  if (!provider || tab.id !== message.tabId) return {ok: false, error: "Mở tab gemini.google.com/app hoặc chatgpt.com rồi kết nối lại."};
+  if (!provider || tab.id !== message.tabId) return {ok: false, error: "Mở tab chatbot HTTPS và bấm extension ngay tại tab đó."};
   if (!freshChatUrl(tab.url)) return {ok: false, error: "Mở chat mới trên website rồi kết nối; để tiếp tục chủ đề cũ dùng lịch sử Hub, bridge sẽ chuyển context sang tab mới. Lịch sử website được giữ nguyên."};
   if ([...requests.values()].some(item => item.tabId === tab.id)) return {ok: false, error: "Tab đang chạy. Dừng lượt ở Hub trước khi đổi kết nối/model."};
   if (bindings.size >= 128 && ![...bindings.values()].some(item => item.tabId === tab.id)) {
     return {ok: false, error: "Đã kết nối 128 tab. Ngắt một tab trước khi thêm tab khác."};
   }
   const selectors = cleanSelectors(message.selectors);
-  await chrome.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, files: ["discovery.js", "content.js"]});
+  await inject(tab.id);
   const check = await chrome.tabs.sendMessage(tab.id, {type: "hub-bind", provider, selectors}, {frameId: 0});
   if (!check?.ready || check.url !== tab.url) return {ok: false, error: check?.message || "Không nhận diện được khung nhập. Đăng nhập, mở chat và kiểm tra bộ chọn CSS nâng cao."};
   await openNative();
@@ -287,15 +280,17 @@ async function onPopup(message) {
   }
   if (!nativeReady || !nativePort) return {ok: false, error: nativeError || "Cầu nối đã ngắt trước khi gắn tab."};
   if ([...requests.values()].some(item => item.tabId === tab.id)) return {ok: false, error: "Tab vừa nhận yêu cầu khác. Đợi lượt đó hoàn tất trước khi đổi kết nối/model."};
+  const model = message.model.trim() || "Theo website";
   const previous = [...bindings.values()].find(item => item.tabId === tab.id);
   const sameDocument = previous?.provider === provider && previous.url === tab.url && previous.nonce === check.nonce
-    && previous.model.trim().toLowerCase() === message.model.trim().toLowerCase();
+    && previous.model.trim().toLowerCase() === model.toLowerCase();
   if (previous) bindings.delete(previous.id);
   const binding = {id: sameDocument ? previous.id : crypto.randomUUID(), provider, tabId: tab.id, url: tab.url,
-    title: (tab.title || provider).slice(0, 200), model: message.model.trim(), nonce: check.nonce, selectors};
+    title: (tab.title || provider).slice(0, 200), model, nonce: check.nonce, selectors, detectedModel: currentDocument.model || "",
+    modelSource: currentDocument.model ? "page" : "unknown", transport: "dom"};
   bindings.set(binding.id, binding);
   await persist();
-  await chrome.storage.local.set({["settings:" + provider]: {model: binding.model, selectors}});
+  await chrome.storage.local.set({["settings:" + provider + ":" + new URL(tab.url).origin]: {model: binding.model, selectors}});
   if (!publishState()) return {ok: false, error: nativeError || "Không gửi được trạng thái tab đến Hub. Chưa kết nối thành công."};
   return {ok: true};
 }
@@ -311,7 +306,13 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (!request || request.tabId !== sender.tab.id || request.nonce !== message.nonce) return false;
   const binding = bindings.get(request.bindingId);
   if (!binding || sender.url !== binding.url || message.url !== binding.url) return false;
-  if (message.type === "hub-delta" && typeof message.text === "string" && message.text.length <= MAX_RESULT) {
+  if (message.type === "hub-observation") {
+    if (typeof message.detectedModel !== "string" || message.detectedModel.length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(message.detectedModel)
+        || !["response", "page", "unknown"].includes(message.modelSource)
+        || !["dom", "chat-completions", "responses", "messages", "chatgpt-message", "generate-content", "gemini-rpc"].includes(message.transport)) return false;
+    binding.detectedModel = message.detectedModel.trim(); binding.modelSource = message.modelSource; binding.transport = message.transport;
+    void persist(); publishState();
+  } else if (message.type === "hub-delta" && typeof message.text === "string" && message.text.length <= MAX_RESULT) {
     postNative({type: "delta", id: request.id, text: message.text});
   } else if (message.type === "hub-result" && typeof message.text === "string" && message.text.trim() && message.text.length <= MAX_RESULT) {
     requests.delete(request.id);

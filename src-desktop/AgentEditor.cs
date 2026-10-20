@@ -120,7 +120,7 @@ internal sealed class AgentEditor : Form
             "antigravity-ide" => "Mở Antigravity IDE và file prompt. Bạn chọn model trong IDE, gửi prompt rồi dán câu trả lời về Hub.",
             "antigravity-desktop" => "Mở Antigravity 2.0 desktop riêng. Bạn dán prompt sang app, chọn model rồi dán câu trả lời về Hub.",
             "manual" => "Sao chép prompt tới app / web AI của bạn. Chọn model ở đó và dán câu trả lời về đúng agent trong Hub.",
-            "gemini-web" or "chatgpt-web" => "Dùng tài khoản trên website qua extension của Hub, không dùng CLI/API key. Chọn model ngay trên web rồi xác nhận trong extension. Nhãn model ở đây không tự đổi model; dùng Hub Chat → Bàn luận qua lại.",
+            "browser-web" or "gemini-web" or "chatgpt-web" => "Extension tự báo website và model đọc được từ giao diện/phản hồi. Để nhãn trống trong extension để theo model đang chọn trên web. Website khác dùng bộ nhận diện thử nghiệm, có thể cần CSS nâng cao. Không dùng API key.",
             "custom-cli" => "Hub chạy executable của bạn với prompt qua stdin, đọc stdout làm kết quả. Đối số JSON hỗ trợ {model} và {project}.",
             _ => "Gọi API trực tiếp. API nhận yêu cầu và file đính kèm đã chọn, trả văn bản; không tự đọc project hay sửa file." };
         ShowRow(effort, kind is "codex-cli" or "claude-cli" or "agy-cli"); ShowRow(permission, kind is "codex-cli" or "claude-cli" or "agy-cli");
@@ -159,16 +159,16 @@ internal sealed class AgentEditor : Form
     private void RefreshBrowserBindings()
     {
         string selected = Ui.Value(browserBinding); if (selected.Length == 0) selected = original.BrowserBindingId;
-        var bindings = browser?.Bindings.Where(b => b.Provider == Ui.Value(connection)).ToList() ?? [];
+        var bindings = browser?.Bindings.Where(b => Ui.Value(connection) == "browser-web" || b.Provider == Ui.Value(connection)).ToList() ?? [];
         var choices = new List<Choice> { new("", "Chọn tab đã kết nối từ extension…") };
-        choices.AddRange(bindings.Select(b => new Choice(b.Id, b.Model + " · " + b.Title + (b.Ready ? "" : " (chưa sẵn sàng)"))));
+        choices.AddRange(bindings.Select(b => new Choice(b.Id, b.DisplaySite + " · " + b.DisplayModel + (b.Ready ? "" : " (chưa sẵn sàng)"))));
         bool stale = selected.Length > 0 && !bindings.Any(b => b.Id == selected);
         if (stale) selected = "";
         Ui.Choices(browserBinding, choices, selected);
         if (bindings.FirstOrDefault(b => b.Id == Ui.Value(browserBinding)) is { } binding) model.Text = binding.Model;
         status.Text = bindings.Count == 0 ? "Hub chưa nhận tab. Mở extension và bấm Đồng bộ lại với Hub, rồi bấm Dò lại tab tại đây."
             : stale ? "Chrome đã nối tab, nhưng liên kết agent cũ không còn hợp lệ. Chọn tab đang hiển thị trong danh sách rồi Lưu; yêu cầu trong chat vẫn được giữ."
-            : "Chọn đúng tab; model/High được bạn chọn và xác nhận trên website.";
+            : "Chọn đúng tab; model thực tế theo website. Nhãn nhận diện được cập nhật khi đọc được từ giao diện hoặc phản hồi.";
     }
     private void Browse()
     {

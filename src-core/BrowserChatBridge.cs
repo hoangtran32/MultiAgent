@@ -58,7 +58,7 @@ public sealed class BrowserChatBridge : IDisposable
             ObjectDisposedException.ThrowIf(disposed, this);
             var selected = Select(connection, bindingId, expectedModel);
             if (pending.Values.Any(p => p.BindingId == bindingId)) throw new InvalidOperationException("Tab chatbot này đang xử lý một yêu cầu khác. Chờ hoàn tất hoặc dừng yêu cầu đang chạy.");
-            request = new(Guid.NewGuid().ToString("N"), connection, bindingId, selected.Binding.Model, selected.Client, text);
+            request = new(Guid.NewGuid().ToString("N"), selected.Binding.Provider, bindingId, selected.Binding.Model, selected.Client, text);
             pending.Add(request.Id, request);
         }
         try {
@@ -69,7 +69,11 @@ public sealed class BrowserChatBridge : IDisposable
                 try { log("\nĐã yêu cầu dừng tab chatbot. Prompt đang gửi hoặc đã gửi có thể vẫn được dịch vụ xử lý.\n"); } catch { }
                 _ = CancelRequest(request);
             });
-            return await request.Answer.Task;
+            string answer = await request.Answer.Task;
+            BrowserChatBinding? observed;
+            lock (gate) observed = request.Client.Bindings.FirstOrDefault(b => b.Id == bindingId);
+            if (observed != null) log($"\nChatbot: {observed.DisplaySite} · {observed.DisplayModel} · {observed.Transport}\n");
+            return answer;
         }
         finally { lock (gate) pending.Remove(request.Id); }
     }
@@ -85,7 +89,7 @@ public sealed class BrowserChatBridge : IDisposable
 
     private (Client Client, BrowserChatBinding Binding) Select(string connection, string bindingId, string expectedModel)
     {
-        if (connection is not ("gemini-web" or "chatgpt-web")) throw new ArgumentException("Kết nối chatbot trình duyệt không hợp lệ.");
+        if (!Catalog.IsBrowserChat(connection)) throw new ArgumentException("Kết nối chatbot trình duyệt không hợp lệ.");
         if (string.IsNullOrWhiteSpace(bindingId)) throw new ArgumentException("Chọn đúng tab chatbot đã liên kết trong thiết lập model.");
         if (expectedModel.Length > 120 || expectedModel.Any(char.IsControl)) throw new ArgumentException("Nhãn model không hợp lệ.");
         var found = clients.Values.SelectMany(c => c.Bindings.Select(b => (Client: c, Binding: b))).Where(item => item.Binding.Id == bindingId).ToArray();
@@ -93,7 +97,7 @@ public sealed class BrowserChatBridge : IDisposable
             ? "Hub đã nhận tab từ trình duyệt, nhưng agent này còn gắn mã tab cũ. Chọn đúng tab đang kết nối trong Thiết lập / model; không cần đăng nhập lại."
             : "Hub chưa nhận danh sách tab. Mở extension và bấm Đồng bộ lại với Hub; nếu tab đã tải lại, liên kết lại tab đó. Không cần đăng nhập lại khi website vẫn giữ tài khoản.");
         var selected = found[0];
-        if (selected.Binding.Provider != connection) throw new InvalidOperationException("Tab đã liên kết thuộc chatbot khác. Chọn đúng Gemini hoặc ChatGPT cho agent này.");
+        if (connection != "browser-web" && selected.Binding.Provider != connection) throw new InvalidOperationException("Tab đã liên kết thuộc website khác. Chọn kết nối Chatbot từ extension để dùng tab này.");
         if (!selected.Binding.Ready) throw new InvalidOperationException("Tab chatbot chưa sẵn sàng. Kiểm tra đăng nhập, model và ô nhập trong tab đã chọn.");
         if (expectedModel.Length > 0 && !string.Equals(expectedModel.Trim(), selected.Binding.Model.Trim(), StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"Model đã xác nhận trong tab là ‘{selected.Binding.Model}’, khác ‘{expectedModel}’. Chọn và xác nhận đúng model trong tiện ích.");
@@ -197,10 +201,15 @@ public sealed class BrowserChatBridge : IDisposable
         string title = String(item, "title", 500, true), model = String(item, "model", 120, true);
         if (id.Any(char.IsControl) || model.Any(char.IsControl) || !item.TryGetProperty("tabId", out var tab) || !tab.TryGetInt32(out int tabId) || tabId < 0 ||
             !item.TryGetProperty("ready", out var ready) || ready.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new InvalidDataException("Thông tin tab chatbot không hợp lệ.");
-        string host = provider switch { "gemini-web" => "gemini.google.com", "chatgpt-web" => "chatgpt.com", _ => "" };
-        if (host.Length == 0 || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.Host != host || !uri.IsDefaultPort || uri.UserInfo.Length > 0)
-            throw new InvalidDataException("Tab chatbot không thuộc trang Gemini hoặc ChatGPT được hỗ trợ.");
-        return new(id, provider, tabId, url, title, model, ready.GetBoolean());
+        if (!Catalog.IsBrowserChat(provider) || !Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !uri.IsDefaultPort || uri.UserInfo.Length > 0 || url.Any(char.IsControl)
+            || provider == "gemini-web" && uri.Host != "gemini.google.com" || provider == "chatgpt-web" && uri.Host != "chatgpt.com")
+            throw new InvalidDataException("Tab chatbot cần là trang HTTPS được người dùng liên kết từ extension.");
+        string Optional(string name, int max, string fallback = "") => item.TryGetProperty(name, out _) ? String(item, name, max, true) : fallback;
+        string detected = Optional("detectedModel", 120), source = Optional("modelSource", 16, "unknown"), transport = Optional("transport", 32, "dom"), site = Optional("siteName", 200, uri.Host);
+        if (detected.Any(char.IsControl) || site.Any(char.IsControl) || source is not ("unknown" or "page" or "response")
+            || transport is not ("dom" or "chat-completions" or "responses" or "messages" or "chatgpt-message" or "generate-content" or "gemini-rpc"))
+            throw new InvalidDataException("Thông tin model/luồng website không hợp lệ.");
+        return new(id, provider, tabId, url, title, model, ready.GetBoolean()) { SiteName = site, DetectedModel = detected, ModelSource = source, Transport = transport };
     }
 
     private static string String(JsonElement item, string name, int max, bool allowEmpty = false)

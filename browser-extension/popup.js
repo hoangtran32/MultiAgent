@@ -18,6 +18,7 @@ let canBindNewTab = false;
 let busy = false;
 let scanning = false;
 let modelEdited = false;
+const settingsKey = () => "settings:" + currentTab.provider + ":" + new URL(currentTab.url).origin;
 model.addEventListener("input", () => { modelEdited = true; confirmed.checked = false; });
 
 function customSelectors() {
@@ -32,13 +33,12 @@ async function scanTab(reset = false) {
   try {
     const response = await chrome.runtime.sendMessage({type: "popup-scan", tabId: currentTab.id, selectors: customSelectors()});
     if (response?.model && (!modelEdited || reset)) {
-      if (model.value !== response.model) confirmed.checked = false;
-      model.value = response.model;
+      model.placeholder = response.model;
     }
     if (!response?.ok) throw new Error(response?.error || "Chưa nhận diện được khung chat.");
     scanStatus.textContent = (response.picked ? "Đã nhận ô nhập bạn chọn." : "Đã tự nhận diện khung chat.")
       + (response.sendFound ? " Đã thấy nút gửi." : " Nút gửi chưa hiện; sẽ quét lại khi có nội dung.")
-      + (response.model ? "\nNhãn model đọc từ giao diện: " + response.model : "\nChưa đọc được nhãn model; nhập nhãn đang hiển thị bên dưới.")
+      + (response.model ? "\nNhãn model đọc từ giao diện: " + response.model : "\nChưa lộ tên model. Hub theo website và cập nhật nếu phản hồi có model ID.")
       + (response.draft ? "\nÔ nhập có bản nháp. Tiện ích giữ nguyên; cần chat mới trống để kết nối." : "");
   } catch (error) { scanStatus.textContent = error.message; scanStatus.classList.add("error"); }
   finally { scanning = false; scanButton.disabled = !currentTab?.provider; pickButton.disabled = !currentTab?.provider; }
@@ -50,7 +50,7 @@ pickButton.addEventListener("click", async () => {
     const response = await chrome.runtime.sendMessage({type: "popup-pick", tabId: currentTab.id});
     if (!response?.ok) throw new Error(response?.error || "Không mở được bộ chọn.");
     // A stale explicit selector must not hide the field selected on the page.
-    const key = "settings:" + currentTab.provider;
+    const key = settingsKey();
     const saved = (await chrome.storage.local.get(key))[key] || {};
     delete saved.selectors?.input;
     await chrome.storage.local.set({[key]: saved});
@@ -91,19 +91,20 @@ async function refresh(loadSettings = false) {
   const state = await chrome.runtime.sendMessage({type: "popup-status"});
   currentTab = state.tab;
   canBindNewTab = state.canBindNew === true;
-  const providerName = currentTab?.provider === "gemini-web" ? "Gemini" : currentTab?.provider === "chatgpt-web" ? "ChatGPT" : null;
+  const providerName = currentTab?.siteName || null;
   connect.disabled = busy || !providerName || !canBindNewTab;
   scanButton.disabled = busy || scanning || !providerName;
   pickButton.disabled = busy || scanning || !providerName;
   resync.disabled = busy || state.connecting || !state.bindings.length;
   const linked = state.bindings.find(binding => binding.tabId === currentTab?.id && binding.url === currentTab?.url);
-  if (!providerName) show("Mở tab gemini.google.com/app hoặc chatgpt.com để kết nối.");
+  if (currentTab?.experimental) scanStatus.textContent = "Website này dùng bộ nhận diện chung thử nghiệm. Cần khung nhập, tin người dùng/AI và dấu hiệu hoàn tất nhận diện được; có thể bổ sung CSS nâng cao.";
+  if (!providerName) show("Mở tab chatbot HTTPS rồi bấm extension để quét. Không tự quét những tab chưa được bạn chọn.");
   else if (linked && state.connected) show(providerName + " · Tab hiện tại đã liên kết, cầu nối Hub đang mở.\nNếu Hub đang chọn tab cũ, chọn lại tab trong Thiết lập / model của agent.");
   else if (state.connecting) show(providerName + " · Đang khôi phục cầu nối với Hub (tối đa 12 giây)…");
   else if (!canBindNewTab) show(providerName + " · " + (state.connected ? "Cầu nối đã kết nối.\n" : "")
     + "Để tạo liên kết mới, mở chat mới trống trên website. Tiếp tục chủ đề cũ từ lịch sử Hub để gửi ngữ cảnh sang tab mới. Các liên kết đang chạy được giữ nguyên."
     + (state.error ? "\n" + state.error : ""), !!state.error);
-  else if (state.connected) show(providerName + " · Cầu nối trên máy đã kết nối.\nChọn model ở website rồi xác nhận bên dưới.");
+  else if (state.connected) show(providerName + " · Cầu nối trên máy đã kết nối.\nModel theo website; không cần nhập danh sách model. Xác nhận chat mới bên dưới để kết nối.");
   else if (state.connecting) show(providerName + " · Đang chờ Hub xác nhận cầu nối (tối đa 12 giây)…");
   else show(providerName + " · " + (state.error || "Chưa kết nối Hub. Bấm Kết nối tab hiện tại."), !!state.error);
   const container = document.getElementById("bindings");
@@ -114,8 +115,8 @@ async function refresh(loadSettings = false) {
   for (const binding of state.bindings) {
     const row = document.createElement("div"); row.className = "binding";
     const description = document.createElement("div"); description.className = "description";
-    const name = document.createElement("strong"); name.textContent = binding.provider === "gemini-web" ? "Gemini" : "ChatGPT";
-    const label = document.createElement("small"); label.textContent = binding.model + " · " + (state.connected ? "đã gửi liên kết cho Hub" : "chờ nối lại Hub");
+    const name = document.createElement("strong"); name.textContent = binding.siteName || new URL(binding.url).hostname;
+    const label = document.createElement("small"); label.textContent = (binding.detectedModel || binding.model) + " · " + (binding.modelSource === "response" ? "model từ phản hồi web" : binding.modelSource === "page" ? "nhãn giao diện" : "chưa lộ model") + " · " + (state.connected ? "đã gửi liên kết cho Hub" : "chờ nối lại Hub");
     const title = document.createElement("small"); title.textContent = binding.title; title.title = binding.url;
     description.append(name, label, title);
     const button = document.createElement("button"); button.type = "button"; button.textContent = "Ngắt";
@@ -127,10 +128,11 @@ async function refresh(loadSettings = false) {
     row.append(description, button); container.append(row);
   }
   if (loadSettings && currentTab?.provider) {
-    const key = "settings:" + currentTab.provider;
-    const saved = (await chrome.storage.local.get(key))[key];
+    const key = settingsKey(), legacy = "settings:" + currentTab.provider;
+    const saved = (await chrome.storage.local.get(key))[key]
+      || (currentTab.provider !== "browser-web" ? (await chrome.storage.local.get(legacy))[legacy] : null);
     if (saved) {
-      model.value = saved.model || "";
+      model.value = saved.model === "Theo website" ? "" : saved.model || "";
       for (const field of Object.keys(fields)) document.getElementById("selector-" + field).value = saved.selectors?.[field] || "";
     }
   }
@@ -150,7 +152,7 @@ form.addEventListener("submit", async event => {
     confirmed.checked = false;
     const state = await refresh();
     if (!state.connected) throw new Error(state.error || "Cầu nối đã ngắt trước khi xác nhận kết nối. Mở Hub và kết nối lại.");
-    show("Đã gắn tab. Trong Hub, làm mới danh sách chatbot trình duyệt rồi chọn tab này. Tên model do bạn xác nhận; Hub không tự đổi model.");
+    show("Đã gắn tab. Trong Hub, làm mới danh sách chatbot trình duyệt rồi chọn tab này. Website/model do extension nhận diện; Hub theo lựa chọn trên website.");
   } catch (error) { show(error.message, true); }
   finally { busy = false; connect.disabled = !currentTab?.provider || !canBindNewTab; }
 });

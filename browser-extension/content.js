@@ -2,36 +2,17 @@
   "use strict";
   // Older injected documents need a reload, rather than two competing listeners.
   if (globalThis.__multiAgentHubBrowserContent) return;
-  globalThis.__multiAgentHubBrowserContent = "1.1.0";
+  globalThis.__multiAgentHubBrowserContent = "1.2.0";
   const nonce = crypto.randomUUID();
   let active = null;
   let pickedInput = null;
   let cancelPicker = null;
   const discovery = globalThis.MultiAgentHubDiscovery;
-  const defaults = {
-    "chatgpt-web": {
-      input: '#prompt-textarea, textarea[data-testid="prompt-textarea"]',
-      send: 'button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label="Send message"], button[aria-label="Gửi tin nhắn"]',
-      user: '[data-message-author-role="user"]', assistant: '[data-message-author-role="assistant"]',
-      response: '.markdown',
-      stop: 'button[data-testid="stop-button"], button[aria-label="Stop streaming"], button[aria-label="Stop generating"], button[aria-label="Dừng tạo"]',
-      actions: 'button[data-testid="copy-turn-action-button"], button[aria-label="Copy response"], button[aria-label="Sao chép"]',
-      busy: '[data-is-streaming="true"], [aria-busy="true"]'
-    },
-    "gemini-web": {
-      input: 'rich-textarea .ql-editor[contenteditable="true"], rich-textarea [contenteditable="true"], .text-input-field textarea',
-      send: 'button.send-button, button[aria-label="Send message"], button[aria-label="Gửi tin nhắn"], button[aria-label="Send"]',
-      user: 'user-query, [data-test-id="user-query"]', assistant: 'model-response, [data-test-id="model-response"]',
-      response: 'message-content, .markdown, .model-response-text',
-      stop: 'button.send-button.stop, button.send-button:has(mat-icon[data-mat-icon-name="stop"]), button.send-button:has(mat-icon[fonticon="stop"]), button[aria-label="Stop response"], button[aria-label="Stop generating"], button[aria-label="Stop"], button[aria-label="Dừng câu trả lời"], button[aria-label="Dừng phản hồi"]',
-      actions: 'button[data-test-id="copy-button"], button[data-test-id="copy-response-button"], button.copy-button, button[aria-label="Copy response"], button[aria-label="Sao chép phản hồi"]',
-      busy: '[aria-busy="true"], [data-is-streaming="true"]'
-    }
-  };
+  const providers = globalThis.MultiAgentHubProviders;
+  const defaults = Object.fromEntries(["chatgpt-web", "gemini-web", "browser-web"].map(id => [id, providers.selectors(id)]));
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const normal = text => String(text || "").replace(/[\u200b-\u200d\ufeff]/g, "").replace(/\s+/g, " ").trim();
-  const currentProvider = () => location.origin === "https://gemini.google.com" ? "gemini-web"
-    : location.origin === "https://chatgpt.com" ? "chatgpt-web" : null;
+  const currentProvider = () => providers.providerOf(location.href);
   const visible = element => !!element?.isConnected && element.getClientRects().length > 0
     && getComputedStyle(element).visibility !== "hidden" && getComputedStyle(element).display !== "none";
   const enabled = element => visible(element) && !element.disabled && element.getAttribute("aria-disabled") !== "true";
@@ -167,7 +148,7 @@
   function inputText(input) { return input.isContentEditable ? input.innerText : input.value; }
   function selected(custom, provider = currentProvider()) {
     if (!defaults[provider]) throw new Error("Trang này không được hỗ trợ.");
-    const selectors = {...defaults[provider], ...custom};
+    const selectors = {...defaults[provider], ...Object.fromEntries(Object.entries(custom || {}).filter(([, value]) => typeof value === "string" && value.trim()))};
     for (const value of Object.values(selectors)) document.querySelector(value); // Reject invalid CSS before changing the composer.
     Object.defineProperties(selectors, {manualInput: {value: !!custom?.input}, manualSend: {value: !!custom?.send}});
     return selectors;
@@ -239,6 +220,27 @@
     input.dispatchEvent(new InputEvent("input", {bubbles: true, inputType: "insertText", data: prompt}));
     input.dispatchEvent(new Event("change", {bubbles: true}));
   }
+  // Page-world data is untrusted; it can only update the one armed turn, never issue Hub commands.
+  window.addEventListener("message", event => {
+    const value = event.data, request = active;
+    if (event.source !== window || event.origin !== location.origin || value?.source !== "multi-agent-hub-network"
+        || !request || value.channel !== nonce || value.id !== request.id || request.cancelled) return;
+    if (value.protocol === "armed") { request.armResolve?.(); return; }
+    if (!request.submittedAt || typeof value.text !== "string" || value.text.length > 64000
+        || typeof value.model !== "string" || value.model.length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(value.model)
+        || !["chat-completions", "responses", "messages", "chatgpt-message", "generate-content", "gemini-rpc"].includes(value.protocol)) return;
+    request.networkAt = Date.now();
+    request.network = {text: value.text, model: value.model, protocol: value.protocol, done: value.done === true,
+      error: typeof value.error === "string" ? value.error.slice(0, 500) : ""};
+  });
+  async function armNetwork(request) {
+    await new Promise(resolve => {
+      const timer = setTimeout(resolve, 800);
+      request.armResolve = () => { clearTimeout(timer); resolve(); };
+      window.postMessage({source: "multi-agent-hub-control", type: "arm", channel: nonce, id: request.id, prompt: request.prompt}, location.origin);
+    });
+    request.armResolve = null;
+  }
   async function run(request) {
     try {
       const selectors = request.selectors;
@@ -258,6 +260,9 @@
       }
       if (request.cancelled) return;
       if (!send) throw new Error("Không nhận diện được nút Gửi. Yêu cầu còn trong khung nhập; tiện ích không tự gửi lại.");
+      await armNetwork(request);
+      if (request.cancelled) return;
+      if (location.href !== request.url || normal(inputText(input)) !== normal(request.prompt)) throw new Error("Tab hoặc nội dung đã đổi trước khi gửi. Chưa gửi yêu cầu Hub.");
       request.submittedAt = Date.now();
       send.click(); // Only a verified send control; never synthesize a keyboard shortcut.
       let sawGenerating = false;
@@ -276,7 +281,18 @@
         const assistant = afterOwnUser(request);
         const generating = isGenerating(selectors, assistant);
         if (generating) sawGenerating = true;
-        const text = assistant ? responseText(assistant, selectors) : "";
+        const own = ownUser(request);
+        const network = own ? request.network : null;
+        const text = network?.text || (assistant ? responseText(assistant, selectors) : "");
+        if (network?.error) throw new Error(network.error);
+        const label = modelLabel(currentProvider());
+        const observation = JSON.stringify([network?.model || "", label, network?.protocol || "dom"]);
+        if (own && observation !== request.observation) {
+          request.observation = observation;
+          emit(request, "hub-observation", {detectedModel: network?.model || label,
+            modelSource: network?.model ? "response" : label ? "page" : "unknown", transport: network?.protocol || "dom"});
+        }
+        if (network?.done && text && !generating) { emit(request, "hub-result", {text}); return; }
         if (text.length > 64000) throw new Error("Phản hồi vượt 64.000 ký tự. Nội dung đầy đủ vẫn ở website; chưa chuyển sang lượt khác.");
         const changed = text !== lastText;
         if (changed) terminalSince = 0;
@@ -284,15 +300,17 @@
           lastText = text; lastDelta = Date.now();
           if (text) emit(request, "hub-delta", {text});
         }
-        const terminal = assistant && text && sawGenerating && !generating && terminalActions(assistant, selectors);
+        const terminal = assistant && text && (sawGenerating || !!network?.text) && !generating && terminalActions(assistant, selectors);
         if (terminal) {
           if (!terminalSince) terminalSince = Date.now();
           // Stability only debounces an explicit terminal control; quiet text alone never completes a turn.
           if (Date.now() - terminalSince >= 800) {
-            emit(request, "hub-result", {text}); return;
+            const finalText = responseText(assistant, selectors) || text;
+            if (finalText.length > 64000) throw new Error("Phản hồi vượt 64.000 ký tự; nội dung đầy đủ vẫn ở website.");
+            emit(request, "hub-result", {text: finalText}); return;
           }
         } else terminalSince = 0;
-        if (!sawGenerating && Date.now() - request.submittedAt > 90000) {
+        if (!sawGenerating && !request.network?.text && Date.now() - request.submittedAt > 90000) {
           throw new Error("Không nhận diện được trạng thái website đang tạo phản hồi sau khi gửi. Kiểm tra tab/bộ chọn CSS; không tự gửi lại.");
         }
         if (sawGenerating && !generating && !terminal) {
@@ -301,21 +319,26 @@
             throw new Error("Website ngừng tạo nhưng chưa thấy dấu hiệu hoàn tất rõ ràng. Đã giữ phần trả lời; cần kiểm tra tab trước khi tiếp tục.");
           }
         } else unrecognizedSince = 0;
+        if (network?.text && !network.done && !generating && !terminal && Date.now() - request.networkAt > 60000) {
+          throw new Error("Luồng phản hồi đã im lặng nhưng thiếu dấu hiệu hoàn tất. Đã giữ nội dung; kiểm tra tab, không tự gửi lại.");
+        }
         await sleep(200);
       }
     } catch (error) {
       emit(request, "hub-error", {message: error.message || "Không thể tiếp tục thao tác website."});
     } finally {
+      window.postMessage({source: "multi-agent-hub-control", type: "disarm", channel: nonce, id: request.id}, location.origin);
+      request.armResolve?.();
       if (active === request) active = null;
     }
   }
   function initialUrl(value, provider) {
     const url = new URL(value);
-    return provider === "gemini-web" ? /^\/app\/?$/.test(url.pathname) : url.pathname === "/";
+    return providers.fresh(value);
   }
   function assignedUrl(value, provider) {
     const url = new URL(value);
-    return provider === "gemini-web" ? /^\/app\/[^/]+\/?$/.test(url.pathname) : /^\/c\/[^/]+\/?$/.test(url.pathname);
+    return provider === "gemini-web" ? /^\/app\/[^/]+\/?$/.test(url.pathname) : provider === "chatgpt-web" ? /^\/c\/[^/]+\/?$/.test(url.pathname) : providers.providerOf(value) === "browser-web";
   }
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (sender.id !== chrome.runtime.id || !message) return false;
@@ -339,7 +362,7 @@
         }
         if (normal(inputText(input))) throw new Error("Khung nhập đang có nội dung của bạn. Nội dung được giữ nguyên; mở chat mới trống rồi kết nối.");
         if (isGenerating(selectors, null)) throw new Error("Website đang tạo phản hồi. Giữ nguyên chat đang chạy và mở một chat mới để kết nối.");
-        reply({ready: true, nonce, url: location.href});
+        reply({ready: true, nonce, url: location.href, model: modelLabel(currentProvider())});
       } catch (error) { reply({ready: false, message: error.message}); }
       return false;
     }

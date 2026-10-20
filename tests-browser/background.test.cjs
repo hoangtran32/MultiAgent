@@ -25,7 +25,7 @@ function browser(saved = [], options = {}) {
     tabs: {query: async () => [structuredClone(tab)], get: async id => { assert.equal(id, tab.id); return structuredClone(tab); },
       onRemoved: event(), onUpdated: event(), sendMessage: async (id, message) => {
         assert.equal(id, tab.id);
-        if (message.type === "hub-bind") return {ready: true, nonce, url: tab.url};
+        if (message.type === "hub-bind") return {ready: true, nonce, url: tab.url, model: options.detectedModel || ""};
         if (message.type === "hub-ping") return {nonce, url: tab.url};
         if (message.type === "hub-request") { sent.push(structuredClone(message)); return {accepted: true}; }
         if (message.type === "hub-cancel") { cancels.push(message.id); return {ok: true}; }
@@ -33,10 +33,11 @@ function browser(saved = [], options = {}) {
         throw new Error("Unexpected content command: " + message.type);
       }}
   };
-  const context = vm.createContext({chrome, crypto: {randomUUID}, URL, Date, setTimeout, clearTimeout, structuredClone});
+  let context;
+  context = vm.createContext({importScripts: name => vm.runInContext(fs.readFileSync(path.join(__dirname, "../browser-extension/", name), "utf8"), context), URLSearchParams, chrome, crypto: {randomUUID}, URL, Date, setTimeout, clearTimeout, structuredClone});
   vm.runInContext(source, context, {filename: "background.js"});
   const popup = message => new Promise(resolve => listener(message, {id: chrome.runtime.id}, resolve));
-  return {tab, ports, sent, cancels, navigations, session, popup, setNonce: value => { nonce = value; },
+  return {tab, ports, sent, cancels, navigations, session, popup, content: message => listener(message, {id: chrome.runtime.id, tab: structuredClone(tab), frameId: 0, url: tab.url}, () => {}), setNonce: value => { nonce = value; },
     update: async change => { if (change.url) tab.url = change.url; chrome.tabs.onUpdated.emit(tab.id, change); await settle(); },
     connect: (model = "Argon") => popup({type: "popup-connect", tabId: tab.id, confirmed: true, model, selectors: {}})};
 }
@@ -126,4 +127,31 @@ test("an unapproved URL change during a request is rejected without replay", asy
   const until = Date.now() + 4000;
   while (b.session.bindings.length && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(b.session.bindings.length, 0); assert.equal(b.sent.length, 1); assert.deepEqual(b.cancels, ["do-not-move"]);
+});
+
+test("a selected generic HTTPS chatbot binds without a fixed model name and forwards observed metadata", async () => {
+  const b = browser([], {url: "https://research.example/chat/new", detectedModel: "Website picker"});
+  assert.equal((await b.connect("")).ok, true);
+  const binding = b.session.bindings[0];
+  assert.equal(binding.provider, "browser-web"); assert.equal(binding.model, "Theo website");
+  b.ports[0].onMessage.emit({type: "request", id: "generic-turn", bindingId: binding.id, expectedModel: "Theo website", prompt: "Offline test"});
+  await settle();
+  b.content({type: "hub-observation", id: "generic-turn", nonce: binding.nonce, url: b.tab.url,
+    detectedModel: "arbitrary-response-model", modelSource: "response", transport: "chat-completions"});
+  b.content({type: "hub-result", id: "generic-turn", nonce: binding.nonce, url: b.tab.url, text: "Answer"});
+  await settle();
+  const state = b.ports[0].frames.filter(f => f.type === "state").at(-1).bindings[0];
+  assert.equal(state.detectedModel, "arbitrary-response-model"); assert.equal(state.siteName, "research.example");
+  assert.equal(state.model, "Theo website"); assert.equal(state.modelSource, "response");
+  assert.equal(b.sent.length, 1); assert.ok(b.ports[0].frames.some(f => f.type === "result" && f.text === "Answer"));
+});
+
+test("unknown request and malformed model metadata cannot change a binding", async () => {
+  const b = browser(); await b.connect(); const binding = b.session.bindings[0];
+  b.ports[0].onMessage.emit({type: "request", id: "real-turn", bindingId: binding.id, expectedModel: "Argon", prompt: "Offline test"});
+  await settle();
+  for (const [id, model] of [["other-turn", "ignored"], ["real-turn", "bad\nmodel"]])
+    b.content({type: "hub-observation", id, nonce: binding.nonce, url: b.tab.url, detectedModel: model, modelSource: "response", transport: "responses"});
+  assert.equal(b.session.bindings[0].detectedModel, "");
+  b.ports[0].disconnect();
 });

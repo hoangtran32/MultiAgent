@@ -54,14 +54,14 @@ internal sealed class BrowserChatDialog : Form
         var root = Ui.Table(); root.Padding = new Padding(18); root.RowCount = 5;
         for (int i = 0; i < 3; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); root.RowStyles.Add(new RowStyle(SizeType.AutoSize)); Controls.Add(root);
-        var help = Ui.Label("1. Chuẩn bị bridge bên dưới; mở chrome://extensions hoặc edge://extensions, bật Developer mode → Load unpacked và chọn thư mục vừa mở.\n2. Mở hai chat mới trên gemini.google.com và chatgpt.com, đăng nhập, chọn đúng model (ví dụ Argon và High trong Gemini). Bấm extension tại từng tab, xác nhận model rồi Kết nối.\n3. Chọn các tab bên dưới. Mỗi cặp tab gắn với một chủ đề Hub; chủ đề mới cần chat web mới. Tiếp tục chủ đề cũ từ lịch sử Hub. Không dùng API key hoặc agy.");
+        var help = Ui.Label("1. Chuẩn bị bridge; mở chrome://extensions hoặc edge://extensions → Developer mode → Load unpacked, chọn thư mục vừa mở.\n2. Mở chat mới trống trên website chatbot bạn dùng, đăng nhập và chọn model. Bấm extension tại tab → Kết nối. Nhãn để trống để tự nhận diện; website khác Gemini/ChatGPT dùng adapter chung thử nghiệm, có thể cần CSS.\n3. Hub chỉ liệt kê tab bạn đã liên kết, không tạo sẵn agent/model. Model lấy từ giao diện/phản hồi nếu website công khai; không cần project trong Hub Chat. Giữ tab mở, không dùng API key.");
         help.MaximumSize = new Size(820, 0); root.Controls.Add(help, 0, 0);
         var actions = Ui.Flow(); actions.Controls.Add(Ui.Button("Chuẩn bị bridge & mở thư mục…", (_, _) => {
             try { string folder = BrowserChatSetup.Install(); BrowserChatSetup.Explore(folder); status.Text = "Đã đăng ký native host cho tài khoản Windows này. Load unpacked thư mục extension vừa mở; không có cài extension tự động."; }
             catch (Exception error) { status.Text = error.Message; }
         })); actions.Controls.Add(Ui.Button("Dò lại tab", (_, _) => { stamp = ""; RefreshBindings(); })); root.Controls.Add(actions, 0, 1);
         status.MaximumSize = new Size(820, 0); root.Controls.Add(status, 0, 2);
-        tabs.Columns.Add("Chatbot", 125); tabs.Columns.Add("Model bạn xác nhận trên web", 265); tabs.Columns.Add("Tab / trạng thái", 370); root.Controls.Add(tabs, 0, 3);
+        tabs.Columns.Add("Website", 155); tabs.Columns.Add("Model nhận diện được", 300); tabs.Columns.Add("Tab / trạng thái", 305); root.Controls.Add(tabs, 0, 3);
         var footer = Ui.Flow(); footer.Controls.Add(Ui.Button("Dùng các chatbot đã chọn", (_, _) => {
             var selected = tabs.CheckedItems.Cast<ListViewItem>().Select(i => (BrowserChatBinding)i.Tag!).ToList();
             if (selected.Count == 0 || selected.Any(b => !b.Ready)) { status.Text = "Chọn tab chatbot đã sẵn sàng: một để tự nghiên cứu, hai hoặc nhiều hơn để trao đổi qua lại."; return; }
@@ -79,10 +79,10 @@ internal sealed class BrowserChatDialog : Form
         var selected = tabs.CheckedItems.Cast<ListViewItem>().Select(i => ((BrowserChatBinding)i.Tag!).Id).ToHashSet();
         tabs.BeginUpdate(); tabs.Items.Clear();
         foreach (var binding in bindings) {
-            var item = new ListViewItem(binding.Provider == "gemini-web" ? "Gemini" : "ChatGPT") { Tag = binding, Checked = selected.Contains(binding.Id), ForeColor = binding.Ready ? Ui.Ink : Ui.Muted };
-            item.SubItems.Add(binding.Model); item.SubItems.Add(binding.Title + (binding.Ready ? "" : " • cần xử lý trên web")); tabs.Items.Add(item);
+            var item = new ListViewItem(binding.DisplaySite) { Tag = binding, Checked = selected.Contains(binding.Id), ForeColor = binding.Ready ? Ui.Ink : Ui.Muted };
+            item.SubItems.Add(binding.DisplayModel); item.SubItems.Add(binding.Title + (binding.Ready ? "" : " • cần xử lý trên web")); tabs.Items.Add(item);
         }
-        tabs.EndUpdate(); status.Text = bindings.Count == 0 ? "Chưa có tab kết nối. " + bridge.LastError : $"{bindings.Count} tab đã kết nối. Model do bạn chọn/xác nhận trên website; Hub không đổi model từ nhãn này.";
+        tabs.EndUpdate(); status.Text = bindings.Count == 0 ? "Chưa có tab kết nối. " + bridge.LastError : $"{bindings.Count} tab đã kết nối. Model lấy từ phản hồi/giao diện khi website công khai; không xác minh backend. Chọn model tại website.";
     }
 }
 
@@ -93,12 +93,11 @@ internal sealed partial class MainWindow
         using var dialog = new BrowserChatDialog(browserChat); if (dialog.ShowDialog(this) != DialogResult.OK) return;
         var next = CopyConfig(); next.ChatAgentIds = [];
         foreach (var binding in dialog.SelectedBindings) {
-            var agent = next.Agents.FirstOrDefault(a => a.Connection == binding.Provider && a.BrowserBindingId == binding.Id)
-                ?? next.Agents.FirstOrDefault(a => a.Connection == binding.Provider && a.Model == binding.Model && !browserChat.Bindings.Any(b => b.Id == a.BrowserBindingId));
+            var agent = next.Agents.FirstOrDefault(a => Catalog.IsBrowserChat(a.Connection) && a.BrowserBindingId == binding.Id);
             if (agent == null) {
                 if (next.Agents.Count >= Catalog.MaxAgents) throw new ArgumentException($"Tối đa {Catalog.MaxAgents} agent; xóa kết nối cũ trước khi thêm.");
-                agent = new() { Provider = binding.Provider == "gemini-web" ? "gemini" : "chatgpt", Connection = binding.Provider,
-                    Name = binding.Provider == "gemini-web" ? "Gemini chatbot" : "ChatGPT chatbot", Permission = "default", Enabled = false }; next.Agents.Add(agent);
+                agent = new() { Provider = "browser", Connection = "browser-web",
+                    Name = (binding.DisplaySite + " chatbot")[..Math.Min(80, binding.DisplaySite.Length + 8)], Permission = "default", Enabled = false }; next.Agents.Add(agent);
             }
             agent.BrowserBindingId = binding.Id; agent.Model = binding.Model; next.ChatAgentIds.Add(agent.Id);
         }

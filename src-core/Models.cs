@@ -15,7 +15,7 @@ public static class Catalog
     public const int MaxAgents = 32;
     public static readonly Choice[] Providers = [new("codex", "Codex"), new("claude", "Claude / Anthropic"),
         new("antigravity", "Google Antigravity"), new("gemini", "Google Gemini"), new("chatgpt", "ChatGPT • chatbot"),
-        new("compatible", "API tương thích OpenAI / local AI"), new("custom", "Công cụ AI khác")];
+        new("browser", "Chatbot từ extension • tự nhận diện"), new("compatible", "API tương thích OpenAI / local AI"), new("custom", "Công cụ AI khác")];
     public static Choice[] Connections(string provider) => provider switch
     {
         "codex" => [new("codex-cli", "Codex CLI • tự động"), new("manual", "Sao chép / dán kết quả")],
@@ -23,6 +23,7 @@ public static class Catalog
         "antigravity" => [new("antigravity-ide", "Antigravity IDE • dán kết quả"), new("antigravity-desktop", "Antigravity 2.0 desktop • dán kết quả"), new("agy-cli", "Antigravity CLI (agy) • tự động")],
         "gemini" => [new("gemini-web", "Gemini web • tài khoản trình duyệt"), new("gemini-api", "Gemini API • trực tiếp"), new("manual", "Gemini app / web • dán kết quả")],
         "chatgpt" => [new("chatgpt-web", "ChatGPT web • tài khoản trình duyệt"), new("manual", "ChatGPT app / web • dán kết quả")],
+        "browser" => [new("browser-web", "Tab chatbot • tài khoản trình duyệt")],
         "compatible" => [new("chat-api", "Chat Completions API • trực tiếp")],
         "custom" => [new("custom-cli", "Executable / script CLI • tự động"), new("manual", "Ứng dụng ngoài • dán kết quả")],
         _ => throw new ArgumentException("Công cụ AI không hợp lệ.")
@@ -31,7 +32,7 @@ public static class Catalog
     public static string ConnectionName(AgentConfig agent) => Connections(agent.Provider).First(c => c.Id == agent.Connection).Name;
     public static bool IsManual(string connection) => connection is "manual" or "antigravity-ide" or "antigravity-desktop";
     public static bool IsApi(string connection) => connection is "anthropic-api" or "gemini-api" or "chat-api";
-    public static bool IsBrowserChat(string connection) => connection is "gemini-web" or "chatgpt-web";
+    public static bool IsBrowserChat(string connection) => connection is "browser-web" or "gemini-web" or "chatgpt-web";
     public static string Endpoint(string connection) => connection switch
     {
         "anthropic-api" => "https://api.anthropic.com/v1/", "gemini-api" => "https://generativelanguage.googleapis.com/v1beta/",
