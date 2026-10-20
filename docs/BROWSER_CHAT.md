@@ -35,13 +35,19 @@ Từ 5.8.1, mở popup extension sẽ kiểm tra và tự khôi phục cầu n�
 
 Trạng thái **tab đã liên kết** là danh sách tab extension đang giữ; dòng trạng thái cầu nối cho biết Hub có đang mở kết nối hay chưa. Nếu Hub đã nhận danh sách nhưng agent vẫn giữ ID cũ, bấm Gửi sẽ mở thiết lập đúng agent: chọn tab hiện tại ở **Tab chatbot**, lưu rồi Gửi lại. Yêu cầu nhập và hội thoại được giữ nguyên; Hub không tự chọn tab khác theo tên model. Bấm Kết nối nhiều lần trên cùng document/model từ bản này giữ nguyên ID để không lặp lỗi đó.
 
-## Trao đổi, dừng và tiếp tục
+## Trò chuyện nhóm từ 5.10.0
 
-Model luân phiên phát triển, phản biện, đề xuất cách kiểm chứng và giữ sổ ý tưởng. Link HTTP(S) trong phần trả lời được chuyển tiếp; Hub không bảo đảm nguồn của model đúng. Mặc định liên tục, không giới hạn lượt/thời gian/timeout của Hub. Chỉnh tại **Giới hạn bàn luận…**, 0 = không giới hạn; quota của website vẫn áp dụng.
+Trong **Hub Chat → Trò chuyện nhóm**, người dùng và các chatbot ở cùng một cuộc nói chuyện. Web là transport gửi/nhận như API; tính cách/cách điều phối nằm trong engine của Hub, không do việc parse stream quyết định. Chỉ tạo agent từ tab bạn đã kết nối; không gán model hay danh sách nhân vật cố định.
 
-Gửi bổ sung trong Hub để đưa vào lượt tiếp theo. **⋯ → Kết thúc & tổng hợp** chờ lượt đang chạy rồi tạo tổng hợp chủ đề. **Dừng** dừng vòng Hub ngay; nếu website vẫn tạo phản hồi, dừng trực tiếp tại tab. Prompt đã gửi có thể vẫn được dịch vụ xử lý. Giữ Hub, các tab mở và máy không sleep; không gõ thêm/đổi chat trong tab đang nối.
+Ví dụ bạn gửi **hello**: A chào bạn và B; B thấy lời của A, chào bạn và A. Không ép lời chào thành báo cáo nghiên cứu. Khi bạn đưa vấn đề, A nêu một ý, B trả lời/bổ sung/hỏi A, A phản hồi…; các bot tiếp tục cho đến khi không còn ý hữu ích hoặc cần thông tin từ bạn. Bạn không phải chuyển lời hay bấm Tiếp tục sau mỗi bot. Không có vai cấp trên bắt buộc, không yêu cầu sổ ý tưởng/bàn giao ở mỗi tin. Kết quả vẫn là ý kiến model; không bảo đảm giải pháp đúng chỉ vì cả hai đồng ý.
 
-Thư viện JSON/TXT/Markdown giữ các lượt như trước. Mỗi binding tab thuộc một chủ đề Hub: **Đoạn chat mới** trong Hub cần chat web mới và nối lại. Tiếp tục chủ đề cũ từ lịch sử Hub. Nếu tab cũ mất nối, kết nối chat web trống mới rồi mở lịch sử Hub; ngữ cảnh được gửi từ bản ghi. Không xóa chat web cũ.
+Mỗi lượt thường 1–3 đoạn ngắn để phản hồi được ngay. Bot có thể chỉ định đồng đội đáp tiếp, với cơ hội nói cho mọi thành viên. Tin của bạn chen vào được lưu theo đúng thứ tự và gửi ở lượt kế tiếp; không hủy hoặc ghi đè câu trả lời đang chạy. Nếu một bot lỗi/hết quota, giao diện vẫn báo rõ, không nói hộ hoặc giả rằng bot đó đã đồng ý.
+
+Khi mọi bot còn kết nối đã phát biểu và đều chọn chờ, giao diện hiện **Chờ bạn**. Đây là trạng thái nhàn, không gọi model thêm, không phải lỗi hay chứng nhận task hoàn tất. Gửi tin nhắn để đánh thức ngay; không có thời gian nghỉ bắt buộc. Khi còn ý cần nhóm trao đổi, luân phiên tiếp mà không cần bạn nhắn thêm. Nếu model không gửi tín hiệu điều phối hợp lệ, engine tiếp tục theo lượt thay vì tự kết luận cả nhóm đã xong. Tín hiệu điều phối của lượt được ẩn khỏi nội dung chat.
+
+**⋯ → Kết thúc & tổng hợp** chờ câu đang trả lời rồi tổng hợp những gì đã thực sự bàn; **Dừng** dừng vòng Hub ngay. Nếu website vẫn tạo phản hồi, dừng trực tiếp tại tab. Giới hạn lượt/thời gian tùy chọn vẫn áp dụng; mặc định 0 là không giới hạn, quota website độc lập. Hub Code giữ cách bàn luận nghiên cứu hiện có.
+
+Mỗi binding tab thuộc một chủ đề Hub. Chủ đề mới cần chat web mới trống; mở lịch sử Hub để tiếp tục chủ đề cũ. Nếu tab cũ mất nối, kết nối tab trống mới rồi mở lịch sử; ngữ cảnh được gửi từ bản ghi. Giữ Hub/tab mở, không gõ thêm hoặc đổi chat trực tiếp trong tab đã nối. JSON/TXT lưu các tin hiển thị, không hiển thị footer điều phối nội bộ.
 
 ## Đọc luồng phản hồi và model
 

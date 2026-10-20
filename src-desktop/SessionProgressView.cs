@@ -50,7 +50,7 @@ internal sealed class SessionProgressView : UserControl
         agentLines = Math.Clamp(names.Length, 1, 3); showReason = state.Reason.Length > 0; showAction = state.IsRunning || state.CanContinue; hasTasks = job.Team != null;
         string agentText = string.Join("\n", names.Take(names.Length > 3 ? 2 : 3)); if (names.Length > 3) agentText += $"\n+ {names.Length - 2} agent khác · xem Chi tiết";
         Set(heading, state.Title); Set(detail, state.Detail); Set(counts, state.Progress); Set(agents, agentText, state.Agents); Set(timing, state.Timing.Replace(" · ", "\n")); Set(reason, state.Reason);
-        heading.ForeColor = state.Tone switch { "active" => Ui.Accent, "success" => Color.FromArgb(34, 128, 83), "error" => Color.FromArgb(181, 55, 55), _ => Color.FromArgb(148, 99, 29) };
+        heading.ForeColor = state.Tone switch { "active" => Ui.Accent, "idle" => Ui.Muted, "success" => Color.FromArgb(34, 128, 83), "error" => Color.FromArgb(181, 55, 55), _ => Color.FromArgb(148, 99, 29) };
         reason.ForeColor = state.Tone == "error" ? Color.FromArgb(181, 55, 55) : Ui.Muted;
         reason.Visible = showReason; board.Visible = hasTasks; resume.Visible = state.CanContinue; StopButton.Visible = StopButton.Enabled = state.IsRunning;
         if (!Visible) Visible = true;

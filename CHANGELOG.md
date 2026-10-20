@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.10.0 — 2026-10-21
+
+- Hub Chat / Trò chuyện nhóm mô phỏng cuộc nói chuyện giữa người dùng và các chatbot bình đẳng: biết tên đồng đội, chào hỏi, trả lời đúng người, từng ý ngắn, tự cùng tìm giải pháp. Bỏ ép báo cáo/sổ ý tưởng/bàn giao ở mỗi lượt chat; Hub Code giữ workflow nghiên cứu hiện có.
+- Người dùng đưa ý tưởng/vấn đề và có thể chen vào bất kỳ lúc nào. Chatbot tự nối lượt, có thể mời đúng đồng đội đáp; mỗi thành viên được cơ hội phát biểu. Lịch sử trộn user/AI theo thứ tự, giữ ngữ cảnh gần nhất có giới hạn.
+- Tách trạng thái đang trao đổi và Chờ bạn. Chỉ nghỉ khi mọi chatbot còn kết nối đã phát biểu và đều sẵn sàng chờ; tin nhắn mới đánh thức ngay, không đợi timer và không hủy câu đang trả lời. Không tự tổng hợp chỉ vì một bot đã nói xong. Metadata thiếu/sai không coi là nhóm đồng thuận hoặc hoàn tất task.
+- Dòng điều phối nội bộ có nonce riêng mỗi lượt, ẩn khỏi text/stream người dùng; lưu metadata riêng để phục hồi và chẩn đoán. Thêm fixture offline cho chào hỏi hai bot, phản hồi chéo, chen lời, fairness và tín hiệu nghỉ. Chỉ build/cú pháp cục bộ; không gọi model thật hoặc test màn hình.
+
 ## 5.9.0 — 2026-10-20
 
 - Kết nối Chatbot từ extension chung; website/model do tab đã liên kết báo về, không gán trước hai agent hoặc model mặc định. Giữ kết nối Gemini/ChatGPT cũ tương thích; website HTTPS khác dùng adapter chung thử nghiệm, có thể cần CSS.

@@ -13,7 +13,7 @@ internal sealed class DiscussionDialog : Form
         if (Ui.AppIcon != null) Icon = Ui.AppIcon;
         var root = Ui.Table(2); root.Padding = new Padding(20);
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260)); root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); Controls.Add(root);
-        var title = Ui.Label("Cho các model phát triển và phản biện ý tưởng", true); root.Controls.Add(title, 0, 0); root.SetColumnSpan(title, 2);
+        var title = Ui.Label("Các chatbot tự trao đổi, bạn đưa chủ đề và góp ý", true); root.Controls.Add(title, 0, 0); root.SetColumnSpan(title, 2);
         NumericUpDown Number(string label, int row, int min, int max, int value) {
             var control = new NumericUpDown { Minimum = min, Maximum = max, Value = value, Width = 150, MinimumSize = new Size(150, 30), Margin = new Padding(4, 8, 4, 8), AccessibleName = label };
             root.Controls.Add(Ui.Label(label), 0, row); root.Controls.Add(control, 1, row); return control;
@@ -29,10 +29,10 @@ internal sealed class DiscussionDialog : Form
         var estimate = Ui.Label(""); estimate.AutoSize = false; estimate.Dock = DockStyle.Fill;
         root.Controls.Add(estimate, 0, 5); root.SetColumnSpan(estimate, 2);
         void UpdateEstimate() => estimate.Text = $"{agentCount} model được chọn • " + (turns.Value == 0 ? "không giới hạn số lượt trao đổi." : $"tối đa {(int)turns.Value + agentCount} lần gọi (gồm lượt lỗi và thử tổng hợp).") + "\n" +
-            (pause.Value == 0 ? "Chạy liên tục: tự chuyển model/lượt kế tiếp, không cần tin nhắn bổ sung." : $"Bạn chọn nghỉ {(int)pause.Value}s sau mỗi lượt; hết nghỉ sẽ tự chạy tiếp.") +
+            (pause.Value == 0 ? "Tự chuyển lượt khi nhóm còn ý để trao đổi; Hub Chat chờ khi tất cả đã sẵn sàng nhận tin nhắn mới." : $"Bạn chọn nghỉ {(int)pause.Value}s sau mỗi lượt; hết nghỉ sẽ tự chạy tiếp.") +
             "\n⋯ → Kết thúc & tổng hợp để kết thúc sớm.";
         turns.ValueChanged += (_, _) => UpdateEstimate(); pause.ValueChanged += (_, _) => UpdateEstimate(); UpdateEstimate();
-        var note = Ui.Label("Model lần lượt đọc ý kiến trước, đề xuất, phản biện và đưa cách kiểm chứng. Khi chỉ còn một model, nó tiếp tục tự phản biện.\n\nHub Chat nghiên cứu bằng văn bản; chatbot web dùng các khả năng có trong website, không có quyền file/terminal trên máy. Hub Code giữ nguyên quyền CLI của từng agent theo yêu cầu.\n\nChatbot từ trình duyệt dùng tài khoản bạn đăng nhập qua extension. CLI/API cũng có thể bàn luận; kết nối chỉ sao chép/dán không tự động.\n\nGiữ Hub và các tab đã kết nối mở, máy không sleep. Lưu sau từng lượt; mở lại thư viện để xem hoặc tiếp tục, không tự chạy lại.\n\nGiới hạn lượt của Hub độc lập với quota tài khoản. Model trên website do bạn chọn và xác nhận; Hub không tự đổi model bằng nhãn.");
+        var note = Ui.Label("Trong Hub Chat, chatbot là các thành viên của nhóm: chào bạn và nhau, phản hồi từng ý và tự phát triển cuộc nói chuyện. Bạn có thể chen vào bất kỳ lúc nào. Khi tất cả cùng sẵn sàng chờ bạn, phiên hiện Chờ bạn và không gọi model thêm cho đến tin nhắn mới. Trong Hub Code, bàn luận nghiên cứu giữ cách đề xuất/phản biện hiện có.\n\nHub Chat nghiên cứu bằng văn bản; chatbot web dùng các khả năng có trong website, không có quyền file/terminal trên máy. Hub Code giữ nguyên quyền CLI của từng agent theo yêu cầu.\n\nChatbot từ trình duyệt dùng tài khoản bạn đăng nhập qua extension. CLI/API cũng có thể bàn luận; kết nối chỉ sao chép/dán không tự động.\n\nGiữ Hub và các tab đã kết nối mở, máy không sleep. Lưu sau từng lượt; mở lại thư viện để xem hoặc tiếp tục, không tự chạy lại.\n\nGiới hạn lượt của Hub độc lập với quota tài khoản. Chọn model tại website. Extension báo tên model khi đọc được; Hub không tự đổi model bằng nhãn.");
         note.AutoSize = false; note.Dock = DockStyle.Fill; root.Controls.Add(note, 0, 6); root.SetColumnSpan(note, 2);
         var actions = Ui.Flow(); var save = Ui.Button("Lưu cài đặt", (_, _) => {
             Result = new() { MaxTurns = (int)turns.Value, DurationMinutes = (int)minutes.Value, TurnTimeoutMinutes = (int)timeout.Value, PauseSeconds = (int)pause.Value };

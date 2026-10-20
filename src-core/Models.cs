@@ -88,7 +88,7 @@ public sealed class HubConfig
     public List<string> ProjectSections { get; set; } = [];
     public string Mode { get; set; } = "parallel";
     public string WorkMode { get; set; } = "team";
-    public string ChatMode { get; set; } = "parallel";
+    public string ChatMode { get; set; } = "discussion";
     public DiscussionOptions Discussion { get; set; } = new();
     public List<string>? ChatAgentIds { get; set; }
     public Dictionary<string, string> BrowserTopics { get; set; } = [];
@@ -185,6 +185,8 @@ public sealed class DiscussionTurn
     public string Role { get; set; } = "";
     public string TaskId { get; set; } = "";
     public string ProtocolData { get; set; } = "";
+    public string ConversationState { get; set; } = "";
+    public string NextSpeakerId { get; set; } = "";
     public int Number { get; set; }
     public string AgentId { get; set; } = "";
     public string Name { get; set; } = "";

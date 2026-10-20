@@ -37,6 +37,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
                 team?.Phase == "roundtable" ? job.Mode == "consensus" ? "Đang thống nhất ý" : "Đang bàn tròn" :
                 discussion && job.DiscussionPhase == "summarizing" ? "Đang tổng hợp" :
                 discussion && job.DiscussionFinishRequested ? "Đang kết thúc sau lượt hiện tại" :
+                discussion && job.DiscussionPhase == "awaiting-user" ? "Chờ bạn" :
                 discussion && job.DiscussionPhase == "resting" ? "Đang nghỉ giữa lượt" :
                 discussion ? "Đang trao đổi" : "Đang làm việc";
             string speaker = current?.Name ?? string.Join(", ", job.Results.Where(r => r.State == "running").Select(r => r.Name));
@@ -44,6 +45,11 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
             if (task != null && speaker.Length > 0) detail = speaker + " — " + detail;
             if (waitingOnly) detail = "Mở Chi tiết và dán kết quả cho " + string.Join(", ", job.Results.Where(r => r.State == "waiting").Select(r => r.Name));
             if (discussion && job.NextTurnAt is { } next && job.DiscussionPhase == "resting") detail = $"Lượt tiếp theo sau {Math.Max(0, (int)Math.Ceiling((next - now).TotalSeconds))} giây; có thể gửi bổ sung để chạy ngay";
+            if (discussion && job.DiscussionPhase == "awaiting-user") {
+                tone = "idle";
+                detail = "Các chatbot đã nói xong phần hiện tại. Gửi tin nhắn để tiếp tục cuộc trò chuyện.";
+                reason = string.Join(" · ", job.Results.Where(r => r.State is "error" or "quota").Select(r => r.Name + ": " + (r.State == "quota" ? "hết quota" : "mất kết nối/lỗi")));
+            }
             if (team?.StopAfterStep == true) reason = "Đã nhận yêu cầu dừng sau bước đang làm.";
             else if (team?.PendingDirectives.Count > 0) reason = $"Đã nhận {team.PendingDirectives.Count} bổ sung; áp dụng sau bước đang chạy.";
             else if (!waitingOnly && job.Results.Any(r => r.State == "waiting")) reason = "Một agent vẫn đang làm; mở Chi tiết để dán kết quả cho " + string.Join(", ", job.Results.Where(r => r.State == "waiting").Select(r => r.Name));
@@ -72,6 +78,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
         string agents = string.Join("   ·   ", job.Results.Select(r => {
             string state = active ? r.State switch {
                 "running" => "đang làm", "waiting" => "chờ bạn dán kết quả", "queued" => "chờ lượt",
+                "success" when discussion && job.DiscussionPhase == "awaiting-user" => "chờ bạn",
                 "success" when team != null || job.Mode == "discussion" => "đã góp ý, chờ lượt",
                 "success" => "đã trả lời", "quota" => "hết quota", "error" => "lỗi", "timeout" => "quá thời gian", _ => "chờ điều phối"
             } : r.State switch { "success" => "đã trả lời", "quota" => "hết quota", "error" => "lỗi", "timeout" => "quá thời gian", "cancelled" => "đã dừng", _ => "không chạy" };

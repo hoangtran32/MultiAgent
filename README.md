@@ -15,6 +15,10 @@ Tải `MultiAgentHub-<version>-win-x64.exe` từ mục Releases của repository
 
 Chỉ cần **một agent bất kỳ đã cấu hình** để chạy độc lập. Thêm đồng đội để cùng làm việc; tối đa 32 agent. Không bắt buộc có Codex, Antigravity, hoặc một cặp nhà cung cấp cụ thể. Có thể tạo nhiều agent dùng cùng công cụ với model/vai trò khác nhau. App không tự cài CLI, đăng nhập, gọi model hoặc nâng quyền khi khởi động.
 
+## Trò chuyện nhóm
+
+Trong **Hub Chat → Trò chuyện nhóm** (5.10.0), các chatbot là thành viên bình đẳng, tự nói với bạn và với nhau. Bạn đưa chủ đề/ý tưởng/vấn đề; bot trả lời từng ý, phản hồi đồng đội và cùng tìm giải pháp. Gửi “hello” thì các bot chào bạn và nhau; không ép thành bài nghiên cứu. Khi mọi bot đã sẵn sàng chờ bạn, trạng thái hiện **Chờ bạn**; tin nhắn mới tiếp tục ngay. Bạn có thể chen ý kiến khi nhóm đang trao đổi. Không cần project hoặc bấm Tiếp tục sau mỗi bot. Web extension chỉ là kênh gửi/nhận, không thay thế cơ chế hội thoại này.
+
 ## Kết nối
 
 ### Chatbot từ extension, dùng tài khoản website đang có
