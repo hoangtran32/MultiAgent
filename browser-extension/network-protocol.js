@@ -59,6 +59,7 @@
           failed = true; publish({error: "Website đã cắt phản hồi trước khi hoàn tất."}); return;
         }
       } else if (typeof value.type === "string" && value.type.startsWith("response.")) {
+        protocol = "responses";
         if (value.type === "response.output_text.delta") answer(value.delta, true, "responses");
         if (value.type === "response.output_text.done") answer(value.text, false, "responses");
         candidateModel = value.response?.model || value.model;

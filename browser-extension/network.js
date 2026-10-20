@@ -55,6 +55,20 @@
     finally { if (reader) { readers.delete(reader); void reader.cancel().catch(() => {}); } }
   }
   const originalFetch = window.fetch;
+  async function requestBody(request) {
+    const reader = request.clone().body?.getReader();
+    if (!reader) return "";
+    const utf8 = new TextDecoder(); let body = "", bytes = 0;
+    try {
+      while (true) {
+        const item = await reader.read();
+        if (item.done) return body + utf8.decode();
+        bytes += item.value.byteLength;
+        if (bytes > protocol.MAX_BODY) return "";
+        body += utf8.decode(item.value, {stream: true});
+      }
+    } finally { void reader.cancel().catch(() => {}); }
+  }
   window.fetch = function(input, init) {
     const turn = active, request = input instanceof Request ? input : null;
     const method = init?.method || request?.method || "GET", url = request?.url || String(input);
@@ -63,9 +77,9 @@
       if (typeof init?.body === "string") body = Promise.resolve(init.body);
       else if (init?.body instanceof URLSearchParams) body = Promise.resolve(init.body.toString());
       else if (request && !init?.body) {
-        // Do not read arbitrary Request streams (could be uploads); cloned string bodies only via size/type bounds.
-        const size = Number(request.headers.get("content-length"));
-        if (size > 0 && size <= protocol.MAX_BODY) body = request.clone().text();
+        // Textual Request bodies often have no content-length in browsers. Bound the clone, skip file uploads.
+        if (/^(application\/(json|x-www-form-urlencoded)|text\/plain)(;|$)/i.test(request.headers.get("content-type") || ""))
+          body = requestBody(request).catch(() => "");
       }
     }
     const result = Reflect.apply(originalFetch, this, arguments);

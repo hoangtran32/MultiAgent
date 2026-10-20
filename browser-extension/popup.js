@@ -51,7 +51,9 @@ pickButton.addEventListener("click", async () => {
     if (!response?.ok) throw new Error(response?.error || "Không mở được bộ chọn.");
     // A stale explicit selector must not hide the field selected on the page.
     const key = settingsKey();
-    const saved = (await chrome.storage.local.get(key))[key] || {};
+    const legacy = "settings:" + currentTab.provider;
+    const saved = (await chrome.storage.local.get(key))[key]
+      || (currentTab.provider !== "browser-web" ? (await chrome.storage.local.get(legacy))[legacy] : null) || {};
     delete saved.selectors?.input;
     await chrome.storage.local.set({[key]: saved});
     window.close();

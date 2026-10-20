@@ -29,15 +29,24 @@ test("observer is dormant outside a Hub turn and never changes the website respo
 });
 test("only matching same-origin prompt traffic yields normalized model/text and never replays", async () => {
   const p = page(); p.control("arm");
-  await p.window.fetch("https://other.example/chat", {method: "POST", body: JSON.stringify({prompt: "Unique prompt"})});
-  await p.window.fetch("/chat", {method: "POST", body: JSON.stringify({prompt: "Unrelated"})});
-  await p.window.fetch("/chat", {method: "POST", headers: {Authorization: "credential-stays-in-page"}, body: JSON.stringify({prompt: "Unique prompt"})});
+  await (await p.window.fetch("https://other.example/chat", {method: "POST", body: JSON.stringify({prompt: "Unique prompt"})})).text();
+  await (await p.window.fetch("/chat", {method: "POST", body: JSON.stringify({prompt: "Unrelated"})})).text();
+  await (await p.window.fetch("/chat", {method: "POST", headers: {Authorization: "credential-stays-in-page"}, body: JSON.stringify({prompt: "Unique prompt"})})).text();
   await p.finish();
   const frames = p.frames.filter(f => f.source === "multi-agent-hub-network" && f.protocol !== "armed");
   assert.equal(p.clones(), 1); assert.equal(p.calls.length, 3);
   assert.equal(frames.at(-1).text, "Answer"); assert.equal(frames.at(-1).model, "discovered-model"); assert.equal(frames.at(-1).done, true);
   assert.ok(!JSON.stringify(frames).includes("never-export")); assert.ok(!JSON.stringify(frames).includes("credential-stays-in-page"));
   p.control("disarm");
-  await p.window.fetch("/chat", {method: "POST", body: JSON.stringify({prompt: "Unique prompt"})});
+  await (await p.window.fetch("/chat", {method: "POST", body: JSON.stringify({prompt: "Unique prompt"})})).text();
   assert.equal(p.clones(), 1); assert.equal(p.calls.length, 4);
+});
+
+test("textual Request objects without content-length are read through a bounded clone", async () => {
+  const p = page(); p.control("arm");
+  const request = new Request("https://research.example/chat", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify({prompt: "Unique prompt"})});
+  await (await p.window.fetch(request)).text(); await request.text(); await p.finish();
+  assert.equal(p.clones(), 1);
+  assert.ok(p.frames.some(f => f.done && f.model === "discovered-model"));
+  assert.equal(p.calls.length, 1);
 });
