@@ -4,6 +4,7 @@ internal sealed class NavigationRail : Panel
 {
     private readonly List<Button> navigation = [];
     private bool arranging;
+    private bool chatSurface;
     public event Action? NewRequested, SearchRequested, ProjectRequested;
     public NavigationRail()
     {
@@ -17,6 +18,12 @@ internal sealed class NavigationRail : Panel
             button.Margin = Padding.Empty; navigation.Add(button); Controls.Add(button);
         }
     }
+    public void SetSurface(string surface)
+    {
+        bool chat = surface == "chat";
+        if (chatSurface == chat) return;
+        chatSurface = chat; navigation[2].Visible = !chat; PerformLayout();
+    }
     protected override void OnLayout(LayoutEventArgs e)
     {
         base.OnLayout(e);
@@ -26,7 +33,11 @@ internal sealed class NavigationRail : Panel
             int D(int value) => (int)Math.Round(value * DeviceDpi / 96f);
             int size = Math.Min(D(32), Math.Max(1, ClientSize.Width - D(8)));
             int x = Math.Max(0, (ClientSize.Width - size) / 2);
-            for (int i = 0; i < navigation.Count; i++) navigation[i].SetBounds(x, D(12 + i * 45), size, size);
+            int row = 0;
+            for (int i = 0; i < navigation.Count; i++) {
+                if (chatSurface && i == 2) continue;
+                navigation[i].SetBounds(x, D(12 + row++ * 45), size, size);
+            }
         } finally { arranging = false; }
     }
     protected override void OnDpiChangedAfterParent(EventArgs e) { base.OnDpiChangedAfterParent(e); PerformLayout(); }

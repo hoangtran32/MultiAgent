@@ -66,11 +66,11 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
     public void Start(HubConfig config, string prompt, string context = "", JobRecord? previous = null, string title = "")
     {
         Storage.Validate(config);
-        if (!Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
+        bool chat = config.Surface == "chat";
+        if (!chat && !Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
+        if (chat && !Catalog.IsChatMode(config.Mode)) throw new ArgumentException("Trò chuyện dùng Hỏi đáp song song, Lần lượt hoặc Bàn luận. Chuyển sang Làm việc để thực hiện task trong project.");
         if (string.IsNullOrWhiteSpace(prompt) || prompt.Length > 200000) throw new ArgumentException("Yêu cầu cần có 1–200.000 ký tự.");
         var agents = config.SelectedAgents().Select(a => a.Copy()).ToList();
-        if (agents.Any(a => Catalog.IsBrowserChat(a.Connection)) && (config.Surface != "chat" || config.Mode != "discussion"))
-            throw new ArgumentException("Chatbot trình duyệt dùng trong Hub Chat → Bàn luận qua lại. Agent làm việc và lựa chọn chatbot được giữ riêng.");
         if (config.Surface == "chat") foreach (var agent in agents) agent.Permission = "read-only";
         if (agents.Count == 0) throw new ArgumentException("Chọn ít nhất một agent.");
         if (config.Mode is "discussion" or "team" or "consensus") DiscussionEngine.ValidateAgents(agents);
@@ -78,7 +78,8 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
             throw new ArgumentException("Lệnh kiểm tra chưa được cấu hình cho project này. Mở Agent & model → Phân vai & giới hạn nhóm để kiểm tra và lưu lại.");
         foreach (var agent in agents.Where(a => !Catalog.IsManual(a.Connection))) executor.Validate(agent);
         if (previous != null) {
-            if (!string.Equals(Path.GetFullPath(previous.Project), Path.GetFullPath(config.Project), StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Chọn đúng project của cuộc trò chuyện trước khi tiếp tục.");
+            if (previous.Surface != config.Surface) throw new ArgumentException("Hội thoại thuộc không gian khác. Tạo hội thoại mới khi chuyển giữa Trò chuyện và Làm việc.");
+            if (!chat && !string.Equals(Path.GetFullPath(previous.Project), Path.GetFullPath(config.Project), StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Chọn đúng project của cuộc trò chuyện trước khi tiếp tục.");
             string id = previous.ConversationId.Length > 0 ? previous.ConversationId : previous.Id;
             context = storage.ConversationContext(id, previous.Id) + "\n\n" + context;
         }
@@ -99,10 +100,14 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 foreach (var agent in browserAgents) reserved.BrowserTopics[agent.BrowserBindingId] = conversationId;
                 Storage.Validate(reserved); storage.Write("native-config", reserved); config.BrowserTopics = reserved.BrowserTopics;
             }
+            string workingDirectory = chat && agents.Any(a => !Catalog.IsApi(a.Connection) && !Catalog.IsBrowserChat(a.Connection) && !Catalog.IsManual(a.Connection))
+                ? storage.ChatWorkingDirectory(conversationId) : chat ? "" : config.Project;
             cancellation = new(); token = cancellation.Token;
             teamInstructions.Clear();
             discussionControl = config.Mode == "discussion" ? new() : null;
-            current = new() { Surface = config.Surface, Prompt = prompt, Project = config.Project, Mode = config.Mode, Discussion = config.Mode == "discussion" ? config.Discussion.Copy() : null,
+            current = new() { Surface = config.Surface, Prompt = prompt, Project = chat ? "" : config.Project,
+                WorkingDirectory = workingDirectory,
+                Mode = config.Mode, Discussion = config.Mode == "discussion" ? config.Discussion.Copy() : null,
                 Team = Catalog.IsTeamMode(config.Mode) ? new() { Options = config.Team.Copy() } : null,
                 ConversationId = conversationId,
                 Title = previous == null ? Storage.Topic(title.Length > 0 ? title : prompt) : previous.Title.Length > 0 ? previous.Title : Storage.Topic(previous.Prompt), PreviousJobId = previous?.Id ?? "",
@@ -158,7 +163,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                     Change(() => { result.State = "running"; result.SentPrompt = prompt; });
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
                     timeout.CancelAfter(TimeSpan.FromMinutes(30));
-                    string answer = await executor.Execute(agent, job.Project, prompt,
+                    string answer = await executor.Execute(agent, job.WorkingDirectory, prompt,
                         value => Change(() => { result.Text = CliParser.Limit(value); if (turn != null) turn.Text = result.Text; }),
                         value => Change(() => result.Logs = (result.Logs + value)[Math.Max(0, (result.Logs + value).Length - 64000)..]), timeout.Token);
                     Change(() => { result.Text = answer; result.State = "success"; });
@@ -308,6 +313,14 @@ public static class ProjectContext
         string text = File.ReadAllText(full);
         if (text.Contains('\0')) throw new ArgumentException("Chỉ hỗ trợ file văn bản.");
         return $"[FILE: {relative}]\n{text}";
+    }
+    public static string ReadAttachment(string file)
+    {
+        string full = RealPath(file);
+        if (new FileInfo(full).Length > 512 * 1024) throw new ArgumentException("File đính kèm tối đa 512 KB.");
+        string text = File.ReadAllText(full);
+        if (text.Contains('\0')) throw new ArgumentException("Chỉ hỗ trợ file văn bản.");
+        return $"[FILE ĐƯỢC NGƯỜI DÙNG ĐÍNH KÈM: {Path.GetFileName(full)}]\n{text}";
     }
 }
 

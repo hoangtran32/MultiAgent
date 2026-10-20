@@ -12,6 +12,7 @@ internal sealed partial class MainWindow : Form
     private readonly TextBox project = Ui.Text(), prompt = Ui.Text(true);
     private readonly TextBox topic = new() { Width = 245, MaxLength = 100, PlaceholderText = "Tên topic (để trống: lấy từ yêu cầu)", AccessibleName = "Tên topic", Margin = new Padding(4, 7, 4, 4) };
     private readonly ConversationSidebar sidebar = new();
+    private readonly NavigationRail navigationRail = new();
     private ConversationView? conversationView;
     private string? selectedConversationId;
     private JobRecord? continueFrom;
@@ -74,7 +75,7 @@ internal sealed partial class MainWindow : Form
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54)); root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 174)); root.RowStyles.Add(new RowStyle(SizeType.Absolute, 20));
         var shell = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical, Size = new Size(1380, 900), SplitterDistance = 286, SplitterWidth = 1, BackColor = Ui.Border };
-        var rail = new NavigationRail(); rail.NewRequested += NewConversation; rail.SearchRequested += () => sidebar.FocusSearch(); rail.ProjectRequested += BrowseProject;
+        var rail = navigationRail; rail.NewRequested += NewConversation; rail.SearchRequested += () => sidebar.FocusSearch(); rail.ProjectRequested += BrowseProject;
         shell.Panel1.Controls.Add(sidebar); shell.Panel1.Controls.Add(rail); shell.Panel2.Controls.Add(root); Controls.Add(shell); locked.Add(rail);
         sidebar.NewRequested += NewConversation; sidebar.AddProjectRequested += BrowseProject;
         sidebar.ProjectSelected += path => { if (!runner.Busy && !string.Equals(path, config.Project, StringComparison.OrdinalIgnoreCase)) SetProject(path); };
@@ -94,9 +95,8 @@ internal sealed partial class MainWindow : Form
             if (updating || runner.Busy) return;
             if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode;
             config.Surface = Ui.Value(surface);
-            mode.SelectedItem = mode.Items.Cast<Choice>().First(c => c.Id == (config.Surface == "chat" ? config.ChatMode : config.WorkMode));
-            Protect(Save); Populate();
-            if (displayed == null) canvas.ShowWelcome(config.Surface);
+            ConfigureModes(config.Surface == "chat" ? config.ChatMode : config.WorkMode);
+            NewConversation(); Populate(); LoadHistory();
         };
         sidebar.ChangeConversation += (id, title, pinned, archived) => Protect(() => {
             storage.UpdateConversation(id, title, pinned, archived); ReloadLibrary();
@@ -182,7 +182,7 @@ internal sealed partial class MainWindow : Form
         var remove = Ui.Button("Xóa agent", (_, _) => Remove()); var up = Ui.Button("↑", (_, _) => MoveAgent(-1)); var down = Ui.Button("↓", (_, _) => MoveAgent(1));
         up.AccessibleName = "Đưa agent lên"; down.AccessibleName = "Đưa agent xuống";
         up.MinimumSize = new Size(36, 32); down.MinimumSize = new Size(36, 32);
-        Ui.Choices(mode, [new("consensus", "Chốt từng ý"), new("team", "Bàn tròn & thực hiện"), new("parallel", "Song song"), new("pipeline", "Lần lượt / phản biện"), new("collaboration", "Cùng làm việc"), new("discussion", "Bàn luận qua lại")], config.Mode); mode.AccessibleName = "Điều phối";
+        ConfigureModes(config.Mode); mode.AccessibleName = "Điều phối";
         mode.SelectedIndexChanged += (_, _) => { if (updating) return; config.Mode = Ui.Value(mode); if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode; Protect(Save); UpdateSummary(); };
         discussionSettings = Ui.Button("Giới hạn bàn luận…", (_, _) => Protect(() => {
             using var dialog = new DiscussionDialog(config.Discussion, config.SelectedAgents().Count);
@@ -377,6 +377,9 @@ internal sealed partial class MainWindow : Form
         var menu = teamMenu; menu.Items.Clear();
         foreach (var agent in config.Agents) {
             var item = new ToolStripMenuItem(agent.Name + "  ·  " + (agent.Model.Length > 0 ? agent.Model : Catalog.ConnectionName(agent))) { Checked = config.IsAgentSelected(agent) };
+            if (Catalog.IsBrowserChat(agent.Connection)) item.ToolTipText = config.Surface == "work"
+                ? "Hỗ trợ qua văn bản: tư vấn, đề xuất code và phản biện. Chatbot web không đọc/sửa file hay chạy lệnh trên máy; CLI hoặc bạn áp dụng kết quả."
+                : "Chatbot web cho hỏi đáp/nghiên cứu, không cần project. Dùng tài khoản và model bạn đã xác nhận trong extension.";
             item.Click += (_, _) => Protect(() => { var next = CopyConfig(); next.SelectAgent(next.Agents.First(a => a.Id == agent.Id), !config.IsAgentSelected(agent)); Commit(next, agent.Id); });
             menu.Items.Add(item);
         }
@@ -403,6 +406,17 @@ internal sealed partial class MainWindow : Form
     private void Commit(HubConfig next, string? selected = null)
     {
         Storage.Validate(next); storage.Write("native-config", next); config = next; Populate(selected);
+    }
+    private void ConfigureModes(string requested)
+    {
+        bool wasUpdating = updating; updating = true;
+        try {
+            Choice[] choices = [new("consensus", "Chốt từng ý"), new("team", "Bàn tròn & thực hiện"), new("parallel", "Song song"), new("pipeline", "Lần lượt / phản biện"), new("collaboration", "Cùng làm việc"), new("discussion", "Bàn luận qua lại")];
+            if (config.Surface == "chat") choices = choices.Where(c => Catalog.IsChatMode(c.Id)).ToArray();
+            if (!choices.Any(c => c.Id == requested)) requested = "parallel";
+            Ui.Choices(mode, choices, requested); config.Mode = requested;
+            if (config.Surface == "chat") config.ChatMode = requested; else config.WorkMode = requested;
+        } finally { updating = wasUpdating; }
     }
     private void Populate(string? selected = null)
     {
@@ -431,7 +445,10 @@ internal sealed partial class MainWindow : Form
     {
         canvas.SetAgentAvailability(config.Agents.Count > 0);
         var chosen = config.SelectedAgents(); info.Text = $"{chosen.Count}/{config.Agents.Count} chọn • {(config.Surface == "chat" ? "Hub Chat" : "Hub Code")}";
-        string pathCaption = string.IsNullOrWhiteSpace(config.Project) ? "Chưa chọn thư mục project" : "Project: " + config.Project;
+        bool chat = config.Surface == "chat";
+        workspacePath.Visible = !chat; navigationRail.SetSurface(config.Surface);
+        if (workspacePath.Parent is TableLayoutPanel inputLayout) inputLayout.RowStyles[0].Height = chat ? 0 : 24 * DeviceDpi / 96f;
+        string pathCaption = chat ? "" : string.IsNullOrWhiteSpace(config.Project) ? "Chưa chọn thư mục project" : "Project: " + config.Project;
         if (workspacePath.Text != pathCaption) { workspacePath.Text = pathCaption; Ui.Hint(workspacePath, pathCaption); }
         teamButton.Text = chosen.Count == 0 ? "Chọn agent ▾" : chosen.Count == 1 ? chosen[0].Name + " ▾" : $"{chosen[0].Name} + {chosen.Count-1} ▾";
         teamButton.AccessibleName = "Chọn agent tham gia: " + string.Join(" + ", chosen.Select(a => a.Name));
@@ -488,6 +505,7 @@ internal sealed partial class MainWindow : Form
     });
     private void BrowseProject()
     {
+        if (config.Surface == "chat") return;
         using var dialog = new FolderBrowserDialog { SelectedPath = project.Text, Description = "Chọn project" };
         if (dialog.ShowDialog(this) == DialogResult.OK) SetProject(dialog.SelectedPath);
     }
@@ -505,8 +523,10 @@ internal sealed partial class MainWindow : Form
         updating = true; recentProjects.Items.Clear(); recentProjects.Items.AddRange(config.RecentProjects.Where(Directory.Exists).Cast<object>().ToArray()); recentProjects.SelectedItem = config.Project; updating = false;
     }
     private void Attach() => Protect(() => {
-        using var dialog = new OpenFileDialog { InitialDirectory = Directory.Exists(project.Text) ? project.Text : config.Project, Title = "Chọn file trong project (tối đa 512 KB)" };
-        if (dialog.ShowDialog(this) == DialogResult.OK) { ProjectContext.Read(project.Text, dialog.FileName); contextFile = dialog.FileName; attachment.Text = Path.GetFileName(contextFile); }
+        bool chat = config.Surface == "chat";
+        using var dialog = new OpenFileDialog { InitialDirectory = chat ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) : Directory.Exists(project.Text) ? project.Text : config.Project,
+            Title = chat ? "Đính kèm file văn bản vào cuộc trò chuyện (tối đa 512 KB)" : "Chọn file trong project (tối đa 512 KB)" };
+        if (dialog.ShowDialog(this) == DialogResult.OK) { if (chat) ProjectContext.ReadAttachment(dialog.FileName); else ProjectContext.Read(project.Text, dialog.FileName); contextFile = dialog.FileName; attachment.Text = Path.GetFileName(contextFile); }
     });
     private void StartJob() => Protect(() => {
         if (conversationLoading || projectMutation) { status.Text = "Đang mở hội thoại/cập nhật thư viện, đợi hoàn tất rồi gửi yêu cầu."; return; }
@@ -516,10 +536,13 @@ internal sealed partial class MainWindow : Form
             else if (displayed?.Mode == "discussion") { runner.AddDiscussionInstruction(prompt.Text.Trim()); prompt.Clear(); canvas.ScrollToEnd(); status.Text = "Đã nhận bổ sung; bỏ thời gian nghỉ và gửi vào lượt tiếp theo. Lượt đang chạy được giữ nguyên."; }
             return;
         }
-        config.Project = Path.GetFullPath(project.Text.Trim()); if (!Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
-        config.RecentProjects = new[] { config.Project }.Concat(config.RecentProjects).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        ProjectCatalog.Ensure(config, config.Project); Save(); LoadProjects();
-        string context = contextFile == null ? "" : ProjectContext.Read(config.Project, contextFile);
+        if (config.Surface == "work") {
+            config.Project = Path.GetFullPath(project.Text.Trim()); if (!Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
+            config.RecentProjects = new[] { config.Project }.Concat(config.RecentProjects).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            ProjectCatalog.Ensure(config, config.Project); LoadProjects();
+        }
+        Save();
+        string context = contextFile == null ? "" : config.Surface == "chat" ? ProjectContext.ReadAttachment(contextFile) : ProjectContext.Read(config.Project, contextFile);
         try { runner.Start(config, prompt.Text.Trim(), context, continueFrom, topic.Text.Trim()); }
         catch (MissingAgentExecutableException error) {
             status.Text = "Chưa gửi yêu cầu: cần kiểm tra kết nối agent. Nội dung nhập được giữ lại.";
@@ -541,7 +564,7 @@ internal sealed partial class MainWindow : Form
         try {
             var conversations = storage.Conversations(); int previousCount = config.Projects.Count;
             ProjectCatalog.Merge(config, conversations); if (previousCount != config.Projects.Count) Save();
-            sidebar.Reload(config.Projects, config.ProjectSections, conversations, config.Project, selectedConversationId);
+            sidebar.Reload(config.Projects, config.ProjectSections, conversations, config.Project, selectedConversationId, config.Surface);
         }
         catch (Exception e) { status.Text = "Không đọc được thư viện: " + e.Message; }
     }
@@ -577,21 +600,20 @@ internal sealed partial class MainWindow : Form
             loadedConversations[info.Id] = (stamp, jobs, Environment.TickCount64);
             while (loadedConversations.Count > 4) loadedConversations.Remove(loadedConversations.MinBy(p => p.Value.Access).Key);
             selectedConversationId = info.Id; continueFrom = jobs[^1]; conversationJobs = jobs; latest = null; displayed = jobs[^1];
-            config.LastConversationId = info.Id; config.Project = info.Project; project.Text = info.Project;
+            config.LastConversationId = info.Id;
+            if (continueFrom.Surface == "work") { config.Project = info.Project; project.Text = info.Project; }
             contextFile = null; attachment.Text = "Không đính kèm file";
             updating = true;
             try {
                 config.Discussion = RestoreDiscussionLimits(continueFrom.Discussion);
                 // Saved job options describe that run. New runs use the user's current settings.
-                config.Surface = continueFrom.Surface; config.Mode = continueFrom.Mode;
-                if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode;
+                config.Surface = continueFrom.Surface; ConfigureModes(continueFrom.Mode);
                 surface.SelectedItem = surface.Items.Cast<Choice>().First(c => c.Id == config.Surface);
-                mode.SelectedItem = mode.Items.Cast<Choice>().First(c => c.Id == config.Mode);
                 topic.ReadOnly = true; topic.Text = info.Title; prompt.Clear();
             } finally { updating = false; }
-            RenderJob(displayed, false); Save(); UpdateSummary(); sidebar.SelectConversation(info.Id, info.Project);
+            RenderJob(displayed, false); Save(); UpdateSummary(); ReloadLibrary(); LoadHistory(); sidebar.SelectConversation(info.Id, info.Project);
             status.Text = $"{info.Title} • {jobs.Count} lần trao đổi • Nhập yêu cầu mới để tiếp tục.";
-            if (focus) { if (!Directory.Exists(info.Project)) throw new DirectoryNotFoundException("Thư mục project không còn tồn tại; hội thoại vẫn đọc được."); prompt.Focus(); }
+            if (focus) { if (config.Surface == "work" && !Directory.Exists(info.Project)) throw new DirectoryNotFoundException("Thư mục project không còn tồn tại; hội thoại vẫn đọc được."); prompt.Focus(); }
         }
         catch (OperationCanceledException) { }
         catch (Exception e) { if (!IsDisposed && version == conversationLoadVersion) { status.Text = "Không mở được hội thoại: " + e.Message; if (selectedConversationId != null) sidebar.SelectConversation(selectedConversationId, config.Project); } }
@@ -682,7 +704,7 @@ internal sealed partial class MainWindow : Form
     });
     private void LoadHistory()
     {
-        try { string? selected = (history.SelectedItem as JobRecord)?.Id; history.Items.Clear(); history.Items.AddRange(storage.History().Cast<object>().ToArray()); history.SelectedItem = history.Items.Cast<JobRecord>().FirstOrDefault(j => j.Id == selected) ?? history.Items.Cast<JobRecord>().FirstOrDefault(); }
+        try { string? selected = (history.SelectedItem as JobRecord)?.Id; history.Items.Clear(); history.Items.AddRange(storage.History().Where(j => j.Surface == config.Surface).Cast<object>().ToArray()); history.SelectedItem = history.Items.Cast<JobRecord>().FirstOrDefault(j => j.Id == selected) ?? history.Items.Cast<JobRecord>().FirstOrDefault(); }
         catch (Exception e) { status.Text = "Không đọc được lịch sử: " + e.Message; }
     }
     private void ShowHistory() => Protect(() => {

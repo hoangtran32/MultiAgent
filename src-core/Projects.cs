@@ -28,7 +28,7 @@ public static class ProjectCatalog
     }
     public static void Merge(HubConfig config, IEnumerable<ConversationInfo> conversations)
     {
-        foreach (string path in config.RecentProjects.Concat(conversations.Select(c => c.Project)).Distinct(StringComparer.OrdinalIgnoreCase)) {
+        foreach (string path in config.RecentProjects.Concat(conversations.Where(c => c.Surface != "chat").Select(c => c.Project)).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct(StringComparer.OrdinalIgnoreCase)) {
             try { Ensure(config, path, false); }
             catch (Exception e) when (e is ArgumentException or NotSupportedException) { }
         }
@@ -60,7 +60,7 @@ public sealed partial class Storage
     public int ArchiveProject(string project, bool archived)
     {
         lock (conversationGate) {
-            var conversations = Conversations().Where(c => ProjectCatalog.SamePath(c.Project, project) && c.Archived != archived).ToList();
+            var conversations = Conversations().Where(c => c.Surface != "chat" && ProjectCatalog.SamePath(c.Project, project) && c.Archived != archived).ToList();
             foreach (var conversation in conversations) {
                 conversation.Archived = archived;
                 AtomicText(System.IO.Path.Combine(ConversationDir(conversation.Id), "conversation.json"), JsonSerializer.Serialize(conversation, Json.Options));

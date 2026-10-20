@@ -12,6 +12,7 @@ public static class Catalog
 {
     public static readonly string[] Modes = ["parallel", "pipeline", "collaboration", "discussion", "team", "consensus"];
     public static bool IsTeamMode(string? mode) => mode is "team" or "consensus";
+    public static bool IsChatMode(string mode) => mode is "parallel" or "pipeline" or "discussion";
     public const int MaxAgents = 32;
     public static readonly Choice[] Providers = [new("codex", "Codex"), new("claude", "Claude / Anthropic"),
         new("antigravity", "Google Antigravity"), new("gemini", "Google Gemini"), new("chatgpt", "ChatGPT • chatbot"),
@@ -94,7 +95,10 @@ public sealed class HubConfig
     public bool IsAgentSelected(AgentConfig agent) => Surface == "chat" && ChatAgentIds != null ? ChatAgentIds.Contains(agent.Id) : agent.Enabled;
     public List<AgentConfig> SelectedAgents() => Agents.Where(IsAgentSelected).ToList();
     public void SelectAgent(AgentConfig agent, bool selected) {
-        if (Surface == "chat" && ChatAgentIds != null) { ChatAgentIds.RemoveAll(id => id == agent.Id); if (selected) ChatAgentIds.Add(agent.Id); }
+        if (Surface == "chat") {
+            ChatAgentIds ??= Agents.Where(a => a.Enabled).Select(a => a.Id).ToList();
+            ChatAgentIds.RemoveAll(id => id == agent.Id); if (selected) ChatAgentIds.Add(agent.Id);
+        }
         else agent.Enabled = selected;
     }
     public TeamOptions Team { get; set; } = new();
@@ -125,6 +129,8 @@ public sealed class JobRecord
     public string PreviousJobId { get; set; } = "";
     public string Prompt { get; set; } = "";
     public string Project { get; set; } = "";
+    // Runtime transport directory is separate from the conversation's optional project.
+    [JsonIgnore] public string WorkingDirectory { get; set; } = "";
     public string Mode { get; set; } = "parallel";
     public string State { get; set; } = "running";
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.Now;
@@ -145,6 +151,8 @@ public sealed class JobRecord
 
 public sealed class ConversationInfo
 {
+    // Empty only in archives written before surfaces were stored in conversation metadata.
+    public string Surface { get; set; } = "";
     public bool Pinned { get; set; }
     public bool Archived { get; set; }
     public string Id { get; set; } = "";

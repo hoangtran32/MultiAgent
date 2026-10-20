@@ -60,7 +60,7 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
                 if (remaining is { } budget && (limit == null || budget < limit)) limit = budget;
                 using var timer = limit is { } duration ? new CancellationTokenSource(duration, clock) : null;
                 using var timeout = timer != null ? CancellationTokenSource.CreateLinkedTokenSource(token, timer.Token) : CancellationTokenSource.CreateLinkedTokenSource(token);
-                string answer = await executor.Execute(agent, job.Project, request,
+                string answer = await executor.Execute(agent, job.WorkingDirectory.Length > 0 ? job.WorkingDirectory : job.Project, request,
                     value => change(() => { turn.Text = Clip(value, TurnLimit); result.Text = turn.Text; }),
                     value => change(() => { string logs = result.Logs + value; result.Logs = logs.Length > 64000 ? logs[^64000..] : logs; }), timeout.Token);
                 if (string.IsNullOrWhiteSpace(answer)) throw new InvalidDataException("Model trả về nội dung rỗng.");

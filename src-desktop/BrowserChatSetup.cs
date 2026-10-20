@@ -106,8 +106,8 @@ internal sealed partial class MainWindow
         next.Surface = "chat"; next.Mode = next.ChatMode = "discussion";
         next.Discussion = new() { MaxTurns = 0, DurationMinutes = 0, TurnTimeoutMinutes = 0, PauseSeconds = 0 };
         Commit(next); updating = true;
-        try { surface.SelectedItem = surface.Items.Cast<Choice>().First(c => c.Id == "chat"); mode.SelectedItem = mode.Items.Cast<Choice>().First(c => c.Id == "discussion"); }
+        try { surface.SelectedItem = surface.Items.Cast<Choice>().First(c => c.Id == "chat"); ConfigureModes("discussion"); }
         finally { updating = false; }
-        NewConversation(); status.Text = "Đã chọn chatbot riêng cho Hub Chat. Nhập chủ đề để bắt đầu; nhóm Hub Code được giữ nguyên.";
+        NewConversation(); status.Text = "Đã chọn chatbot cho Trò chuyện, không cần project. Để hỗ trợ công việc qua văn bản, chuyển sang Làm việc và chủ động chọn chatbot trong danh sách agent.";
     });
 }

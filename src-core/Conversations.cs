@@ -9,6 +9,25 @@ public sealed partial class Storage
 {
     private readonly object conversationGate = new();
     public string ConversationsDir => Path.Combine(DataDir, "conversations");
+    public string ChatWorkingDirectory(string conversationId)
+    {
+        string dir = Path.Combine(ConversationDir(conversationId), "runtime");
+        if (Directory.Exists(dir) && new DirectoryInfo(dir).LinkTarget != null) throw new IOException("Thư mục chạy chatbot không được là liên kết.");
+        Directory.CreateDirectory(dir); return dir;
+    }
+    private static ConversationInfo ReadConversationInfo(string metadata)
+    {
+        var info = JsonSerializer.Deserialize<ConversationInfo>(File.ReadAllText(metadata), Json.Options) ?? throw new InvalidDataException("Không đọc được hội thoại.");
+        if (info.Surface.Length == 0) {
+            string? firstJob = Directory.EnumerateFiles(Path.GetDirectoryName(metadata)!, "job-*.json").FirstOrDefault();
+            if (firstJob != null) {
+                using var doc = JsonDocument.Parse(File.ReadAllText(firstJob));
+                info.Surface = doc.RootElement.Str("surface") == "chat" ? "chat" : "work";
+            } else info.Surface = "work";
+        }
+        if (info.Surface == "chat") info.Project = "";
+        return info;
+    }
     public static string Topic(string prompt)
     {
         string first = prompt.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()?.Trim() ?? "Cuộc trò chuyện";
@@ -43,9 +62,11 @@ public sealed partial class Storage
             string id = job.ConversationId.Length > 0 ? job.ConversationId : Key(job.Id);
             string dir = ConversationDir(id); Directory.CreateDirectory(dir);
             string metadata = Path.Combine(dir, "conversation.json");
-            var info = File.Exists(metadata) ? JsonSerializer.Deserialize<ConversationInfo>(File.ReadAllText(metadata), Json.Options)! : new ConversationInfo {
-                Id = id, Title = job.Title.Length > 0 ? Topic(job.Title) : Topic(job.Prompt), Project = job.Project, CreatedAt = job.Timestamp
+            if (job.Surface == "chat") job.Project = "";
+            var info = File.Exists(metadata) ? ReadConversationInfo(metadata) : new ConversationInfo {
+                Id = id, Surface = job.Surface, Title = job.Title.Length > 0 ? Topic(job.Title) : Topic(job.Prompt), Project = job.Project, CreatedAt = job.Timestamp
             };
+            if (info.Surface != job.Surface) throw new InvalidOperationException("Hội thoại thuộc không gian khác. Tạo cuộc trò chuyện mới.");
             if (!string.Equals(info.Project, job.Project, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Hội thoại thuộc project khác. Tạo cuộc trò chuyện mới.");
             job.ConversationId = id; job.Title = info.Title;
             if (info.TextFile.Length == 0) {
@@ -69,7 +90,7 @@ public sealed partial class Storage
                 string id = Path.GetFileName(dir);
                 try {
                     string file = Path.Combine(ConversationDir(id), "conversation.json");
-                    if (File.Exists(file) && JsonSerializer.Deserialize<ConversationInfo>(File.ReadAllText(file), Json.Options) is { } info && info.Id == id) list.Add(info);
+                    if (File.Exists(file) && ReadConversationInfo(file) is { } info && info.Id == id) list.Add(info);
                 } catch (Exception e) when (e is IOException or JsonException or ArgumentException) { /* A damaged conversation does not hide the rest of the library. */ }
             }
             return list.OrderByDescending(c => c.Pinned).ThenByDescending(c => c.UpdatedAt).ToList();
@@ -79,7 +100,7 @@ public sealed partial class Storage
     {
         lock (conversationGate) {
             string dir = ConversationDir(id), metadata = Path.Combine(dir, "conversation.json");
-            var info = JsonSerializer.Deserialize<ConversationInfo>(File.ReadAllText(metadata), Json.Options) ?? throw new InvalidDataException("Không đọc được topic.");
+            var info = ReadConversationInfo(metadata);
             if (title != null) {
                 if (string.IsNullOrWhiteSpace(title) || title.Length > 100) throw new ArgumentException("Tên topic cần có 1–100 ký tự.");
                 info.Title = Topic(title);
@@ -98,6 +119,7 @@ public sealed partial class Storage
             foreach (string file in Directory.GetFiles(dir, "job-*.json")) {
                 token.ThrowIfCancellationRequested();
                 var job = JsonSerializer.Deserialize<JobRecord>(File.ReadAllText(file), Json.Options) ?? throw new InvalidDataException("Không đọc được lượt hội thoại.");
+                if (job.Surface == "chat") job.Project = "";
                 jobs.Add(recover ? Recover(job) : job);
             }
             token.ThrowIfCancellationRequested(); return jobs.OrderBy(j => j.Timestamp).ToList();

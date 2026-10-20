@@ -3,7 +3,7 @@ namespace MultiAgentHub.Core;
 public static class Export
 {
     public static string ConversationText(ConversationInfo info, IEnumerable<JobRecord> jobs) =>
-        $"{info.Title}\nNgày trò chuyện: {info.CreatedAt.LocalDateTime:dd/MM/yyyy HH:mm:ss}\nProject: {info.Project}\n\n" + string.Join("\n\n============================================================\n\n", jobs.Select(PlainText));
+        $"{info.Title}\nNgày trò chuyện: {info.CreatedAt.LocalDateTime:dd/MM/yyyy HH:mm:ss}\n" + (info.Surface == "chat" || info.Project.Length == 0 ? "" : $"Project: {info.Project}\n") + "\n" + string.Join("\n\n============================================================\n\n", jobs.Select(PlainText));
     public static string PlainText(JobRecord job)
     {
         var text = new StringBuilder($"{job.Timestamp.LocalDateTime:dd/MM/yyyy HH:mm:ss} • {job.Mode} • {job.State}\n\nBẠN\n{job.Prompt}\n");
@@ -21,7 +21,7 @@ public static class Export
     }
     public static string Markdown(JobRecord job)
     {
-        var text = new StringBuilder($"# Multi-Agent Hub\n\n{job.Timestamp:O}\n\nProject: {job.Project}\n\nChế độ: {job.Mode} • Trạng thái: {job.State} • {job.Seconds:F1}s\n\n## Yêu cầu\n\n{job.Prompt}\n");
+        var text = new StringBuilder($"# Multi-Agent Hub\n\n{job.Timestamp:O}\n\n" + (job.Surface == "chat" ? "Không gian: Trò chuyện\n\n" : $"Project: {job.Project}\n\n") + $"Chế độ: {job.Mode} • Trạng thái: {job.State} • {job.Seconds:F1}s\n\n## Yêu cầu\n\n{job.Prompt}\n");
         if (job.Mode is "collaboration" or "team" or "consensus") {
             foreach (var turn in job.Turns) text.Append($"\n## Lượt {turn.Number} • {turn.Name} • {turn.Model} • {turn.Role} • {turn.TaskId} • {turn.State}\n\n{turn.Text}\n\n{turn.Error}\n");
             if (job.Team != null) text.Append("\n## Công việc và đầu ra\n\n" + TeamText(job));

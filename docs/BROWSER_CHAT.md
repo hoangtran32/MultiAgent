@@ -11,6 +11,14 @@ Bridge thử nghiệm từ 5.7.0 dùng Gemini web (`gemini.google.com`) và Chat
 
 Không tạo sẵn cặp agent cho profile mới; danh sách từ tab bạn nối. Không xóa thư mục extension sau khi Load unpacked. Đổi chỗ EXE thì chạy lại **Chuẩn bị bridge** để cập nhật đường dẫn native host.
 
+## Trò chuyện và Làm việc từ 5.8.0
+
+**Trò chuyện / Hub Chat** không cần project: nhập chủ đề, chọn chatbot rồi gửi. Sidebar chỉ liệt kê hội thoại của mục này; có ghim, đổi tên, lưu trữ, tìm kiếm và tiếp tục. JSON/TXT vẫn được lưu trong dữ liệu Hub. Dòng project và nút thêm folder được ẩn; project của Làm việc không bị thay đổi. File văn bản bạn chủ động đính kèm có thể ở bất kỳ thư mục nào (tối đa 512 KB).
+
+**Làm việc / Hub Code** giữ project, task, quyền CLI và các chế độ thực hiện/review. Khi cần dùng chatbot web để hỗ trợ, chuyển sang Làm việc và tự chọn chatbot trong bộ chọn agent cạnh nút gửi. Chatbot chỉ nhận văn bản: tư vấn, code mẫu hoặc phản biện theo nội dung được cung cấp; không có công cụ đọc/sửa file hoặc chạy terminal trên máy. CLI hoặc bạn áp dụng/kiểm tra kết quả. Hub không tự gửi nội dung công việc lên web khi agent hết quota. Chủ đề công việc mới cũng cần tab web trống chưa gắn với hội thoại khác.
+
+Chuyển giữa hai mục tạo phiên nhập mới, không nối tiếp nhầm hội thoại/task của mục kia; mở lịch sử của đúng mục để tiếp tục. Chat cũ được nhận diện theo trường surface trong job, tách khỏi project khi đọc; nội dung cũ không bị xóa/viết lại.
+
 ## Tự quét từ 5.7.1
 
 Mỗi lần mở popup, extension đọc các ô nhập đang hiển thị, bỏ ô tìm kiếm/ô khóa và ưu tiên vùng soạn chat. Nút gửi được dò lại sau khi có nội dung, vì website có thể ẩn nút này khi ô nhập trống. Quét không nhập thử, bấm gửi hay thay model. Nhãn model lấy từ điều khiển trên giao diện khi xác định được duy nhất; không suy đoán từ lịch sử chat và không xác minh backend.

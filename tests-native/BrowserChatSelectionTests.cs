@@ -19,13 +19,13 @@ internal static class BrowserChatSelectionTests
             var copy = JsonSerializer.Deserialize<HubConfig>(JsonSerializer.Serialize(config, Json.Options), Json.Options)!;
             Assert(copy.ChatAgentIds!.SequenceEqual(new[] { "chat" })); return Task.CompletedTask;
         });
-        await test("browser chatbots cannot be scheduled as coding agents", () => {
+        await test("browser chatbots can support work as text advisers without claiming local tools", async () => {
             var browser = new AgentConfig { Provider = "gemini", Connection = "gemini-web", Model = "Confirmed model", BrowserBindingId = "tab-a" };
-            var store = new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))); var runner = new JobRunner(new NoInference(), store);
-            bool rejected = false;
-            try { runner.Start(new() { Project = root, Agents = [browser] }, "Never run a browser model as a CLI."); }
-            catch (ArgumentException) { rejected = true; }
-            Assert(rejected && !runner.Busy); return Task.CompletedTask;
+            var fixture = new TextAdviser();
+            var store = new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))); var runner = new JobRunner(fixture, store);
+            runner.Start(new() { Project = root, Agents = [browser] }, "Review the supplied design."); await runner.Completion!;
+            Assert(runner.Snapshot()!.State == "completed" && fixture.Prompt.Contains("HỖ TRỢ CÔNG VIỆC QUA VĂN BẢN")
+                && fixture.Prompt.Contains("Không có quyền đọc/sửa") && runner.Snapshot()!.Project == root);
         });
         await test("bundled browser extension key matches the native host allowlist", () => {
             string folder = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "browser-extension"));
@@ -47,10 +47,10 @@ internal static class BrowserChatSelectionTests
             Assert(rejected && !runner.Busy && config.BrowserTopics["used-tab"] == "old-topic"); return Task.CompletedTask;
         });
     }
-    private sealed class NoInference : IAgentExecutor
+    private sealed class TextAdviser : IAgentExecutor
     {
-        public void Validate(AgentConfig agent) => throw new Exception("Inference must never be reached.");
-        public Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token) => throw new Exception("Inference must never be reached.");
+        public string Prompt { get; private set; } = "";
+        public Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token) { Prompt = prompt; return Task.FromResult("Design feedback, no local changes performed."); }
     }
     private sealed class PreflightOnly : IAgentExecutor
     {

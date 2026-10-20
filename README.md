@@ -1,6 +1,6 @@
 # Multi-Agent Hub
 
-Ứng dụng Windows native để dùng một hoặc nhiều AI agent trong cùng project và hội thoại.
+Ứng dụng Windows native để dùng một hoặc nhiều AI agent: trò chuyện độc lập hoặc cùng làm việc trong project.
 
 **C# · .NET 10 · WinForms · MIT** — desktop native, không cần Node.js, web server hoặc WebView. Bridge chatbot tùy chọn có extension JavaScript chạy trong Chrome/Edge.
 
@@ -11,7 +11,7 @@ Tải `MultiAgentHub-<version>-win-x64.exe` từ mục Releases của repository
 1. Lần đầu app không có agent được cài sẵn. Bấm **Thêm agent của bạn** hoặc **Agent & model** để dò công cụ đã cài và model.
 2. Chọn kết quả dò, cấu hình rồi lưu agent. Hoặc chọn công cụ AI, kiểu kết nối và số lượng để thêm thủ công. Kết quả dò không tự tạo/bật agent.
 3. Mở **Thiết lập / model** để chọn model, executable/API endpoint, key và quyền. CLI dùng tài khoản đã đăng nhập trên máy; API key lưu trong Windows Credential Manager.
-4. Bật **Chạy** cho agent đã cấu hình, chọn project và gửi yêu cầu bằng **Ctrl+Enter**.
+4. Bật **Chạy** cho agent đã cấu hình. Chọn **Trò chuyện** để hỏi đáp/nghiên cứu không cần project, hoặc **Làm việc** và chọn project để thực hiện task. Gửi bằng **Ctrl+Enter**.
 
 Chỉ cần **một agent bất kỳ đã cấu hình** để chạy độc lập. Thêm đồng đội để cùng làm việc; tối đa 32 agent. Không bắt buộc có Codex, Antigravity, hoặc một cặp nhà cung cấp cụ thể. Có thể tạo nhiều agent dùng cùng công cụ với model/vai trò khác nhau. App không tự cài CLI, đăng nhập, gọi model hoặc nâng quyền khi khởi động.
 
@@ -39,7 +39,8 @@ Danh sách trên là các adapter có sẵn để lựa chọn. CLI tùy chỉnh
 
 ## Cách làm việc
 
-- **Hub Code** dùng project và giữ nguyên quyền CLI đã chọn trong mọi lượt. **Hub Chat** chỉ trao đổi văn bản.
+- **Hub Code / Làm việc** dùng project và giữ nguyên quyền CLI đã chọn. **Hub Chat / Trò chuyện** lưu hội thoại độc lập, không cần folder, không gắn đường dẫn project cũ. Lịch sử/sidebar và lựa chọn agent tách theo từng không gian.
+- Chatbot extension mặc định dùng cho Trò chuyện. Có thể chủ động chọn trong Làm việc để tư vấn, đề xuất code và phản biện qua văn bản; CLI hoặc người dùng áp dụng thay đổi. Không tự chuyển sang chatbot web hay gửi dữ liệu workspace khi CLI hết quota.
 - **Chốt từng ý**: một ý nhỏ → phản biện/sửa đến khi cùng chốt phiên bản → thực hiện/review → ý kế tiếp. [Hướng dẫn](docs/CONSENSUS_USER_GUIDE.md).
 - **Song song**: cùng nhận yêu cầu. **Lần lượt / phản biện**: kết quả trước chuyển cho agent sau. **Cùng làm việc**: thực hiện → rà soát → hoàn thiện.
 - **Bàn luận qua lại**: các model phát triển, phản biện ý tưởng theo giới hạn lượt/thời gian, có bản tổng hợp cuối.
@@ -74,7 +75,7 @@ dotnet build MultiAgentHub.slnx -c Release
 ./scripts/build-desktop.ps1 -Zip -CreateShortcut -SkipTests
 ```
 
-EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.7.1 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình hoặc đo hiệu năng chuyển chat.
+EXE nằm tại `release/MultiAgentHub-<version>-win-x64.exe`, kèm file SHA-256; ZIP nằm tại `release/MultiAgentHub-win-x64.zip`. `Open_App.bat` mở bản cài trong `app-bin`; `build-desktop.bat` build, chạy harness và tạo shortcut. Các build script mặc định chạy harness nếu không có `-SkipTests`. GitHub Actions chạy harness và đóng gói trên Windows; kiểm tra này không thay thế kiểm thử UI/live agent. Bản 5.8.0 hiện chỉ được kiểm tra biên dịch/đóng gói cục bộ, chưa chạy test chức năng/màn hình hoặc đo hiệu năng chuyển chat.
 
 ## Dữ liệu và Git
 

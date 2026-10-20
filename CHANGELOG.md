@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.8.0 — 2026-10-20
+
+- Tách Trò chuyện khỏi workspace: không kiểm tra/bắt chọn thư mục, không đưa path project cũ vào prompt hoặc bản ghi chat. CLI dùng một thư mục runtime riêng khi cần; project/quyền của Làm việc được giữ nguyên.
+- Sidebar Trò chuyện chỉ liệt kê hội thoại, ghim và lưu trữ; ẩn dự án/nút thêm project và dòng path trong composer. Chuyển không gian mở hội thoại mới, không nối nhầm vào task đang xem ở mục kia.
+- Lịch sử ghi không gian riêng; chat cũ được nhận diện từ job và tách khỏi project khi đọc, không xóa hoặc viết lại nội dung cũ. Tiếp tục chat không phụ thuộc thư mục đã đổi/xóa. Đính kèm chat nhận file văn bản do người dùng chọn ở bất kỳ thư mục nào.
+- Cho phép chủ động chọn chatbot extension để hỗ trợ công việc bằng văn bản, gồm tư vấn/code mẫu/phản biện. Không giả là chatbot có filesystem/terminal; không tự chuyển dữ liệu workspace sang web khi CLI hết quota.
+- Biên dịch cục bộ; hồi quy chạy trong CI, không kiểm tra màn hình hoặc gửi yêu cầu AI thật trên máy.
+
 ## 5.7.1 — 2026-10-20
 
 - Extension tự quét ô soạn chat khi mở, loại ô tìm kiếm/ô ẩn/ô khóa, ưu tiên vùng composer và dò lại nút gửi khi có nội dung. Không yêu cầu chỉ một phần tử khớp CSS cũ.

@@ -8,6 +8,7 @@ internal sealed partial class ConversationSidebar : UserControl
     private readonly ContextMenuStrip topicMenu = new() { BackColor = Ui.Surface, ForeColor = Ui.Ink };
     private readonly SidebarHeader surfaceHost = new() { Dock = DockStyle.Fill, Margin = Padding.Empty };
     private readonly TableLayoutPanel root = Ui.Table();
+    private readonly TableLayoutPanel projectsHeader = Ui.Table(2);
     private readonly CheckBox archives = new() { Text = "Hội thoại đã lưu trữ", AutoSize = true, ForeColor = Ui.Muted, Margin = new Padding(4, 10, 4, 10) };
     private List<ConversationInfo> conversations = [];
     private List<ProjectInfo> projects = [];
@@ -15,6 +16,7 @@ internal sealed partial class ConversationSidebar : UserControl
     private readonly Dictionary<string, List<TreeNode>> conversationNodes = [];
     private string currentProject = "", selectedId = "";
     private bool updating;
+    private bool chatSurface;
     private readonly List<Control> navigation = [];
     private TreeNode? hovered;
     public event Action<string>? ProjectSelected;
@@ -36,7 +38,7 @@ internal sealed partial class ConversationSidebar : UserControl
         var create = Ui.Ghost("Đoạn chat mới", (_, _) => NewRequested?.Invoke()); ((ModernButton)create).IconKind = "edit"; create.TextAlign = ContentAlignment.MiddleLeft; create.Dock = DockStyle.Fill; create.Height = 36; create.MinimumSize = new Size(0, 36); create.Margin = new Padding(0, 8, 0, 12); root.Controls.Add(create, 0, 1);
         search.PlaceholderText = "Tìm cuộc trò chuyện…"; search.AccessibleName = "Tìm cuộc trò chuyện"; search.TextChanged += (_, _) => Populate(); search.Visible = false;
         search.KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) { search.Clear(); search.Visible = false; tree.Focus(); e.SuppressKeyPress = true; } }; root.Controls.Add(search, 0, 2);
-        var projectsHeader = Ui.Table(2); projectsHeader.Height = 32; projectsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); projectsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34));
+        projectsHeader.Height = 32; projectsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); projectsHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 34));
         projectsHeader.Controls.Add(Ui.Label("Dự án"), 0, 0); projectsHeader.Controls.Add(Ui.IconButton("plus", "Thêm project", (_, _) => AddProjectRequested?.Invoke()), 1, 0); root.Controls.Add(projectsHeader, 0, 3);
         root.Controls.Add(tree, 0, 4); archives.CheckedChanged += (_, _) => Populate();
         var archiveButton = Ui.Ghost("Hội thoại đã lưu trữ", (_, _) => { archives.Checked = !archives.Checked; }); archiveButton.TextAlign = ContentAlignment.MiddleLeft; archiveButton.Dock = DockStyle.Fill; archiveButton.Font = new Font("Segoe UI", 8.5f); archiveButton.ForeColor = Ui.Muted; root.Controls.Add(archiveButton, 0, 6);
@@ -133,9 +135,11 @@ internal sealed partial class ConversationSidebar : UserControl
         root.Controls.Add(save, 0, 2); dialog.Controls.Add(root); dialog.AcceptButton = save; Ui.Theme(dialog);
         float scale = DeviceDpi / 96f; root.Scale(new SizeF(scale, scale)); dialog.Size = new Size((int)(500*scale), (int)(190*scale)); dialog.ShowDialog(FindForm());
     }
-    public void Reload(List<ProjectInfo> savedProjects, List<string> sections, List<ConversationInfo> savedConversations, string activeProject, string? conversationId)
+    public void Reload(List<ProjectInfo> savedProjects, List<string> sections, List<ConversationInfo> savedConversations, string activeProject, string? conversationId, string surface)
     {
-        conversations = savedConversations; projects = savedProjects; projectSections = sections;
+        chatSurface = surface == "chat"; projectsHeader.Visible = !chatSurface;
+        conversations = savedConversations.Where(c => (c.Surface == "chat") == chatSurface).ToList();
+        projects = chatSurface ? [] : savedProjects; projectSections = chatSurface ? [] : sections;
         currentProject = activeProject; selectedId = conversationId ?? ""; Populate();
     }
     private void Populate()
@@ -174,8 +178,8 @@ internal sealed partial class ConversationSidebar : UserControl
             foreach (var item in available.Where(p => !p.Pinned && string.Equals(p.Section, section, StringComparison.OrdinalIgnoreCase))) AddProject(item, group.Nodes);
             if (group.Nodes.Count > 0) { tree.Nodes.Add(group); group.Expand(); }
         }
-        var recent = visible.Where(Matches).OrderByDescending(c => c.UpdatedAt).Take(8).ToList();
-        if (recent.Count > 0) { var group = new TreeNode("Gần đây") { Tag = "__recent" }; tree.Nodes.Add(group); foreach (var info in recent) AddConversation(group, info); group.Expand(); }
+        var recent = visible.Where(Matches).OrderByDescending(c => c.UpdatedAt).Take(chatSurface ? int.MaxValue : 8).ToList();
+        if (recent.Count > 0) { var group = new TreeNode(chatSurface ? "Cuộc trò chuyện" : "Gần đây") { Tag = "__recent" }; tree.Nodes.Add(group); foreach (var info in recent) AddConversation(group, info); group.Expand(); }
         if (AllNodes(tree.Nodes).FirstOrDefault(n => NodeKey(n) == topKey) is { } top) tree.TopNode = top;
         } finally { tree.EndUpdate(); updating = false; }
     }
