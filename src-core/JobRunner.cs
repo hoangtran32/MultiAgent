@@ -68,7 +68,6 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         Storage.Validate(config);
         bool chat = config.Surface == "chat";
         if (!chat && !Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
-        if (chat && !Catalog.IsChatMode(config.Mode)) throw new ArgumentException("Trò chuyện dùng Hỏi đáp song song, Lần lượt hoặc Bàn luận. Chuyển sang Làm việc để thực hiện task trong project.");
         if (string.IsNullOrWhiteSpace(prompt) || prompt.Length > 200000) throw new ArgumentException("Yêu cầu cần có 1–200.000 ký tự.");
         var agents = config.SelectedAgents().Select(a => a.Copy()).ToList();
         if (config.Surface == "chat") foreach (var agent in agents) agent.Permission = "read-only";
@@ -194,7 +193,9 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 var previous = new List<string>();
                 for (int i = 0; i < agents.Count; i++)
                 {
-                    string purpose = job.Mode != "collaboration" ? "" : i == 0 ? "Bạn là agent thực hiện chính. Xử lý yêu cầu và ghi rõ việc đã làm, kết quả kiểm tra, điều còn cần xác minh.\n\n" : "Bạn là đồng đội rà soát. Kiểm tra kết quả trước, tìm lỗi và thực hiện phần còn thiếu trong quyền được cấp. Nêu rõ các sửa đổi cần agent chính hoàn tất.\n\n";
+                    string purpose = job.Mode != "collaboration" ? "" : job.Surface == "chat"
+                        ? i == 0 ? "Đề xuất câu trả lời và nêu giả định cần kiểm chứng.\n\n" : "Phản biện câu trả lời trước, bổ sung lập luận và các điểm còn thiếu. Chỉ trao đổi văn bản.\n\n"
+                        : i == 0 ? "Bạn là agent thực hiện chính. Xử lý yêu cầu và ghi rõ việc đã làm, kết quả kiểm tra, điều còn cần xác minh.\n\n" : "Bạn là đồng đội rà soát. Kiểm tra kết quả trước, tìm lỗi và thực hiện phần còn thiếu trong quyền được cấp. Nêu rõ các sửa đổi cần agent chính hoàn tất.\n\n";
                     await Stage(i, string.Join("\n\n", previous), purpose);
                     if (job.Results[i].State == "quota") continue;
                     if (job.Results[i].State != "success") break;
@@ -203,7 +204,8 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 if (job.Mode == "collaboration" && !token.IsCancellationRequested && job.Results.Count(r => r.State == "success") > 1 && !job.Results.Any(r => r.State == "error")) {
                     int lead = job.Results.FindIndex(r => r.State == "success");
                     string feedback = string.Join("\n\n", previous); if (feedback.Length > 48000) feedback = feedback[^48000..];
-                    await Stage(lead, feedback, "Đây là lượt hoàn thiện sau phản biện của đồng đội. Kiểm chứng các góp ý, sửa phần còn thiếu nếu cần, chạy kiểm tra phù hợp và trả lời kết quả cuối cho người dùng. Không mở thêm vòng thảo luận.\n\n");
+                    await Stage(lead, feedback, job.Surface == "chat" ? "Hoàn thiện câu trả lời dựa trên phản biện, nêu điểm thống nhất và điều cần kiểm chứng. Chỉ trả lời văn bản, không mở thêm vòng thảo luận.\n\n"
+                        : "Đây là lượt hoàn thiện sau phản biện của đồng đội. Kiểm chứng các góp ý, sửa phần còn thiếu nếu cần, chạy kiểm tra phù hợp và trả lời kết quả cuối cho người dùng. Không mở thêm vòng thảo luận.\n\n");
                     if (job.Results[lead].State == "success") Change(() => { job.Report = job.Results[lead].Text; job.ReportByModel = true; });
                 }
             }

@@ -12,7 +12,6 @@ public static class Catalog
 {
     public static readonly string[] Modes = ["parallel", "pipeline", "collaboration", "discussion", "team", "consensus"];
     public static bool IsTeamMode(string? mode) => mode is "team" or "consensus";
-    public static bool IsChatMode(string mode) => mode is "parallel" or "pipeline" or "discussion";
     public const int MaxAgents = 32;
     public static readonly Choice[] Providers = [new("codex", "Codex"), new("claude", "Claude / Anthropic"),
         new("antigravity", "Google Antigravity"), new("gemini", "Google Gemini"), new("chatgpt", "ChatGPT • chatbot"),

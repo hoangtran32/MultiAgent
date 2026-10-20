@@ -104,7 +104,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(runToken);
                     int limit = options.TurnTimeoutMinutes(phase);
                     if (limit > 0) timeout.CancelAfter(TimeSpan.FromMinutes(limit));
-                    answer = await executor.Execute(agent, job.Project, request,
+                    answer = await executor.Execute(agent, job.WorkingDirectory.Length > 0 ? job.WorkingDirectory : job.Project, request,
                         text => change(() => { result.Text = turn.Text = Clip(text, 64000); }),
                         log => change(() => { string value = result.Logs + log; result.Logs = value.Length > 64000 ? value[^64000..] : value; }), timeout.Token);
                 } catch (AgentQuotaException e) {
@@ -318,7 +318,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             }
             // A final source change invalidates old check results, even if it came from outside this workflow.
             var currentEvidence = team.Evidence.Where(e => e.Current).ToList();
-            if (currentEvidence.Count > 0 && !runToken.IsCancellationRequested) {
+            if (job.Surface == "work" && currentEvidence.Count > 0 && !runToken.IsCancellationRequested) {
                 string final = ""; try { final = TeamWorkspace.Fingerprint(job.Project, runToken); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { change(() => team.Decisions.Add("Không xác minh được workspace cuối: " + e.Message)); }
                 change(() => { foreach (var e in currentEvidence) e.Current = final.Length > 0 && e.Fingerprint == final; });
             }

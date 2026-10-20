@@ -357,7 +357,13 @@ internal sealed partial class MainWindow : Form
         attachmentMenu.Items.Add("Bỏ file đính kèm", null, (_, _) => { contextFile = null; attachment.Text = "Không đính kèm file"; });
         if (attachmentMenu.Tag is Control button) attachmentMenu.Show(button, new Point(0, -attachmentMenu.PreferredSize.Height));
     }
-    private static string ModeExplanation(string id) => id switch {
+    private string ModeExplanation(string id) => (config.Surface, id) switch {
+        ("chat", "consensus") => "Chốt từng ý: các model cùng phản biện và thống nhất từng ý. Chỉ trao đổi/lưu kế hoạch, không thực thi task hoặc dùng project.",
+        ("chat", "team") => "Bàn tròn ý tưởng: các góc nhìn cùng góp ý, phân tích và lên kế hoạch. Không đọc/sửa project hoặc thực thi task.",
+        ("chat", "collaboration") => "Cùng hoàn thiện: một model đề xuất câu trả lời, đồng đội phản biện, rồi model đầu tổng hợp và hoàn thiện. Chỉ trao đổi văn bản.",
+        _ => WorkModeExplanation(id)
+    };
+    private static string WorkModeExplanation(string id) => id switch {
         "consensus" => "Chốt từng ý: A nêu một ý ngắn, B phản hồi ngay; hai bên sửa và xác nhận cùng phiên bản trước khi thực hiện/review phần đó rồi mở ý tiếp.\nKhông tự coi im lặng là đồng ý; hết giới hạn vẫn chưa chốt thì giữ lại bất đồng. Cấu hình trong Agent & model → Trao đổi & giới hạn / phân vai.",
         "parallel" => "Song song: các agent cùng nhận yêu cầu và trả lời độc lập.\nPhù hợp để so sánh nhiều phương án; không truyền kết quả cho nhau trong lượt này.",
         "pipeline" => "Lần lượt / phản biện: chạy theo thứ tự trong danh sách agent.\nAgent sau nhận kết quả của các agent trước để bổ sung hoặc phản biện; mỗi agent một lượt.",
@@ -412,7 +418,9 @@ internal sealed partial class MainWindow : Form
         bool wasUpdating = updating; updating = true;
         try {
             Choice[] choices = [new("consensus", "Chốt từng ý"), new("team", "Bàn tròn & thực hiện"), new("parallel", "Song song"), new("pipeline", "Lần lượt / phản biện"), new("collaboration", "Cùng làm việc"), new("discussion", "Bàn luận qua lại")];
-            if (config.Surface == "chat") choices = choices.Where(c => Catalog.IsChatMode(c.Id)).ToArray();
+            if (config.Surface == "chat") choices = choices.Select(c => c.Id switch {
+                "team" => new Choice(c.Id, "Bàn tròn ý tưởng"), "collaboration" => new Choice(c.Id, "Cùng hoàn thiện câu trả lời"), _ => c
+            }).ToArray();
             if (!choices.Any(c => c.Id == requested)) requested = "parallel";
             Ui.Choices(mode, choices, requested); config.Mode = requested;
             if (config.Surface == "chat") config.ChatMode = requested; else config.WorkMode = requested;
