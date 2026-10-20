@@ -10,14 +10,16 @@
   <header><strong>Browser Chat</strong><span>Multi-Agent Hub</span></header>
   <p class="intro">Dùng tài khoản Gemini / ChatGPT đã đăng nhập. Mở một chat mới trống trên mỗi website và chọn model trước khi kết nối. Mở Hub và cài cầu nối trình duyệt trước.</p>
   <div id="status" role="status">Đang đọc trạng thái…</div>
+  <div class="scan-actions"><button id="scan" type="button">Tự quét lại</button><button id="pick" type="button">Chọn ô nhập trên trang</button></div>
+  <p id="scan-status" role="status" class="hint">Tự quét khung chat, nút gửi và nhãn model khi mở tiện ích.</p>
   <form id="connect-form">
     <label for="model">Tên model bạn đang chọn trên website</label>
-    <input id="model" name="model" maxlength="120" autocomplete="off" placeholder="Nhập đúng nhãn model đang hiển thị" required>
+    <input id="model" name="model" maxlength="120" autocomplete="off" placeholder="Tự đọc từ trang; có thể sửa nếu chưa nhận diện được" required>
     <label class="confirmation"><input id="confirmed" type="checkbox" required><span>Tôi đã đăng nhập và tự chọn model/chế độ mong muốn trong tab này.</span></label>
     <p class="hint">Tên này do bạn xác nhận. Tiện ích không tự chọn model và không xác minh model phía máy chủ. Quota vẫn theo tài khoản website.</p>
     <details>
       <summary>Bộ chọn CSS nâng cao</summary>
-      <p class="hint">Để trống dùng bộ nhận diện có sẵn. Khi website đổi giao diện, có thể đặt lại từng mục. Chỉ dùng bộ chọn cho đúng nội dung cuộc trò chuyện.</p>
+      <p class="hint">Để trống để tự quét. CSS bạn nhập được ưu tiên; bấm Tự quét lại để bỏ CSS ô nhập/nút gửi cũ. Các bộ chọn nội dung phản hồi vẫn được giữ.</p>
       <div id="selectors"></div>
     </details>
     <button id="connect" type="submit">Kết nối tab hiện tại</button>

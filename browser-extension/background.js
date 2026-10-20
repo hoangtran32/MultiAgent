@@ -208,6 +208,22 @@ async function onPopup(message) {
     await removeBinding(message.id, "Bạn đã ngắt kết nối tab. Website có thể vẫn đang tạo phản hồi.");
     return {ok: true};
   }
+  if (message.type === "popup-scan" || message.type === "popup-pick") {
+    const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
+    const provider = providerOf(tab?.url);
+    if (!provider || tab.id !== message.tabId) return {ok: false, error: "Mở tab Gemini hoặc ChatGPT cần quét rồi thử lại."};
+    if (message.type === "popup-pick" && [...requests.values()].some(item => item.tabId === tab.id)) {
+      return {ok: false, error: "Tab đang chạy. Đợi lượt đang chạy hoàn tất trước khi chọn ô nhập."};
+    }
+    const selectors = cleanSelectors(message.selectors);
+    await chrome.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, files: ["discovery.js", "content.js"]});
+    const result = await chrome.tabs.sendMessage(tab.id,
+      {type: message.type === "popup-pick" ? "hub-pick" : "hub-scan", provider, selectors}, {frameId: 0});
+    const current = await chrome.tabs.get(tab.id);
+    if (current.url !== tab.url || result?.url !== tab.url) return {ok: false,
+      error: "Tab đã đổi trang hoặc còn script extension cũ. Tải lại trang chatbot rồi mở extension để quét lại."};
+    return result;
+  }
   if (message.type !== "popup-connect") return {ok: false, error: "Lệnh không được hỗ trợ."};
   if (message.confirmed !== true || typeof message.model !== "string" || !message.model.trim()
       || message.model.length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(message.model)) {
@@ -222,7 +238,7 @@ async function onPopup(message) {
     return {ok: false, error: "Đã kết nối 128 tab. Ngắt một tab trước khi thêm tab khác."};
   }
   const selectors = cleanSelectors(message.selectors);
-  await chrome.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, files: ["content.js"]});
+  await chrome.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, files: ["discovery.js", "content.js"]});
   const check = await chrome.tabs.sendMessage(tab.id, {type: "hub-bind", provider, selectors}, {frameId: 0});
   if (!check?.ready || check.url !== tab.url) return {ok: false, error: check?.message || "Không nhận diện được khung nhập. Đăng nhập, mở chat và kiểm tra bộ chọn CSS nâng cao."};
   await openNative();

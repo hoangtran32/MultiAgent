@@ -17,6 +17,8 @@ jobs:
             node --check $_.FullName
             if ($LASTEXITCODE -ne 0) { throw 'Browser extension syntax check failed.' }
           }
+          node --test tests-browser/discovery.test.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Browser discovery tests failed.' }
           ./scripts/build-desktop.ps1 -PackageOnly
       - uses: actions/upload-artifact@v4
         with:

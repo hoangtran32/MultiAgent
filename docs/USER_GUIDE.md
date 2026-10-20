@@ -1,4 +1,4 @@
-# Hướng dẫn Multi-Agent Hub 5.7.0
+# Hướng dẫn Multi-Agent Hub 5.7.1
 
 Muốn hai **chatbot Gemini/ChatGPT dùng tài khoản app/web đang có**, không dùng API hoặc agy: vào **Agent & model → Chatbot từ trình duyệt…**. Xem [Browser Chat](BROWSER_CHAT.md) để cài extension đi kèm, chọn model trên website, nối hai chat mới và bàn luận theo chủ đề. Bridge đang thử nghiệm, chưa kiểm thử UI/live website.
 

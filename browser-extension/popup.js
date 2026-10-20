@@ -5,6 +5,9 @@ const form = document.getElementById("connect-form");
 const model = document.getElementById("model");
 const confirmed = document.getElementById("confirmed");
 const connect = document.getElementById("connect");
+const scanButton = document.getElementById("scan");
+const pickButton = document.getElementById("pick");
+const scanStatus = document.getElementById("scan-status");
 const fields = {
   input: "Khung nhập", send: "Nút gửi", user: "Tin nhắn người dùng", assistant: "Tin nhắn AI",
   response: "Phần nội dung trong tin AI", stop: "Nút dừng tạo", actions: "Nút sao chép khi AI đã xong", busy: "Dấu hiệu đang tạo trong tin AI"
@@ -12,6 +15,47 @@ const fields = {
 let currentTab = null;
 let canBindNewTab = false;
 let busy = false;
+let scanning = false;
+let modelEdited = false;
+model.addEventListener("input", () => { modelEdited = true; confirmed.checked = false; });
+
+function customSelectors() {
+  return Object.fromEntries(Object.keys(fields).map(key => [key, document.getElementById("selector-" + key).value.trim()]));
+}
+
+async function scanTab(reset = false) {
+  if (scanning || !currentTab?.provider) return;
+  scanning = true; scanButton.disabled = true; pickButton.disabled = true;
+  scanStatus.classList.remove("error"); scanStatus.textContent = "Đang quét vùng soạn chat…";
+  if (reset) for (const key of ["input", "send"]) document.getElementById("selector-" + key).value = "";
+  try {
+    const response = await chrome.runtime.sendMessage({type: "popup-scan", tabId: currentTab.id, selectors: customSelectors()});
+    if (response?.model && (!modelEdited || reset)) {
+      if (model.value !== response.model) confirmed.checked = false;
+      model.value = response.model;
+    }
+    if (!response?.ok) throw new Error(response?.error || "Chưa nhận diện được khung chat.");
+    scanStatus.textContent = (response.picked ? "Đã nhận ô nhập bạn chọn." : "Đã tự nhận diện khung chat.")
+      + (response.sendFound ? " Đã thấy nút gửi." : " Nút gửi chưa hiện; sẽ quét lại khi có nội dung.")
+      + (response.model ? "\nNhãn model đọc từ giao diện: " + response.model : "\nChưa đọc được nhãn model; nhập nhãn đang hiển thị bên dưới.")
+      + (response.draft ? "\nÔ nhập có bản nháp. Tiện ích giữ nguyên; cần chat mới trống để kết nối." : "");
+  } catch (error) { scanStatus.textContent = error.message; scanStatus.classList.add("error"); }
+  finally { scanning = false; scanButton.disabled = !currentTab?.provider; pickButton.disabled = !currentTab?.provider; }
+}
+scanButton.addEventListener("click", () => { void scanTab(true); });
+pickButton.addEventListener("click", async () => {
+  if (!currentTab?.provider || busy || scanning) return;
+  try {
+    const response = await chrome.runtime.sendMessage({type: "popup-pick", tabId: currentTab.id});
+    if (!response?.ok) throw new Error(response?.error || "Không mở được bộ chọn.");
+    // A stale explicit selector must not hide the field selected on the page.
+    const key = "settings:" + currentTab.provider;
+    const saved = (await chrome.storage.local.get(key))[key] || {};
+    delete saved.selectors?.input;
+    await chrome.storage.local.set({[key]: saved});
+    window.close();
+  } catch (error) { scanStatus.textContent = error.message; scanStatus.classList.add("error"); }
+});
 
 for (const [key, text] of Object.entries(fields)) {
   const label = document.createElement("label");
@@ -36,6 +80,8 @@ async function refresh(loadSettings = false) {
   canBindNewTab = state.canBindNew === true;
   const providerName = currentTab?.provider === "gemini-web" ? "Gemini" : currentTab?.provider === "chatgpt-web" ? "ChatGPT" : null;
   connect.disabled = busy || !providerName || !canBindNewTab;
+  scanButton.disabled = busy || scanning || !providerName;
+  pickButton.disabled = busy || scanning || !providerName;
   if (!providerName) show("Mở tab gemini.google.com/app hoặc chatgpt.com để kết nối.");
   else if (!canBindNewTab) show(providerName + " · " + (state.connected ? "Cầu nối đã kết nối.\n" : "")
     + "Để tạo liên kết mới, mở chat mới trống trên website. Tiếp tục chủ đề cũ từ lịch sử Hub để gửi ngữ cảnh sang tab mới. Các liên kết đang chạy được giữ nguyên."
@@ -80,8 +126,7 @@ form.addEventListener("submit", async event => {
   busy = true; connect.disabled = true;
   show("Đang kết nối tab với Hub…");
   try {
-    const selectors = {};
-    for (const key of Object.keys(fields)) selectors[key] = document.getElementById("selector-" + key).value.trim();
+    const selectors = customSelectors();
     const response = await chrome.runtime.sendMessage({type: "popup-connect", tabId: currentTab.id,
       model: model.value.trim(), confirmed: confirmed.checked, selectors});
     if (!response?.ok) throw new Error(response?.error || "Không thể kết nối.");
@@ -93,6 +138,6 @@ form.addEventListener("submit", async event => {
   finally { busy = false; connect.disabled = !currentTab?.provider || !canBindNewTab; }
 });
 
-void refresh(true).catch(error => show(error.message || "Không đọc được trạng thái tiện ích.", true));
+void refresh(true).then(() => scanTab()).catch(error => show(error.message || "Không đọc được trạng thái tiện ích.", true));
 // Native host launch errors arrive asynchronously after connectNative returns.
 setInterval(() => { if (!busy) void refresh().catch(error => show(error.message, true)); }, 2000);

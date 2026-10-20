@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.7.1 — 2026-10-20
+
+- Extension tự quét ô soạn chat khi mở, loại ô tìm kiếm/ô ẩn/ô khóa, ưu tiên vùng composer và dò lại nút gửi khi có nội dung. Không yêu cầu chỉ một phần tử khớp CSS cũ.
+- Đọc nhãn model từ điều khiển trên trang nếu nhận diện chắc, vẫn cần người dùng xác nhận model thực tế. Thêm Tự quét lại và chọn trực tiếp ô nhập trên trang khi có nhiều vùng soạn; không điền/gửi thử hoặc thay bản nháp khi quét.
+- Giữ CSS nâng cao, kiểm tra tín hiệu hoàn tất và chống gửi lại khi lỗi. Cần Reload extension và tải lại tab để thay script đã được tiêm ở bản trước.
+- Kiểm tra cú pháp/biên dịch cục bộ; quy tắc nhận diện được kiểm tra offline trong CI. Chưa kiểm thử UI/live website.
+
 ## 5.7.0 — 2026-10-20
 
 - Bridge trình duyệt thử nghiệm cho Gemini/ChatGPT dùng tài khoản web, không qua API key/agy. Extension nhúng vào single EXE; người dùng chủ động cài/nối tab. Lựa chọn Hub Chat riêng với agent Hub Code.

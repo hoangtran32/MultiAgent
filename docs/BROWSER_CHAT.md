@@ -6,10 +6,18 @@ Bridge thử nghiệm từ 5.7.0 dùng Gemini web (`gemini.google.com`) và Chat
 
 1. Trong Hub, mở **Agent & model → Chatbot từ trình duyệt… → Chuẩn bị bridge & mở thư mục…**. Thao tác xuất extension đi kèm EXE, đăng ký native host ở HKCU cho tài khoản Windows hiện tại, không cần admin. Chưa gửi prompt/đăng nhập thay bạn.
 2. Mở `chrome://extensions` hoặc `edge://extensions`, bật **Developer mode → Load unpacked**, chọn thư mục `extension` vừa mở. Tiện ích tên **Multi-Agent Hub · Browser Chat**, ID `koeckebjfmkgjanknbifdcgahkbbalpb`. Chrome yêu cầu người dùng chủ động cài; EXE không cài ngầm.
-3. Mở hai **chat mới, trống** trên Gemini và ChatGPT; đăng nhập trực tiếp nếu cần. Chọn Argon và High trong Gemini nếu tài khoản có, chọn model ChatGPT mong muốn trên website. Bấm extension ở từng tab, nhập đúng nhãn model đã chọn, xác nhận rồi **Kết nối**. Chỉ báo nối sau khi bắt tay với Hub.
+3. Mở hai **chat mới, trống** trên Gemini và ChatGPT; đăng nhập trực tiếp nếu cần. Chọn Argon và High trong Gemini nếu tài khoản có, chọn model ChatGPT mong muốn trên website. Bấm extension ở từng tab: tiện ích tự quét khung chat, nút gửi và nhãn model đang hiển thị. Kiểm tra/sửa nhãn nếu cần, xác nhận rồi **Kết nối**. Chỉ báo nối sau khi bắt tay với Hub.
 4. Chọn hai tab trong hộp **Chatbot từ trình duyệt** rồi **Dùng các chatbot đã chọn**. Hub chuyển sang **Hub Chat → Bàn luận qua lại**, giữ lựa chọn agent Hub Code riêng. Nhập chủ đề rồi gửi; không tự chạy chỉ vì đã nối tab.
 
 Không tạo sẵn cặp agent cho profile mới; danh sách từ tab bạn nối. Không xóa thư mục extension sau khi Load unpacked. Đổi chỗ EXE thì chạy lại **Chuẩn bị bridge** để cập nhật đường dẫn native host.
+
+## Tự quét từ 5.7.1
+
+Mỗi lần mở popup, extension đọc các ô nhập đang hiển thị, bỏ ô tìm kiếm/ô khóa và ưu tiên vùng soạn chat. Nút gửi được dò lại sau khi có nội dung, vì website có thể ẩn nút này khi ô nhập trống. Quét không nhập thử, bấm gửi hay thay model. Nhãn model lấy từ điều khiển trên giao diện khi xác định được duy nhất; không suy đoán từ lịch sử chat và không xác minh backend.
+
+Nếu chưa nhận diện chắc, bấm **Tự quét lại** để bỏ CSS ô nhập/nút gửi cũ. Nếu vẫn có nhiều ô hợp lệ, bấm **Chọn ô nhập trên trang**, rồi bấm đúng ô soạn chat được viền xanh; mở lại popup để kết nối. Esc hủy chọn, bộ chọn tự đóng sau 30 giây. Lựa chọn trực tiếp chỉ có hiệu lực trên trang hiện tại; không áp dụng nhầm sang tab khác. CSS nội dung phản hồi nâng cao vẫn được giữ.
+
+Sau khi cập nhật EXE, bấm **Chuẩn bị bridge & mở thư mục…** để xuất extension mới nếu thư mục chưa được cập nhật. Trong `chrome://extensions` hoặc `edge://extensions`, bấm **Reload** của tiện ích, sau đó **tải lại trang chatbot** và mở chat mới để nối lại. Script đã tiêm ở phiên bản cũ không được thay chỉ bằng việc mở lại popup. Không tải lại tab đang tạo phản hồi; đợi hoàn tất trước.
 
 ## Trao đổi, dừng và tiếp tục
 
@@ -25,7 +33,7 @@ Thư viện JSON/TXT/Markdown giữ các lượt như trước. Mỗi binding ta
 
 Lượt chỉ thành công khi nhận diện tin người dùng mới, câu trả lời mới, trạng thái đang tạo đã xuất hiện rồi tín hiệu hoàn tất UI. Chữ đứng yên không đủ. Không nhận diện rõ thì giữ partial, báo lỗi cần xử lý và không gửi lượt kế tiếp vào tab đó; engine có thể tiếp tục bằng model còn khả dụng và ghi rõ thiếu đồng đội.
 
-Website đổi UI/ngôn ngữ có thể cần chỉnh **Bộ chọn CSS nâng cao** trong extension. Không vượt đăng nhập/CAPTCHA hoặc hạn mức. Extension không đọc cookie, access token hay localStorage của website. Chỉ đọc/gửi tại tab người dùng chủ động nối; không ghi đè bản nháp hoặc tự replay khi lỗi.
+Website đổi UI/ngôn ngữ có thể cần **Tự quét lại**, chọn ô nhập hoặc chỉnh **Bộ chọn CSS nâng cao** trong extension, nhất là cấu trúc nội dung phản hồi/tín hiệu hoàn tất. Không vượt đăng nhập/CAPTCHA hoặc hạn mức. Extension không đọc cookie, access token hay localStorage của website. Chỉ quét ở tab đang mở popup và gửi tại tab người dùng chủ động nối; không ghi đè bản nháp hoặc tự replay khi lỗi.
 
 ## Gỡ bridge
 

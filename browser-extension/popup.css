@@ -7,6 +7,10 @@ p { line-height: 1.5; } .intro { margin: 12px 0; }
 #status { padding: 10px 12px; background: #eef3f0; border: 1px solid #dfe7e2; border-radius: 10px; white-space: pre-line; overflow-wrap: anywhere; line-height: 1.45; }
 #status.error { color: #a12626; background: #fff1f0; border-color: #efd2d0; }
 form { margin-top: 16px; } label { display: block; margin: 10px 0 6px; font-weight: 600; }
+.scan-actions { display: flex; gap: 8px; margin-top: 10px; }
+.scan-actions button { flex: 1; padding: 8px; font-size: 12px; }
+#scan-status { white-space: pre-line; overflow-wrap: anywhere; }
+#scan-status.error { color: #b42c2c; }
 input:not([type="checkbox"]) { width: 100%; padding: 9px 10px; border: 1px solid #cdd8d1; border-radius: 8px; color: inherit; background: #fff; font: inherit; }
 input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid #3478e7; outline-offset: 2px; }
 .confirmation { display: flex; align-items: start; gap: 7px; font-weight: 400; line-height: 1.45; }
