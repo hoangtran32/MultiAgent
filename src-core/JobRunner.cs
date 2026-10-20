@@ -63,6 +63,15 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
     public JobRecord? Snapshot() { lock (gate) return current == null ? null : JsonSerializer.Deserialize<JobRecord>(JsonSerializer.Serialize(current, Json.Options), Json.Options); }
     private void Notify() { if (Snapshot() is { } snapshot) Changed?.Invoke(snapshot); }
     private void Change(Action update) { lock (gate) update(); Notify(); }
+    private static TeamOptions SessionTeamOptions(HubConfig config)
+    {
+        var options = config.Team.Copy();
+        if (config.Surface == "chat") {
+            options.ExecuteTasks = false; options.RunVerification = false;
+            options.VerificationProject = ""; options.Checks.Clear();
+        }
+        return options;
+    }
     public void Start(HubConfig config, string prompt, string context = "", JobRecord? previous = null, string title = "")
     {
         Storage.Validate(config);
@@ -107,13 +116,13 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
             current = new() { Surface = config.Surface, Prompt = prompt, Project = chat ? "" : config.Project,
                 WorkingDirectory = workingDirectory,
                 Mode = config.Mode, Discussion = config.Mode == "discussion" ? config.Discussion.Copy() : null,
-                Team = Catalog.IsTeamMode(config.Mode) ? new() { Options = config.Team.Copy() } : null,
+                Team = Catalog.IsTeamMode(config.Mode) ? new() { Options = SessionTeamOptions(config) } : null,
                 ConversationId = conversationId,
                 Title = previous == null ? Storage.Topic(title.Length > 0 ? title : prompt) : previous.Title.Length > 0 ? previous.Title : Storage.Topic(previous.Prompt), PreviousJobId = previous?.Id ?? "",
                 Results = agents.Select(a => new AgentResult { AgentId = a.Id, Name = a.Name, Provider = a.Provider, Connection = a.Connection, Model = a.Model }).ToList() };
             if (Catalog.IsTeamMode(config.Mode) && previous?.Team is { } earlier) {
                 var resumed = JsonSerializer.Deserialize<TeamRun>(JsonSerializer.Serialize(earlier, Json.Options), Json.Options)!;
-                resumed.Options = config.Team.Copy(); resumed.Calls = 0; resumed.Phase = "roundtable"; resumed.ActiveTaskId = resumed.NextAgentId = ""; resumed.StopAfterStep = false;
+                resumed.Options = SessionTeamOptions(config); resumed.Calls = 0; resumed.Phase = "roundtable"; resumed.ActiveTaskId = resumed.NextAgentId = ""; resumed.StopAfterStep = false;
                 foreach (var task in resumed.Tasks.Where(t => t.State != "done")) {
                     if (config.Mode == "consensus") {
                         bool blocked = task.State == "blocked";

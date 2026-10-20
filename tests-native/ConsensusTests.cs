@@ -109,6 +109,7 @@ internal static class ConsensusTests
             var fixture = new ConsensusFixture { DesiredIdeas = 2 }; var runner = new JobRunner(fixture, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
             runner.Start(Config(root, chat: true), "Agree two design points"); await Complete(runner); var job = runner.Snapshot()!;
             Assert(job.State == "planned" && job.Team!.Tasks.Count == 2 && job.Team.Tasks.All(t => t.State == "planned" && t.AgreedBy.Count == 2) && fixture.WorkVersions.Count == 0);
+            Assert(job.Project == "" && !job.Team!.Options.ExecuteTasks && !job.Team.Options.RunVerification && job.Team.Options.VerificationProject == "" && job.Team.Options.Checks.Count == 0);
         });
         await test("blocker review never approves incomplete work and expires old agreement for a remedy", () => {
             var task = new TeamTask { AgreedBy = ["A", "B"] };
