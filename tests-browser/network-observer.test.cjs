@@ -34,12 +34,12 @@ test("only matching same-origin prompt traffic yields normalized model/text and 
   await (await p.window.fetch("/chat", {method: "POST", headers: {Authorization: "credential-stays-in-page"}, body: JSON.stringify({prompt: "Unique prompt"})})).text();
   await p.finish();
   const frames = p.frames.filter(f => f.source === "multi-agent-hub-network" && f.protocol !== "armed");
-  assert.equal(p.clones(), 1); assert.equal(p.calls.length, 3);
+  assert.equal(p.clones(), 2); assert.equal(p.calls.length, 3);
   assert.equal(frames.at(-1).text, "Answer"); assert.equal(frames.at(-1).model, "discovered-model"); assert.equal(frames.at(-1).done, true);
   assert.ok(!JSON.stringify(frames).includes("never-export")); assert.ok(!JSON.stringify(frames).includes("credential-stays-in-page"));
   p.control("disarm");
   await (await p.window.fetch("/chat", {method: "POST", body: JSON.stringify({prompt: "Unique prompt"})})).text();
-  assert.equal(p.clones(), 1); assert.equal(p.calls.length, 4);
+  assert.equal(p.clones(), 2); assert.equal(p.calls.length, 4);
 });
 
 test("textual Request objects without content-length are read through a bounded clone", async () => {

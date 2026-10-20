@@ -28,13 +28,16 @@
     try { return new URL(url, location.href).origin === location.origin; } catch { return false; }
   }
   async function observe(response, turn, body) {
-    if (!eligible(turn, "POST", response.url || location.href) || !protocol.matchesPrompt(body, turn.prompt)) return;
     const kind = response.headers.get("content-type") || "";
-    if (!response.ok || !/json|event-stream|text\/plain/i.test(kind) || !response.body) return;
+    if (!eligible(turn, "POST", response.url || location.href) || !protocol.matchesPrompt(body, turn.prompt)
+        || !response.ok || !/json|event-stream|text\/plain/i.test(kind) || !response.body) {
+      if (response.body) void response.body.cancel().catch(() => {});
+      return;
+    }
     let reader;
     try {
       // Bounded consumer reads continuously; cancelling releases the cloned stream on disarm/errors.
-      reader = response.clone().body.getReader(); readers.add(reader);
+      reader = response.body.getReader(); readers.add(reader);
       const owner = {};
       const decode = protocol.decoder(state => {
         if (state.text && !turn.owner) turn.owner = owner;
@@ -83,7 +86,12 @@
       }
     }
     const result = Reflect.apply(originalFetch, this, arguments);
-    if (body) void result.then(response => body.then(value => observe(response, turn, value))).catch(() => {});
+    if (body) void result.then(response => {
+      // Clone in the first fetch continuation, before the caller can lock/consume its response body.
+      if (!eligible(turn, method, url)) return;
+      const copy = response.clone();
+      return body.then(value => observe(copy, turn, value));
+    }).catch(() => {});
     return result;
   };
   const open = XMLHttpRequest.prototype.open, send = XMLHttpRequest.prototype.send;
