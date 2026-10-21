@@ -7,6 +7,7 @@ internal sealed class AgentEditor : Form
     private readonly AgentConfig original;
     private readonly ISecretStore secrets;
     private readonly BrowserChatBridge? browser;
+    private readonly WebGateway? gateway;
     private readonly ComboBox browserBinding = Ui.Combo();
     private readonly Button refreshBrowser = Ui.Button("Dò lại tab đã kết nối");
     private readonly TextBox name = Ui.Text(), instructions = Ui.Text(true), command = Ui.Text(), arguments = Ui.Text(true), endpoint = Ui.Text(), variable = Ui.Text(), key = Ui.Text();
@@ -24,10 +25,10 @@ internal sealed class AgentEditor : Form
     private bool initializing = true, loading;
     public AgentConfig Result { get; private set; }
 
-    public AgentEditor(AgentConfig agent, ISecretStore secrets, ModelInventory? discovered = null, BrowserChatBridge? browser = null)
+    public AgentEditor(AgentConfig agent, ISecretStore secrets, ModelInventory? discovered = null, BrowserChatBridge? browser = null, WebGateway? gateway = null)
     {
         SuspendLayout(); AutoScaleMode = AutoScaleMode.None;
-        original = agent.Copy(); Result = agent.Copy(); this.secrets = secrets; this.browser = browser;
+        original = agent.Copy(); Result = agent.Copy(); this.secrets = secrets; this.browser = browser; this.gateway = gateway;
         Text = "Thiết lập agent"; Font = new Font("Segoe UI", 10); BackColor = Ui.Background; ForeColor = Ui.Ink;
         var area = Screen.PrimaryScreen!.WorkingArea;
         Size = new Size(Math.Min(800, area.Width - 40), Math.Min(840, area.Height - 40)); MinimumSize = new Size(660, 600);
@@ -73,7 +74,7 @@ internal sealed class AgentEditor : Form
         };
         connection.SelectedIndexChanged += (_, _) => { if (!initializing && connection.SelectedIndex >= 0) { StoreDraft(); RefreshConnection(); } };
         model.SelectedIndexChanged += (_, _) => RefreshEffort(); model.TextChanged += (_, _) => RefreshEffort();
-        browserBinding.SelectedIndexChanged += (_, _) => { if (Catalog.IsBrowserChat(Ui.Value(connection)) && browser?.Bindings.FirstOrDefault(b => b.Id == Ui.Value(browserBinding)) is { } selected) model.Text = selected.Model; };
+        browserBinding.SelectedIndexChanged += (_, _) => { if (Ui.Value(connection) == "gateway-web") { RefreshGatewayModels(); return; } if (Catalog.IsBrowserChat(Ui.Value(connection)) && browser?.Bindings.FirstOrDefault(b => b.Id == Ui.Value(browserBinding)) is { } selected) model.Text = selected.Model; };
         refreshBrowser.Click += (_, _) => RefreshBrowserBindings();
         showKey.CheckedChanged += (_, _) => key.UseSystemPasswordChar = !showKey.Checked;
         loadModels.Click += async (_, _) => await Inspect(true); check.Click += async (_, _) => await Inspect(false); save.Click += (_, _) => Save();
@@ -111,7 +112,7 @@ internal sealed class AgentEditor : Form
     {
         CancelInspection();
         string kind = Ui.Value(connection); activeKey = Ui.Value(provider) + "/" + kind;
-        bool api = Catalog.IsApi(kind), manual = Catalog.IsManual(kind), web = Catalog.IsBrowserChat(kind), executable = kind.Length > 0 && !api && !web && kind != "manual";
+        bool api = Catalog.IsApi(kind), manual = Catalog.IsManual(kind), web = Catalog.IsBrowserChat(kind) || kind == "gateway-web", executable = kind.Length > 0 && !api && !web && kind != "manual";
         help.Text = kind switch {
             "" => "Chọn cách kết nối. CLI đã cài được ưu tiên phát hiện; IDE/app dùng luồng dán kết quả thủ công.",
             "codex-cli" => "Codex CLI chạy trên project và trả kết quả trực tiếp. Dùng tài khoản đã đăng nhập. Để model trống để dùng cấu hình CLI.",
@@ -121,11 +122,12 @@ internal sealed class AgentEditor : Form
             "antigravity-desktop" => "Mở Antigravity 2.0 desktop riêng. Bạn dán prompt sang app, chọn model rồi dán câu trả lời về Hub.",
             "manual" => "Sao chép prompt tới app / web AI của bạn. Chọn model ở đó và dán câu trả lời về đúng agent trong Hub.",
             "browser-web" or "gemini-web" or "chatgpt-web" => "Extension tự báo website và model đọc được từ giao diện/phản hồi. Để nhãn trống trong extension để theo model đang chọn trên web. Website khác dùng bộ nhận diện thử nghiệm, có thể cần CSS nâng cao. Không dùng API key.",
+            "gateway-web" => "Gateway giữ đúng phiên/model web đã nhận diện. Quản lý tài khoản và liên kết lại trong Gateway & tài khoản web; không chuyển sang OAuth Codex/Gemini CLI. Tab đăng nhập phải mở.",
             "custom-cli" => "Hub chạy executable của bạn với prompt qua stdin, đọc stdout làm kết quả. Đối số JSON hỗ trợ {model} và {project}.",
             _ => "Gọi API trực tiếp. API nhận yêu cầu và file đính kèm đã chọn, trả văn bản; không tự đọc project hay sửa file." };
         ShowRow(effort, kind is "codex-cli" or "claude-cli" or "agy-cli"); ShowRow(permission, kind is "codex-cli" or "claude-cli" or "agy-cli");
         ShowRow(command, executable);
-        ShowRow(browserBinding, web); ShowRow(refreshBrowser, web); model.Enabled = !web;
+        ShowRow(browserBinding, web); ShowRow(refreshBrowser, web); model.Enabled = !web || kind == "gateway-web";
         var browse = connectionFields.Controls.Cast<Control>().First(c => c.AccessibleName == "Chọn đường dẫn"); ShowRow(browse, executable);
         ShowRow(arguments, kind == "custom-cli");
         foreach (var control in new Control[] { endpoint, variable, key, showKey, credentialStatus, deleteKey }) ShowRow(control, api);
@@ -158,6 +160,11 @@ internal sealed class AgentEditor : Form
     }
     private void RefreshBrowserBindings()
     {
+        if (Ui.Value(connection) == "gateway-web") {
+            string selectedAccount = Ui.Value(browserBinding); if (selectedAccount.Length == 0) selectedAccount = original.GatewayAccountId;
+            Ui.Choices(browserBinding, new[] { new Choice("", "Chọn tài khoản trong Gateway & tài khoản web…") }.Concat((gateway?.Accounts.List ?? []).Select(a => new Choice(a.Id, a.Name))), selectedAccount);
+            RefreshGatewayModels(); return;
+        }
         string selected = Ui.Value(browserBinding); if (selected.Length == 0) selected = original.BrowserBindingId;
         var bindings = browser?.Bindings.Where(b => Ui.Value(connection) == "browser-web" || b.Provider == Ui.Value(connection)).ToList() ?? [];
         var choices = new List<Choice> { new("", "Chọn tab đã kết nối từ extension…") };
@@ -170,6 +177,12 @@ internal sealed class AgentEditor : Form
             : stale ? "Chrome đã nối tab, nhưng liên kết agent cũ không còn hợp lệ. Chọn tab đang hiển thị trong danh sách rồi Lưu; yêu cầu trong chat vẫn được giữ."
             : "Chọn đúng tab; model thực tế theo website. Nhãn nhận diện được cập nhật khi đọc được từ giao diện hoặc phản hồi.";
     }
+    private void RefreshGatewayModels()
+    {
+        string selected = Ui.Value(model); if (selected.Length == 0) selected = original.Model;
+        Ui.Choices(model, (gateway?.Models ?? []).Where(m => m.AccountId == Ui.Value(browserBinding)).Select(m => new Choice(m.WebModelId, m.Name)), selected);
+        status.Text = "Chỉ hiện model đã nhận diện trong phiên web; chưa có thì mở Gateway & tài khoản web để liên kết/nhận diện.";
+    }
     private void Browse()
     {
         using var dialog = new OpenFileDialog { Filter = "Executable (*.exe)|*.exe", CheckFileExists = true };
@@ -178,7 +191,9 @@ internal sealed class AgentEditor : Form
     private AgentConfig Draft()
     {
         var agent = original.Copy(); agent.Name = name.Text.Trim(); agent.Provider = Ui.Value(provider); agent.Connection = Ui.Value(connection);
-        agent.Model = model.Text.Trim(); agent.Reasoning = effort.Enabled ? Ui.Value(effort) : ""; agent.Permission = Ui.Value(permission);
+        agent.Model = agent.Connection == "gateway-web" ? Ui.Value(model) : model.Text.Trim(); agent.Reasoning = effort.Enabled ? Ui.Value(effort) : ""; agent.Permission = Ui.Value(permission);
+        agent.GatewayAccountId = agent.Connection == "gateway-web" ? Ui.Value(browserBinding) : "";
+        if (agent.Connection == "gateway-web") (gateway ?? throw new InvalidOperationException("Gateway chưa mở.")).Validate(agent.GatewayAccountId, agent.Model);
         agent.BrowserBindingId = Catalog.IsBrowserChat(agent.Connection) ? Ui.Value(browserBinding) : "";
         if (Catalog.IsBrowserChat(agent.Connection) && agent.BrowserBindingId.Length == 0) throw new ArgumentException("Chọn một tab chatbot đã kết nối từ extension.");
         if (Catalog.IsBrowserChat(agent.Connection)) (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Validate(agent.Connection, agent.BrowserBindingId, agent.Model);
@@ -213,6 +228,7 @@ internal sealed class AgentEditor : Form
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(30)); inspection = timeout;
         try {
             var draft = Draft(); loading = true; loadModels.Enabled = check.Enabled = false;
+            if (draft.Connection == "gateway-web") { gateway!.Validate(draft.GatewayAccountId, draft.Model); status.Text = "Phiên/model API đã nhận diện; chưa gọi model để kiểm tra."; return; }
             if (Catalog.IsBrowserChat(draft.Connection)) { (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Validate(draft.Connection, draft.BrowserBindingId, draft.Model); status.Text = "Tab chatbot sẵn sàng. Model do bạn chọn/xác nhận trên web."; return; }
             status.Text = "Đang dò công cụ/model… Bạn vẫn có thể đổi kết nối hoặc lưu cấu hình.";
             var preview = new PreviewSecrets(secrets, draft.Id, key.Text.Trim(), deleteKey.Checked);

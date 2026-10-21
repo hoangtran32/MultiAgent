@@ -11,6 +11,7 @@ public static class AgentConnections
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
         try {
+            if (agent.Connection == "gateway-web") return new("browser", "Phiên API web quản lý trong Gateway & tài khoản web. Đăng nhập/xác minh trên trình duyệt; không dùng quota CLI hay API key dịch vụ.");
             if (Catalog.IsManual(agent.Connection)) return new("manual", "Kết nối sao chép/dán; đăng nhập được quản lý trong ứng dụng ngoài, Hub không xác minh tài khoản.");
             if (Catalog.IsBrowserChat(agent.Connection)) return new("browser", "Dùng tài khoản trong tab trình duyệt bạn kết nối qua extension; kiểm tra tab trong Chatbot từ trình duyệt. Hub không đọc token hoặc xác minh quota/model phía máy chủ.");
             if (Catalog.IsApi(agent.Connection)) {

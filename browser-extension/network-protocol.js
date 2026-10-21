@@ -21,6 +21,28 @@
   }
   function decoder(notify) {
     let buffer = "", raw = "", total = 0, text = "", model = "", protocol = "", recognized = false, done = false, failed = false, error = "";
+    let webMessage = null;
+    function webSnapshot(message) {
+      if (!message || typeof message !== "object") return;
+      webMessage = {author: {role: message.author?.role}, content: {content_type: message.content?.content_type,
+        parts: Array.isArray(message.content?.parts) ? message.content.parts.filter(p => typeof p === "string") : []},
+        status: message.status, end_turn: message.end_turn,
+        metadata: {model_slug: message.metadata?.model_slug, default_model_slug: message.metadata?.default_model_slug}};
+    }
+    function webPatch(patch) {
+      if (!patch || !["add", "replace", "append", "patch"].includes(patch.o)) return;
+      if (patch.o === "patch" && Array.isArray(patch.v)) { for (const child of patch.v) webPatch(child); return; }
+      if (patch.p === "" && patch.v?.message) { webSnapshot(patch.v.message); return; }
+      if (patch.p === "/message" && patch.o !== "append") { webSnapshot(patch.v); return; }
+      // Never apply general JSON patches, prototype keys, reasoning or tool paths from a website.
+      if (!webMessage || typeof patch.p !== "string" || !/^\/message\/(?:content\/(?:parts\/[0-9]{1,2}|content_type)|author\/role|metadata\/(?:model_slug|default_model_slug)|status|end_turn)$/.test(patch.p)) return;
+      const keys = patch.p.slice("/message/".length).split("/");
+      let target = webMessage;
+      for (const key of keys.slice(0, -1)) { target = target?.[key]; if (!target || typeof target !== "object") return; }
+      const last = keys.at(-1);
+      if (patch.o === "append") { if (typeof target[last] === "string" && typeof patch.v === "string") target[last] += patch.v; }
+      else if (["string", "boolean"].includes(typeof patch.v)) target[last] = patch.v;
+    }
     function publish() { notify({text, model, protocol, done, ...(error ? {error} : {})}); }
     function answer(value, append, kind) {
       if (typeof value !== "string" || !value) return;
@@ -31,6 +53,12 @@
     }
     function object(value, depth = 0) {
       if (!value || typeof value !== "object" || depth > 8 || done) return;
+      // Current ChatGPT web streams can wrap snapshots in v and follow with restricted JSON patches.
+      if (!Array.isArray(value) && (value.v?.message || typeof value.o === "string" && (typeof value.p === "string" || value.o === "patch"))) {
+        if (value.v?.message) webSnapshot(value.v.message); else webPatch(value);
+        if (webMessage) object({message: webMessage}, depth + 1);
+        return;
+      }
       if (Array.isArray(value)) {
         // Gemini web RPC envelope. Candidate structure is deliberately strict; unknown arrays stay unparsed.
         if (value[0] === "wrb.fr" && typeof value[2] === "string") {

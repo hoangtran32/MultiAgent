@@ -49,7 +49,7 @@ public sealed class BrowserChatBridge : IDisposable
     }
 
     public async Task<string> Execute(string connection, string bindingId, string expectedModel, string prompt,
-        Action<string> text, Action<string> log, CancellationToken token)
+        Action<string> text, Action<string> log, CancellationToken token, string apiModelId = "")
     {
         token.ThrowIfCancellationRequested();
         if (string.IsNullOrWhiteSpace(prompt) || prompt.Length > BrowserChatProtocol.MaxPromptCharacters) throw new ArgumentException("Yêu cầu chatbot cần có 1–200.000 ký tự.");
@@ -57,8 +57,9 @@ public sealed class BrowserChatBridge : IDisposable
         lock (gate) {
             ObjectDisposedException.ThrowIf(disposed, this);
             var selected = Select(connection, bindingId, expectedModel);
+            if (apiModelId.Length > 0 && !selected.Binding.ApiModels.Any(m => m.Id == apiModelId)) throw new InvalidOperationException("Model API không còn trong phiên web đã chọn. Nhận diện lại trong extension.");
             if (pending.Values.Any(p => p.BindingId == bindingId)) throw new InvalidOperationException("Tab chatbot này đang xử lý một yêu cầu khác. Chờ hoàn tất hoặc dừng yêu cầu đang chạy.");
-            request = new(Guid.NewGuid().ToString("N"), selected.Binding.Provider, bindingId, selected.Binding.Model, selected.Client, text);
+            request = new(Guid.NewGuid().ToString("N"), selected.Binding.Provider, bindingId, apiModelId.Length > 0 ? "" : selected.Binding.Model, selected.Client, text) { ApiModelId = apiModelId };
             pending.Add(request.Id, request);
         }
         try {
@@ -81,7 +82,7 @@ public sealed class BrowserChatBridge : IDisposable
     private async Task Dispatch(Pending request, string prompt)
     {
         try {
-            await request.Client.Send(new { type = "request", id = request.Id, bindingId = request.BindingId, prompt, expectedModel = request.ExpectedModel }, lifetime.Token);
+            await request.Client.Send(new { type = request.ApiModelId.Length > 0 ? "api-request" : "request", id = request.Id, bindingId = request.BindingId, prompt, expectedModel = request.ExpectedModel, modelId = request.ApiModelId }, lifetime.Token);
             request.Sent.TrySetResult(true);
         }
         catch (Exception e) { request.Sent.TrySetResult(false); request.Answer.TrySetException(e); }
@@ -167,7 +168,7 @@ public sealed class BrowserChatBridge : IDisposable
                 foreach (var request in pending.Values.Where(p => ReferenceEquals(p.Client, client))) {
                     var binding = bindings.FirstOrDefault(b => b.Id == request.BindingId);
                     if (binding == null) request.Answer.TrySetException(new IOException("Tab chatbot đã đóng hoặc bỏ liên kết; Hub không tự gửi lại prompt."));
-                    else if (binding.Provider != request.Provider || request.ExpectedModel.Length > 0 && !string.Equals(request.ExpectedModel.Trim(), binding.Model.Trim(), StringComparison.OrdinalIgnoreCase)) {
+                    else if (binding.Provider != request.Provider || request.ApiModelId.Length > 0 && !binding.ApiModels.Any(m => m.Id == request.ApiModelId) || request.ExpectedModel.Length > 0 && !string.Equals(request.ExpectedModel.Trim(), binding.Model.Trim(), StringComparison.OrdinalIgnoreCase)) {
                         if (request.Answer.TrySetException(new InvalidOperationException("Model xác nhận trong tab đã thay đổi giữa lượt. Dừng lượt này để tránh dùng nhầm model."))) _ = CancelRequest(request);
                     }
                 }
@@ -209,7 +210,17 @@ public sealed class BrowserChatBridge : IDisposable
         if (detected.Any(char.IsControl) || site.Any(char.IsControl) || source is not ("unknown" or "page" or "response")
             || transport is not ("dom" or "chat-completions" or "responses" or "messages" or "chatgpt-message" or "generate-content" or "gemini-rpc"))
             throw new InvalidDataException("Thông tin model/luồng website không hợp lệ.");
-        return new(id, provider, tabId, url, title, model, ready.GetBoolean()) { SiteName = site, DetectedModel = detected, ModelSource = source, Transport = transport };
+        var models = new List<BrowserApiModel>();
+        if (item.TryGetProperty("apiModels", out var entries)) {
+            if (entries.ValueKind != JsonValueKind.Array || entries.GetArrayLength() > 16) throw new InvalidDataException("Danh sách model API web không hợp lệ.");
+            foreach (var entry in entries.EnumerateArray()) {
+                string modelId = String(entry, "id", 80), name = String(entry, "name", 120), kind = String(entry, "protocol", 32), modelSource = String(entry, "source", 16);
+                if (!System.Text.RegularExpressions.Regex.IsMatch(modelId, "^web-[a-f0-9]{24}$") || name.Any(char.IsControl) || kind is not ("gemini-rpc" or "chatgpt-message" or "chat-completions") || modelSource is not ("request" or "page")) throw new InvalidDataException("Model API web không hợp lệ.");
+                models.Add(new(modelId, name, kind, modelSource));
+            }
+            if (models.Select(m => m.Id).Distinct().Count() != models.Count) throw new InvalidDataException("Model API bị trùng.");
+        }
+        return new(id, provider, tabId, url, title, model, ready.GetBoolean()) { SiteName = site, DetectedModel = detected, ModelSource = source, Transport = transport, ApiModels = models };
     }
 
     private static string String(JsonElement item, string name, int max, bool allowEmpty = false)
@@ -264,6 +275,7 @@ public sealed class BrowserChatBridge : IDisposable
     }
     private sealed record Pending(string Id, string Provider, string BindingId, string ExpectedModel, Client Client, Action<string> Text)
     {
+        public string ApiModelId { get; init; } = "";
         public TaskCompletionSource<string> Answer { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<bool> Sent { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }

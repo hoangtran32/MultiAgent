@@ -15,7 +15,7 @@ public static class Catalog
     public const int MaxAgents = 32;
     public static readonly Choice[] Providers = [new("codex", "Codex"), new("claude", "Claude / Anthropic"),
         new("antigravity", "Google Antigravity"), new("gemini", "Google Gemini"), new("chatgpt", "ChatGPT • chatbot"),
-        new("browser", "Chatbot từ extension • tự nhận diện"), new("compatible", "API tương thích OpenAI / local AI"), new("custom", "Công cụ AI khác")];
+        new("browser", "Chatbot từ extension • tự nhận diện"), new("gateway", "Gateway • tài khoản web"), new("compatible", "API tương thích OpenAI / local AI"), new("custom", "Công cụ AI khác")];
     public static Choice[] Connections(string provider) => provider switch
     {
         "codex" => [new("codex-cli", "Codex CLI • tự động"), new("manual", "Sao chép / dán kết quả")],
@@ -24,6 +24,7 @@ public static class Catalog
         "gemini" => [new("gemini-web", "Gemini web • tài khoản trình duyệt"), new("gemini-api", "Gemini API • trực tiếp"), new("manual", "Gemini app / web • dán kết quả")],
         "chatgpt" => [new("chatgpt-web", "ChatGPT web • tài khoản trình duyệt"), new("manual", "ChatGPT app / web • dán kết quả")],
         "browser" => [new("browser-web", "Tab chatbot • tài khoản trình duyệt")],
+        "gateway" => [new("gateway-web", "API từ phiên web • giữ model/quota website")],
         "compatible" => [new("chat-api", "Chat Completions API • trực tiếp")],
         "custom" => [new("custom-cli", "Executable / script CLI • tự động"), new("manual", "Ứng dụng ngoài • dán kết quả")],
         _ => throw new ArgumentException("Công cụ AI không hợp lệ.")
@@ -49,6 +50,7 @@ public static class Catalog
         if (agent.BrowserBindingId.Length > 128 || agent.BrowserBindingId.Any(char.IsControl)) throw new ArgumentException("Tab chatbot không hợp lệ.");
         if (!new[] { "read-only", "workspace-write", "full", "default" }.Contains(agent.Permission)) throw new ArgumentException("Quyền không hợp lệ.");
         if (!new[] { "", "low", "medium", "high", "xhigh", "max", "ultra" }.Contains(agent.Reasoning)) throw new ArgumentException("Mức suy luận không hợp lệ.");
+        if (agent.GatewayAccountId.Length > 80 || agent.GatewayAccountId.Any(char.IsControl)) throw new ArgumentException("Tài khoản gateway không hợp lệ.");
         if (IsApi(agent.Connection)) ApiTransport.BaseUri(agent);
     }
 }
@@ -69,6 +71,7 @@ public sealed class AgentConfig
     public string KeyEnvironment { get; set; } = "";
     public bool Enabled { get; set; } = true;
     public string BrowserBindingId { get; set; } = "";
+    public string GatewayAccountId { get; set; } = "";
     public AgentConfig Copy(bool newId = false)
     {
         var copy = JsonSerializer.Deserialize<AgentConfig>(JsonSerializer.Serialize(this, Json.Options), Json.Options)!;

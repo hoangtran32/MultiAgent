@@ -76,3 +76,15 @@ test("stream and answer limits reject oversized website data", () => {
   assert.throws(() => parse(["x".repeat(MAX_BODY + 1)]), /4 MiB/);
   assert.throws(() => parse([JSON.stringify({choices: [{index: 0, delta: {content: "x".repeat(64001)}}]}) + "\n"]), /64.000/);
 });
+
+
+test("ChatGPT wrapped snapshots and text patches stream only assistant text and explicit completion", () => {
+  const states = [], decode = decoder(state => states.push(state));
+  const send = value => decode.push("data: " + JSON.stringify(value) + "\n\n");
+  send({v: {message: {author: {role: "assistant"}, content: {content_type: "text", parts: ["Hello"]}, status: "in_progress", end_turn: false}}});
+  send({p: "/message/content/parts/0", o: "append", v: " teammate"});
+  send({p: "/message/metadata/reasoning", o: "append", v: "secret thought"});
+  assert.equal(decode.snapshot().text, "Hello teammate"); assert.equal(decode.snapshot().done, false);
+  send({o: "patch", v: [{p: "/message/status", o: "replace", v: "finished_successfully"}, {p: "/message/end_turn", o: "replace", v: true}]});
+  assert.equal(decode.snapshot().done, true); assert.ok(!JSON.stringify(states).includes("secret thought"));
+});

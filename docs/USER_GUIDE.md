@@ -1,8 +1,12 @@
-# Hướng dẫn Multi-Agent Hub 5.10.0
+# Hướng dẫn Multi-Agent Hub 5.11.0
 
 **Trò chuyện / Hub Chat** là hội thoại độc lập, không cần project. Sidebar chỉ hiện các cuộc trò chuyện, ghim/lưu trữ và tìm kiếm; tiếp tục được dù thư mục làm việc trước đó đã đổi/xóa. **Làm việc / Hub Code** dùng project và đội agent để thực hiện task. Chuyển mục mở phiên nhập mới; mở lịch sử đúng mục để tiếp tục. Chatbot extension có thể được chọn thêm trong Làm việc để tư vấn/code mẫu/phản biện qua văn bản, không có công cụ filesystem/terminal trên máy. Khi CLI hết quota, bạn chủ động quyết định dùng chatbot, Hub không tự chuyển dữ liệu.
 
 Muốn hai **chatbot Gemini/ChatGPT dùng tài khoản app/web đang có**, không dùng API hoặc agy: vào **Agent & model → Chatbot từ trình duyệt…**. Xem [Browser Chat](BROWSER_CHAT.md) để cài extension đi kèm, chọn model trên website, nối hai chat mới và bàn luận theo chủ đề. Bridge đang thử nghiệm, chưa kiểm thử UI/live website.
+
+## Gateway web
+
+**Agent & model → Gateway & tài khoản web** quản lý tài khoản/model web và endpoint API cục bộ thử nghiệm. Giữ đúng model/quota website, không dùng OAuth CLI thay thế. Xem [hướng dẫn nhận diện API](WEB_GATEWAY.md). Trò chuyện nhóm hoạt động độc lập với project; thêm từng chatbot mong muốn rồi chọn các bot tham gia.
 
 ## Để nhóm trao đổi liên tục
 

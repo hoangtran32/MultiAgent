@@ -26,10 +26,11 @@
     <button id="connect" type="submit">Kết nối tab hiện tại</button>
   </form>
   <section aria-labelledby="bindings-title">
-    <h2 id="bindings-title">Các tab đã liên kết</h2>
+    <h2 id="bindings-title">Các phiên web đã liên kết</h2>
     <div id="bindings"></div>
   </section>
-  <footer>Mỗi chatbot dùng một tab riêng. Chat đã gắn tiếp tục dùng được trong phiên; không cần kết nối lại sau mỗi lượt. Để tiếp tục chủ đề cũ, mở lịch sử Hub rồi gắn một chat web mới, Hub sẽ gửi ngữ cảnh. Giữ tab mở; tải lại hoặc chuyển chat sẽ ngắt kết nối. Tiện ích không xóa lịch sử, nội dung bạn đang gõ hay đọc cookie, mật khẩu, token.</footer>
+  <p class="hint">Gateway API: sau khi liên kết, gửi một tin văn bản đầu tiên trên web với model đã chọn. Extension nhận diện giao thức trong phiên đó; mở Gateway &amp; tài khoản web trong Hub để thêm tài khoản/model. Không tự đổi sang quota CLI. Adapter thử nghiệm có thể cần xác minh trên website.</p>
+  <footer>Mỗi chatbot dùng một tab riêng. Chat đã gắn tiếp tục dùng được trong phiên; không cần kết nối lại sau mỗi lượt. Để tiếp tục chủ đề cũ, mở lịch sử Hub rồi gắn một chat web mới, Hub sẽ gửi ngữ cảnh. Giữ tab mở; tải lại hoặc chuyển chat sẽ ngắt kết nối. Tiện ích không xóa lịch sử, nội dung bạn đang gõ hay xuất cookie, mật khẩu, token đăng nhập ra Hub.</footer>
   <script src="popup.js"></script>
 </body>
 </html>

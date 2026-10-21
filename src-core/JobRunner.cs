@@ -10,10 +10,11 @@ public interface IAgentExecutor
     Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token);
 }
 
-public sealed class AgentExecutor(ApiTransport api, BrowserChatBridge? browser = null) : IAgentExecutor
+public sealed class AgentExecutor(ApiTransport api, BrowserChatBridge? browser = null, WebGateway? gateway = null) : IAgentExecutor
 {
     public void Validate(AgentConfig agent)
     {
+        if (agent.Connection == "gateway-web") { (gateway ?? throw new InvalidOperationException("Gateway chưa được mở.")).Validate(agent.GatewayAccountId, agent.Model); return; }
         if (Catalog.IsManual(agent.Connection)) return;
         if (Catalog.IsBrowserChat(agent.Connection)) {
             try { (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Validate(agent.Connection, agent.BrowserBindingId, agent.Model); }
@@ -25,6 +26,7 @@ public sealed class AgentExecutor(ApiTransport api, BrowserChatBridge? browser =
     }
     public async Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token)
     {
+        if (agent.Connection == "gateway-web") return await (gateway ?? throw new InvalidOperationException("Gateway chưa được mở.")).Execute(agent.GatewayAccountId, agent.Model, prompt, text, log, token);
         if (Catalog.IsBrowserChat(agent.Connection)) return await (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Execute(agent.Connection, agent.BrowserBindingId, agent.Model, prompt, text, log, token);
         if (Catalog.IsApi(agent.Connection)) return await api.Execute(agent, prompt, token);
         string binary = ProcessTransport.RequireExecutable(agent);
@@ -112,7 +114,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 foreach (var agent in browserAgents) reserved.BrowserTopics[agent.BrowserBindingId] = conversationId;
                 Storage.Validate(reserved); storage.Write("native-config", reserved); config.BrowserTopics = reserved.BrowserTopics;
             }
-            string workingDirectory = chat && agents.Any(a => !Catalog.IsApi(a.Connection) && !Catalog.IsBrowserChat(a.Connection) && !Catalog.IsManual(a.Connection))
+            string workingDirectory = chat && agents.Any(a => a.Connection != "gateway-web" && !Catalog.IsApi(a.Connection) && !Catalog.IsBrowserChat(a.Connection) && !Catalog.IsManual(a.Connection))
                 ? storage.ChatWorkingDirectory(conversationId) : chat ? "" : config.Project;
             cancellation = new(); token = cancellation.Token;
             teamInstructions.Clear();

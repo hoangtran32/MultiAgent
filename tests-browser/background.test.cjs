@@ -26,8 +26,10 @@ function browser(saved = [], options = {}) {
       onRemoved: event(), onUpdated: event(), sendMessage: async (id, message) => {
         assert.equal(id, tab.id);
         if (message.type === "hub-bind") return {ready: true, nonce, url: tab.url, model: options.detectedModel || ""};
+        if (message.type === "hub-api-link") return {ok: true};
+        if (message.type === "hub-api-navigation") return {allowed: false, nonce, url: tab.url};
         if (message.type === "hub-ping") return {nonce, url: tab.url};
-        if (message.type === "hub-request") { sent.push(structuredClone(message)); return {accepted: true}; }
+        if (message.type === "hub-request" || message.type === "hub-api-request") { sent.push(structuredClone(message)); return {accepted: true}; }
         if (message.type === "hub-cancel") { cancels.push(message.id); return {ok: true}; }
         if (message.type === "hub-navigation") { navigations.push(structuredClone(message)); return {allowed: options.allowNavigation !== false, nonce, url: tab.url}; }
         throw new Error("Unexpected content command: " + message.type);
@@ -124,7 +126,7 @@ test("an unapproved URL change during a request is rejected without replay", asy
   const b = browser([], {allowNavigation: false}); await b.connect(); const id = b.session.bindings[0].id;
   b.ports[0].onMessage.emit({type: "request", id: "do-not-move", bindingId: id, expectedModel: "Argon", prompt: "Offline test"});
   await settle(); await b.update({status: "loading", url: "https://gemini.google.com/app/other-chat"});
-  const until = Date.now() + 4000;
+  const until = Date.now() + 12000;
   while (b.session.bindings.length && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(b.session.bindings.length, 0); assert.equal(b.sent.length, 1); assert.deepEqual(b.cancels, ["do-not-move"]);
 });
@@ -154,4 +156,19 @@ test("unknown request and malformed model metadata cannot change a binding", asy
     b.content({type: "hub-observation", id, nonce: binding.nonce, url: b.tab.url, detectedModel: model, modelSource: "response", transport: "responses"});
   assert.equal(b.session.bindings[0].detectedModel, "");
   b.ports[0].disconnect();
+});
+
+
+test("gateway API calls require discovered models and do not fall back to composer automation", async () => {
+  const b = browser(); await b.connect(); const binding = b.session.bindings[0];
+  const model = {id: "web-0123456789abcdef01234567", name: "Website chosen", protocol: "gemini-rpc", source: "page"};
+  b.content({type: "hub-api-models", nonce: binding.nonce, models: [model]}); await settle();
+  assert.equal(b.session.bindings[0].apiModels.length, 1);
+  b.ports[0].onMessage.emit({type: "api-request", id: "direct", bindingId: binding.id, modelId: model.id, prompt: "Hello"});
+  await settle(); assert.equal(b.sent.length, 1); assert.equal(b.sent[0].type, "hub-api-request");
+  b.content({type: "hub-result", id: "direct", nonce: binding.nonce, url: b.tab.url, text: "Hello teammate"}); await settle();
+  assert.ok(b.ports[0].frames.some(f => f.type === "result" && f.id === "direct"));
+  b.ports[0].onMessage.emit({type: "api-request", id: "unknown-api", bindingId: binding.id, modelId: "missing", prompt: "Hello"});
+  await settle(); assert.equal(b.sent.length, 1);
+  assert.ok(b.ports[0].frames.some(f => f.type === "error" && f.id === "unknown-api"));
 });

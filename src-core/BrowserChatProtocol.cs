@@ -56,6 +56,7 @@ public static class BrowserChatProtocol
 /// <summary>Selection is stable across turns. Observed metadata is website data, not backend attestation.</summary>
 public sealed record BrowserChatBinding(string Id, string Provider, int TabId, string Url, string Title, string Model, bool Ready)
 {
+    public List<BrowserApiModel> ApiModels { get; init; } = [];
     public string SiteName { get; init; } = "";
     public string DetectedModel { get; init; } = "";
     public string ModelSource { get; init; } = "unknown";
@@ -66,3 +67,5 @@ public sealed record BrowserChatBinding(string Id, string Provider, int TabId, s
     [System.Text.Json.Serialization.JsonIgnore]
     public string DisplaySite => SiteName.Length > 0 ? SiteName : new Uri(Url).Host;
 }
+
+public sealed record BrowserApiModel(string Id, string Name, string Protocol, string Source);

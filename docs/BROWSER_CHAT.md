@@ -71,3 +71,8 @@ Gỡ extension tại trang quản lý tiện ích. Có thể xóa đúng subkey 
 
 - [Chrome Native Messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging) và [activeTab](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab).
 - [Chrome scripting / MAIN world](https://developer.chrome.com/docs/extensions/reference/api/scripting) và [Response.clone](https://developer.mozilla.org/en-US/docs/Web/API/Response/clone).
+
+
+## Gateway API web 5.11.0
+
+Có thêm đường gọi API trực tiếp trong document, tách khỏi tự nhập/bấm/đọc DOM. Cài extension 1.3.0 và nhận diện request đầu tiên theo [Web Gateway](WEB_GATEWAY.md). Thông tin đăng nhập cần cho request được giữ trong bộ nhớ tab; không xuất token/cookie sang Hub. Website yêu cầu xác minh hoặc handshake chưa hỗ trợ phải xử lý trên web; không tự đổi sang quota CLI.

@@ -9,6 +9,7 @@ internal sealed partial class MainWindow : Form
     private HubConfig config;
     private readonly JobRunner runner;
     private readonly BrowserChatBridge browserChat = new();
+    private readonly WebGateway gateway;
     private readonly TextBox project = Ui.Text(), prompt = Ui.Text(true);
     private readonly TextBox topic = new() { Width = 245, MaxLength = 100, PlaceholderText = "Tên topic (để trống: lấy từ yêu cầu)", AccessibleName = "Tên topic", Margin = new Padding(4, 7, 4, 4) };
     private readonly ConversationSidebar sidebar = new();
@@ -60,7 +61,7 @@ internal sealed partial class MainWindow : Form
     {
         SuspendLayout(); AutoScaleMode = AutoScaleMode.None;
         storage = new(dataDir);
-        config = storage.LoadConfig(); browserChat.Start(); runner = new(new AgentExecutor(new ApiTransport(secrets), browserChat), storage);
+        config = storage.LoadConfig(); browserChat.Start(); gateway = new(new GatewayAccounts(storage, secrets), browserChat); runner = new(new AgentExecutor(new ApiTransport(secrets), browserChat, gateway), storage);
         Text = "Multi-Agent Hub"; ShowIcon = false; Font = new Font("Segoe UI", 9.5f); BackColor = Ui.Background; ForeColor = Ui.Ink;
         if (Ui.AppIcon != null) Icon = Ui.AppIcon;
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1400, 900);
@@ -189,6 +190,7 @@ internal sealed partial class MainWindow : Form
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
             var next = CopyConfig(); next.Discussion = dialog.Result; Commit(next, Selected?.Id);
         }));
+        actions.Controls.Add(Ui.Button("Gateway & tài khoản web", (_, _) => ConfigureGateway()));
         var accounts = Ui.Button("Tài khoản / kết nối", (_, _) => { using var dialog = new AgentConnectionsDialog(config.Agents, secrets); dialog.ShowDialog(this); });
         actions.Controls.AddRange([edit, duplicate, remove, up, down, accounts, info]); agents.Controls.Add(actions, 0, 2); locked.AddRange([edit, duplicate, remove, up, down, accounts, mode, discussionSettings]);
         teamSettings = Ui.Button("Trao đổi & giới hạn / phân vai…", (_, _) => Protect(() => {
@@ -441,6 +443,7 @@ internal sealed partial class MainWindow : Form
     private void UpdateAddAvailability() => addButton.Enabled = !runner.Busy && config.Agents.Count < Catalog.MaxAgents && Ui.Value(addProvider).Length > 0 && Ui.Value(addConnection).Length > 0;
     private string Availability(AgentConfig agent)
     {
+        if (agent.Connection == "gateway-web") { try { gateway.Validate(agent.GatewayAccountId, agent.Model); return "API web đã nhận diện"; } catch (Exception e) { return e.Message; } }
         if (Catalog.IsBrowserChat(agent.Connection)) {
             try { browserChat.Validate(agent.Connection, agent.BrowserBindingId, agent.Model); return "Tab đã kết nối • model bạn xác nhận"; }
             catch (Exception error) { return error.Message; }
@@ -474,6 +477,7 @@ internal sealed partial class MainWindow : Form
         if (runner.Busy) return; int quantity = (int)count.Value;
         if (config.Agents.Count + quantity > Catalog.MaxAgents) throw new ArgumentException($"Tối đa {Catalog.MaxAgents} agent.");
         string provider = Ui.Value(addProvider), connection = Ui.Value(addConnection);
+        if (connection == "gateway-web") { ConfigureGateway(); return; }
         if (Catalog.IsBrowserChat(connection)) { ConfigureBrowserChatbots(); return; }
         if (provider.Length == 0 || connection.Length == 0) throw new ArgumentException("Chọn công cụ AI và cách kết nối trước khi thêm agent.");
         var next = CopyConfig();
@@ -485,7 +489,7 @@ internal sealed partial class MainWindow : Form
     });
     private void EditAgent() { if (Selected is { } selected) EditAgent(selected); }
     private void EditAgent(AgentConfig selected) => Protect(() => {
-        if (runner.Busy) return; using var dialog = new AgentEditor(selected, secrets, browser: browserChat);
+        if (runner.Busy) return; using var dialog = new AgentEditor(selected, secrets, browser: browserChat, gateway: gateway);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         var next = CopyConfig(); next.Agents[next.Agents.FindIndex(a => a.Id == selected.Id)] = dialog.Result; Commit(next, selected.Id); status.Text = "Đã lưu cấu hình agent. Đánh dấu Chạy để đưa agent vào tác vụ.";
     });
@@ -495,7 +499,7 @@ internal sealed partial class MainWindow : Form
         using var discovery = new AgentDiscoveryDialog(config.Agents, secrets);
         if (discovery.ShowDialog(owner) != DialogResult.OK || discovery.Selected is not { } found) return;
         if (!found.Existing && config.Agents.Count >= Catalog.MaxAgents) throw new ArgumentException($"Tối đa {Catalog.MaxAgents} agent.");
-        using var editor = new AgentEditor(found.Agent, secrets, found.Inventory, browserChat);
+        using var editor = new AgentEditor(found.Agent, secrets, found.Inventory, browserChat, gateway);
         if (editor.ShowDialog(owner) != DialogResult.OK) return;
         var next = CopyConfig(); int existing = next.Agents.FindIndex(a => a.Id == editor.Result.Id);
         if (existing >= 0) next.Agents[existing] = editor.Result; else next.Agents.Add(editor.Result);
@@ -746,7 +750,7 @@ internal sealed partial class MainWindow : Form
         if (runner.Completion != null) try { await runner.Completion; } catch (Exception) { }
         ApplyQuotaChanges(true);
         try { if (Directory.Exists(project.Text)) { config.Project = Path.GetFullPath(project.Text); Save(); } } catch (Exception) { }
-        browserChat.Dispose(); teamMenu.Dispose(); headerMenu.Dispose(); attachmentMenu.Dispose(); surface.Dispose(); mode.Dispose(); boardPanel.Dispose(); agentPanel.Dispose(); detailPanel.Dispose(); Close();
+        gateway.Dispose(); browserChat.Dispose(); teamMenu.Dispose(); headerMenu.Dispose(); attachmentMenu.Dispose(); surface.Dispose(); mode.Dispose(); boardPanel.Dispose(); agentPanel.Dispose(); detailPanel.Dispose(); Close();
     }
 }
 internal sealed class ResultView

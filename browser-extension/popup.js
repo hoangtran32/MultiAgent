@@ -119,7 +119,7 @@ async function refresh(loadSettings = false) {
     const description = document.createElement("div"); description.className = "description";
     const name = document.createElement("strong"); name.textContent = binding.siteName || new URL(binding.url).hostname;
     const label = document.createElement("small"); label.textContent = (binding.detectedModel || binding.model) + " · " + (binding.modelSource === "response" ? "model từ phản hồi web" : binding.modelSource === "page" ? "nhãn giao diện" : "chưa lộ model") + " · " + (state.connected ? "đã gửi liên kết cho Hub" : "chờ nối lại Hub");
-    const title = document.createElement("small"); title.textContent = binding.title; title.title = binding.url;
+    const title = document.createElement("small"); title.textContent = binding.apiModels?.length ? "API web đã nhận diện: " + binding.apiModels.map(m => m.name).join(", ") : "API chưa nhận diện: gửi 1 tin văn bản trong chat web mới vừa liên kết."; title.title = binding.url;
     description.append(name, label, title);
     const button = document.createElement("button"); button.type = "button"; button.textContent = "Ngắt";
     button.addEventListener("click", async () => {

@@ -43,13 +43,18 @@
         if (state.text && !turn.owner) turn.owner = owner;
         if (!turn.owner || turn.owner === owner) emit(turn, state);
       }), utf8 = new TextDecoder();
-      let bytes = 0;
+      let bytes = 0, raw = "";
       while (active === turn) {
         const item = await reader.read();
-        if (item.done) { decode.push(utf8.decode()); decode.end(); break; }
+        if (item.done) {
+          const last = utf8.decode(); raw += last; decode.push(last); decode.end();
+          const state = decode.snapshot();
+          if (state.protocol === "gemini-rpc" && state.text && globalThis.MultiAgentHubWebApiProtocol?.geminiComplete(raw)) emit(turn, {...state, done: true});
+          break;
+        }
         bytes += item.value.byteLength;
         if (bytes > protocol.MAX_BODY) throw new Error("Luồng website vượt 4 MiB.");
-        decode.push(utf8.decode(item.value, {stream: true}));
+        const chunk = utf8.decode(item.value, {stream: true}); raw += chunk; decode.push(chunk);
         const state = decode.snapshot();
         if (state.text) turn.claimed = true;
         if (state.done) break;
@@ -86,6 +91,9 @@
       }
     }
     const result = Reflect.apply(originalFetch, this, arguments);
+    if (body) void body.then(value => {
+      if (eligible(turn, method, url) && protocol.matchesPrompt(value, turn.prompt)) emit(turn, {protocol: "request-started"});
+    }).catch(() => {});
     if (body) void result.then(response => {
       // Clone in the first fetch continuation, before the caller can lock/consume its response body.
       if (!eligible(turn, method, url)) return;
@@ -102,6 +110,7 @@
   XMLHttpRequest.prototype.send = function(body) {
     const turn = active, info = states.get(this);
     if (info && eligible(turn, info.method, info.url) && protocol.matchesPrompt(typeof body === "string" ? body : "", turn.prompt)) {
+      emit(turn, {protocol: "request-started"});
       const owner = {};
       const decode = protocol.decoder(state => {
         if (state.text && !turn.owner) turn.owner = owner;
@@ -115,7 +124,9 @@
           const value = this.responseText;
           if (value.length > protocol.MAX_BODY) { failed = true; return; }
           decode.push(value.slice(offset)); offset = value.length;
-          if (final) decode.end();
+          if (final) { decode.end(); const state = decode.snapshot();
+            if (state.protocol === "gemini-rpc" && state.text && globalThis.MultiAgentHubWebApiProtocol?.geminiComplete(value)) emit(turn, {...state, done: true});
+          }
           if (decode.snapshot().text) turn.claimed = true;
         } catch { failed = true; }
       };

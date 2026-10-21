@@ -2,7 +2,7 @@
 
 Ứng dụng Windows native để dùng một hoặc nhiều AI agent: trò chuyện độc lập hoặc cùng làm việc trong project.
 
-**C# · .NET 10 · WinForms · MIT** — desktop native, không cần Node.js, web server hoặc WebView. Bridge chatbot tùy chọn có extension JavaScript chạy trong Chrome/Edge.
+**C# · .NET 10 · WinForms · MIT** — desktop native, không cần Node.js hoặc WebView. Gateway HTTP loopback tùy chọn được tích hợp trong EXE. Bridge chatbot tùy chọn có extension JavaScript chạy trong Chrome/Edge.
 
 ## Bắt đầu
 
@@ -18,6 +18,14 @@ Chỉ cần **một agent bất kỳ đã cấu hình** để chạy độc lậ
 ## Trò chuyện nhóm
 
 Trong **Hub Chat → Trò chuyện nhóm** (5.10.0), các chatbot là thành viên bình đẳng, tự nói với bạn và với nhau. Bạn đưa chủ đề/ý tưởng/vấn đề; bot trả lời từng ý, phản hồi đồng đội và cùng tìm giải pháp. Gửi “hello” thì các bot chào bạn và nhau; không ép thành bài nghiên cứu. Khi mọi bot đã sẵn sàng chờ bạn, trạng thái hiện **Chờ bạn**; tin nhắn mới tiếp tục ngay. Bạn có thể chen ý kiến khi nhóm đang trao đổi. Không cần project hoặc bấm Tiếp tục sau mỗi bot. Web extension chỉ là kênh gửi/nhận, không thay thế cơ chế hội thoại này.
+
+## Gateway từ tài khoản web (5.11.0, thử nghiệm)
+
+Vào **Agent & model → Gateway & tài khoản web** để quản lý tên tài khoản, liên kết phiên trình duyệt và chọn model được nhận diện. Không tạo sẵn agent/model. Đăng nhập vẫn trên trình duyệt để giữ đúng model/quota website, không thay bằng Codex OAuth hoặc Gemini Code Assist. Giữ tab mở; phiên này chưa phải đăng nhập độc lập hoàn toàn trong Hub.
+
+Sau khi cài/cập nhật extension, mở chat web mới, chọn model, kết nối trong extension rồi gửi **một tin văn bản đầu tiên trên web**. Extension nhận diện request API trong document đó. Hub chỉ nhận model/metadata và văn bản, không nhận cookie/token đăng nhập. Sau đó các lượt **Gateway** gọi request API trực tiếp trong phiên trình duyệt, không gõ/bấm Gửi/đọc DOM. Cơ chế chat nhóm vẫn cho các bot chào bạn, phản hồi nhau và cùng giải quyết vấn đề.
+
+Gateway cục bộ tùy chọn có `/v1/models` và `/v1/chat/completions` (văn bản, SSE), mặc định `http://127.0.0.1:20129/v1`, bật thủ công, bắt buộc key riêng của Hub. API key này chỉ bảo vệ endpoint cục bộ; không phải key tính phí của website. Xem [Gateway web](docs/WEB_GATEWAY.md) về thiết lập, giới hạn tương thích và xử lý lỗi. Adapter website là thử nghiệm: ChatGPT có thể yêu cầu handshake/xác minh chưa hỗ trợ; không coi request được nhận diện là đã kiểm chứng gọi thành công. Không tự đổi model, giải challenge hoặc gửi lại yêu cầu bị lỗi.
 
 ## Kết nối
 

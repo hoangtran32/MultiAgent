@@ -22,13 +22,13 @@ const providerOf = value => providers.providerOf(value);
 const freshChatUrl = value => providers.fresh(value);
 async function inject(tabId) {
   await chrome.scripting.executeScript({target: {tabId, frameIds: [0]}, files: ["providers.js", "discovery.js", "content.js"]});
-  try { await chrome.scripting.executeScript({target: {tabId, frameIds: [0]}, world: "MAIN", files: ["network-protocol.js", "network.js"]}); }
+  try { await chrome.scripting.executeScript({target: {tabId, frameIds: [0]}, world: "MAIN", files: ["network-protocol.js", "network.js", "web-api-protocol.js", "web-api.js"]}); }
   catch { /* MAIN observer blocked: keep DOM fallback without escalating permissions. */ }
 }
 function publicBinding(binding) {
   return {id: binding.id, provider: binding.provider, tabId: binding.tabId,
     url: binding.url, title: binding.title, model: binding.model, ready: true, siteName: (providers.site(binding.url)?.name || "").slice(0, 200),
-    detectedModel: binding.detectedModel || "", modelSource: binding.modelSource || "unknown", transport: binding.transport || "dom"};
+    detectedModel: binding.detectedModel || "", modelSource: binding.modelSource || "unknown", transport: binding.transport || "dom", apiModels: binding.apiModels || []};
 }
 
 async function persist() {
@@ -173,7 +173,7 @@ async function onNative(message, port) {
     finishError(request.id, "Đã hủy theo yêu cầu Hub. Nếu website còn tạo câu trả lời, bạn có thể dừng trực tiếp tại tab.");
     return;
   }
-  if (message.type !== "request" || typeof message.id !== "string" || message.id.length > 128) return;
+  if (!["request", "api-request"].includes(message.type) || typeof message.id !== "string" || message.id.length > 128) return;
   if (seenRequestIds.has(message.id)) return; // Never replay a submitted request, including a completed one.
   seenRequestIds.add(message.id);
   if (seenRequestIds.size > 2048) seenRequestIds.delete(seenRequestIds.values().next().value);
@@ -183,7 +183,9 @@ async function onNative(message, port) {
   if (typeof message.prompt !== "string" || !message.prompt.trim() || message.prompt.length > MAX_PROMPT) {
     fail("Yêu cầu rỗng hoặc dài quá 200.000 ký tự."); return;
   }
-  if (message.expectedModel !== binding.model) {
+  const apiCall = message.type === "api-request";
+  if (apiCall && !(binding.apiModels || []).some(m => m.id === message.modelId)) { fail("Model API chưa được nhận diện trong tab này. Nhận diện API trong extension trước."); return; }
+  if (!apiCall && message.expectedModel !== binding.model) {
     fail("Model trong Hub khác nhãn model bạn đã xác nhận ở tiện ích. Chọn và xác nhận lại; tiện ích không tự đổi model."); return;
   }
   if ([...requests.values()].some(item => item.bindingId === binding.id)) {
@@ -197,8 +199,8 @@ async function onNative(message, port) {
       fail("Tab đã đổi cuộc trò chuyện. Chưa gửi yêu cầu."); return;
     }
     requests.set(message.id, {id: message.id, bindingId: binding.id, tabId: binding.tabId,
-      nonce: binding.nonce, url: binding.url});
-    const response = await chrome.tabs.sendMessage(binding.tabId, {type: "hub-request", id: message.id,
+      nonce: binding.nonce, url: binding.url, api: apiCall});
+    const response = await chrome.tabs.sendMessage(binding.tabId, {type: apiCall ? "hub-api-request" : "hub-request", modelId: message.modelId, id: message.id,
       nonce: binding.nonce, url: binding.url, prompt: message.prompt, selectors: binding.selectors}, {frameId: 0});
     if (!response?.accepted) finishError(message.id, response?.message || "Website chưa nhận yêu cầu. Không tự gửi lại.");
   } catch {
@@ -289,6 +291,7 @@ async function onPopup(message) {
     title: (tab.title || provider).slice(0, 200), model, nonce: check.nonce, selectors, detectedModel: currentDocument.model || "",
     modelSource: currentDocument.model ? "page" : "unknown", transport: "dom"};
   bindings.set(binding.id, binding);
+  await chrome.tabs.sendMessage(tab.id, {type: "hub-api-link", nonce: binding.nonce, label: binding.model}, {frameId: 0});
   await persist();
   await chrome.storage.local.set({["settings:" + provider + ":" + new URL(tab.url).origin]: {model: binding.model, selectors}});
   if (!publishState()) return {ok: false, error: nativeError || "Không gửi được trạng thái tab đến Hub. Chưa kết nối thành công."};
@@ -302,10 +305,17 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     return true;
   }
   if (!sender.tab || sender.frameId !== 0 || !providerOf(sender.url)) return false;
+  if (message.type === "hub-api-models") {
+    const binding = [...bindings.values()].find(b => b.tabId === sender.tab.id && b.nonce === message.nonce);
+    if (!binding || new URL(sender.url).origin !== new URL(binding.url).origin || !Array.isArray(message.models) || message.models.length > 16) return false;
+    if (!message.models.every(m => /^web-[a-f0-9]{24}$/.test(m?.id) && typeof m.name === "string" && m.name.trim() && m.name.length <= 120
+      && !/[\u0000-\u001f\u007f-\u009f]/.test(m.name) && ["request", "page"].includes(m.source) && ["gemini-rpc", "chatgpt-message", "chat-completions"].includes(m.protocol))) return false;
+    binding.apiModels = message.models.map(m => ({id: m.id, name: m.name, protocol: m.protocol, source: m.source})); void persist(); publishState(); return false;
+  }
   const request = requests.get(message.id);
   if (!request || request.tabId !== sender.tab.id || request.nonce !== message.nonce) return false;
   const binding = bindings.get(request.bindingId);
-  if (!binding || sender.url !== binding.url || message.url !== binding.url) return false;
+  if (!binding || (request.api ? new URL(sender.url).origin !== new URL(binding.url).origin : sender.url !== binding.url || message.url !== binding.url)) return false;
   if (message.type === "hub-observation") {
     if (typeof message.detectedModel !== "string" || message.detectedModel.length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(message.detectedModel)
         || !["response", "page", "unknown"].includes(message.modelSource)
@@ -367,9 +377,12 @@ async function reconcileTab(tabId, change) {
         const active = [...requests.values()].find(item => item.bindingId === binding.id);
         try {
           let check = null;
+          if (!active) {
+            check = await chrome.tabs.sendMessage(tabId, {type: "hub-api-navigation", nonce: binding.nonce, from: binding.url, to: url}, {frameId: 0});
+          }
           if (active) {
             // The SPA can assign its first conversation URL just before it inserts our user turn.
-            for (let attempt = 0; attempt < 8; attempt++) {
+            for (let attempt = 0; attempt < 40; attempt++) {
               if (!bindings.has(binding.id) || requests.get(active.id) !== active) break;
               check = await chrome.tabs.sendMessage(tabId, {type: "hub-navigation", id: active.id,
                 nonce: binding.nonce, from: binding.url, to: url}, {frameId: 0});
@@ -379,9 +392,9 @@ async function reconcileTab(tabId, change) {
           }
           if (check?.allowed && check.nonce === binding.nonce && check.url === url) {
             binding.url = url;
-            active.url = url;
+            if (active) active.url = url;
             await persist(); publishState();
-          } else await removeBinding(binding.id, "Tab đã chuyển cuộc trò chuyện. Kết nối lại trước khi gửi tiếp.");
+          } else await removeBinding(binding.id, "Chưa xác nhận được URL do lượt vừa gửi tạo ra; chưa chắc bạn đã đổi cuộc trò chuyện. Kiểm tra tab và liên kết lại; không tự gửi lại prompt.");
         } catch { await removeBinding(binding.id, "Tab đã đổi trang hoặc mất kết nối."); }
     }
   }

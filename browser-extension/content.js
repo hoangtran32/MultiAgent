@@ -2,8 +2,33 @@
   "use strict";
   // Older injected documents need a reload, rather than two competing listeners.
   if (globalThis.__multiAgentHubBrowserContent) return;
-  globalThis.__multiAgentHubBrowserContent = "1.2.0";
+  globalThis.__multiAgentHubBrowserContent = "1.3.0";
   const nonce = crypto.randomUUID();
+  let apiLinked = false, apiLabel = "", apiModels = [], apiCapturedAt = 0, apiRun = null;
+  const apiPost = (type, fields = {}) => window.postMessage({source: "multi-agent-hub-api-control", channel: nonce, type, ...fields}, location.origin);
+  window.addEventListener("message", event => {
+    const m = event.data;
+    if (!apiLinked || event.source !== window || event.origin !== location.origin || m?.source !== "multi-agent-hub-web-api" || m.channel !== nonce) return;
+    if (m.type === "capture-started") { apiCapturedAt = Date.now(); }
+    else if (m.type === "models" && Array.isArray(m.models)) {
+      apiModels = m.models; if (m.capturedAt) apiCapturedAt = Date.now();
+      void chrome.runtime.sendMessage({type: "hub-api-models", nonce, models: apiModels}).catch(() => {});
+    } else if (apiRun && m.id === apiRun && ["delta", "result", "error"].includes(m.type)) {
+      void chrome.runtime.sendMessage({type: "hub-" + m.type, id: apiRun, nonce, url: location.href, text: m.text, message: m.message}).catch(() => {});
+      if (m.type !== "delta") apiRun = null;
+    }
+  });
+  function prepareApiCapture() {
+    if (!apiLinked || active || apiRun || !initialUrl(location.href, currentProvider())) return;
+    try {
+      const input = oneInput(selected({})), prompt = inputText(input);
+      if (prompt.trim()) apiPost("arm", {prompt, label: modelLabel(currentProvider()) || (apiLabel === "Theo website" ? "" : apiLabel)});
+    } catch { /* A selected text composer is required; don't observe arbitrary page input. */ }
+  }
+  document.addEventListener("click", event => { if (event.target.closest?.('button, [role="button"]')) prepareApiCapture(); }, true);
+  document.addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey) prepareApiCapture(); }, true);
+  document.addEventListener("submit", prepareApiCapture, true);
+
   let active = null;
   let pickedInput = null;
   let cancelPicker = null;
@@ -226,6 +251,7 @@
     if (event.source !== window || event.origin !== location.origin || value?.source !== "multi-agent-hub-network"
         || !request || value.channel !== nonce || value.id !== request.id || request.cancelled) return;
     if (value.protocol === "armed") { request.armResolve?.(); return; }
+    if (value.protocol === "request-started" && request.submittedAt) { request.networkConfirmed = true; return; }
     if (!request.submittedAt || typeof value.text !== "string" || value.text.length > 64000
         || typeof value.model !== "string" || value.model.length > 120 || /[\u0000-\u001f\u007f-\u009f]/.test(value.model)
         || !["chat-completions", "responses", "messages", "chatgpt-message", "generate-content", "gemini-rpc"].includes(value.protocol)) return;
@@ -274,7 +300,7 @@
         if (location.href !== request.url) {
           // Wait briefly for the background to approve only our initial conversation URL assignment.
           if (!request.navigationWait) request.navigationWait = Date.now();
-          if (Date.now() - request.navigationWait > 3000) throw new Error("Tab đã đổi cuộc trò chuyện. Kiểm tra nội dung trước khi kết nối lại.");
+          if (Date.now() - request.navigationWait > 15000) throw new Error("Chưa xác nhận được URL cuộc chat mới của lượt vừa gửi. Kiểm tra tab; Hub không tự gửi lại yêu cầu.");
           await sleep(100); continue;
         }
         request.navigationWait = 0;
@@ -282,17 +308,17 @@
         const generating = isGenerating(selectors, assistant);
         if (generating) sawGenerating = true;
         const own = ownUser(request);
-        const network = own ? request.network : null;
+        const network = own || request.networkConfirmed ? request.network : null;
         const text = network?.text || (assistant ? responseText(assistant, selectors) : "");
         if (network?.error) throw new Error(network.error);
         const label = modelLabel(currentProvider());
         const observation = JSON.stringify([network?.model || "", label, network?.protocol || "dom"]);
-        if (own && observation !== request.observation) {
+        if ((own || request.networkConfirmed) && observation !== request.observation) {
           request.observation = observation;
           emit(request, "hub-observation", {detectedModel: network?.model || label,
             modelSource: network?.model ? "response" : label ? "page" : "unknown", transport: network?.protocol || "dom"});
         }
-        if (network?.done && text && !generating) { emit(request, "hub-result", {text}); return; }
+        if (network?.done && text) { emit(request, "hub-result", {text}); return; }
         if (text.length > 64000) throw new Error("Phản hồi vượt 64.000 ký tự. Nội dung đầy đủ vẫn ở website; chưa chuyển sang lượt khác.");
         const changed = text !== lastText;
         if (changed) terminalSince = 0;
@@ -367,9 +393,22 @@
       return false;
     }
     if (message.nonce !== nonce) { reply({accepted: false, message: "Tab đã tải lại. Cần kết nối lại."}); return false; }
+    if (message.type === "hub-api-link") { apiLinked = true; apiLabel = String(message.label || ""); apiPost("link"); reply({ok: true}); return false; }
+    if (message.type === "hub-api-navigation") {
+      const allowed = apiCapturedAt > 0 && Date.now() - apiCapturedAt < 20000 && initialUrl(message.from, currentProvider())
+        && assignedUrl(message.to, currentProvider()) && location.href === message.to && new URL(message.from).origin === new URL(message.to).origin;
+      reply({allowed, nonce, url: location.href}); return false;
+    }
+    if (message.type === "hub-api-request") {
+      if (!apiLinked || active || apiRun || !apiModels.some(m => m.id === message.modelId) || typeof message.prompt !== "string" || !message.prompt.trim() || message.prompt.length > 200000) {
+        reply({accepted: false, message: "API chưa sẵn sàng hoặc tab đang bận. Nhận diện API trong extension trước."}); return false;
+      }
+      apiRun = message.id; apiPost("call", {id: message.id, modelId: message.modelId, prompt: message.prompt}); reply({accepted: true}); return false;
+    }
     if (message.type === "hub-ping") { reply({nonce, url: location.href}); return false; }
     if (message.type === "hub-cancel") {
       if (active?.id === message.id) active.cancelled = true;
+      if (apiRun === message.id) { apiPost("cancel", {id: message.id}); apiRun = null; }
       reply({ok: true}); return false;
     }
     if (message.type === "hub-navigation") {
@@ -378,7 +417,8 @@
         const allowed = request?.id === message.id && !request.navigationUsed && request.submittedAt
           && Date.now() - request.submittedAt < 20000 && request.url === message.from && location.href === message.to
           && new URL(message.from).origin === new URL(message.to).origin
-          && initialUrl(message.from, currentProvider()) && assignedUrl(message.to, currentProvider()) && !!ownUser(request);
+          && initialUrl(message.from, currentProvider()) && assignedUrl(message.to, currentProvider())
+          && (!!ownUser(request) || request.networkConfirmed && list(request.selectors.user).length <= request.userCount + 1);
         if (allowed) { request.navigationUsed = true; request.url = message.to; }
         reply({allowed: !!allowed, nonce, url: location.href});
       } catch { reply({allowed: false, nonce, url: location.href}); }
@@ -395,6 +435,7 @@
       const request = {id: message.id, prompt: message.prompt, url: location.href,
         selectors: selected(message.selectors), cancelled: false};
       active = request;
+      if (apiLinked && initialUrl(location.href, currentProvider())) apiPost("arm", {prompt: message.prompt, label: modelLabel(currentProvider()) || apiLabel});
       reply({accepted: true});
       void run(request);
     } catch (error) { reply({accepted: false, message: error.message}); }

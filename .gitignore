@@ -39,3 +39,6 @@ Desktop.ini
 .vs/
 *.user
 *.sw?
+
+# Private gateway account aliases / bindings
+gateway-accounts.json

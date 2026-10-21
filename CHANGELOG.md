@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.11.0 — 2026-10-21
+
+- Thêm Gateway & tài khoản web: registry tên tài khoản/liên kết document, model từ request thật; không tạo agent/model mặc định, không thay model/quota web bằng OAuth CLI. Đăng nhập/xác minh giữ trong trình duyệt, tab cần mở.
+- Extension 1.3.0 nhận diện API từ một request văn bản đầu tiên trong chat mới được liên kết. Lượt gateway dùng fetch trong phiên web và parser luồng phản hồi; không điều khiển composer/đọc DOM. Template/header giữ trong bộ nhớ document, không chuyển credential sang Hub. Adapter thử nghiệm Gemini RPC, ChatGPT web và cùng origin Chat Completions; handshake/challenge chưa hỗ trợ báo lỗi rõ, không tự replay hoặc đổi model.
+- HTTP gateway loopback tùy chọn: /v1/models, /v1/chat/completions văn bản/SSE, key cục bộ trong Windows Credential Manager, kiểm tra Host/Origin, giới hạn body; từ chối tham số tools/multimodal/generation chưa hỗ trợ.
+- Sửa mất phản hồi do URL SPA được cấp trước tin người dùng trong DOM. Request có bằng chứng prompt tương ứng được dùng để nối URL/luồng; bổ sung parser ChatGPT snapshot/patch và nhận diện Gemini RPC EOF có frame đầy đủ. Vẫn ngắt khi document/chat khác không được xác nhận.
+- Build/cú pháp cục bộ; fixture giao thức/gateway/IPC chạy trong CI, không chạy inference hay kiểm tra màn hình trên máy người dùng.
+
 ## 5.10.0 — 2026-10-21
 
 - Hub Chat / Trò chuyện nhóm mô phỏng cuộc nói chuyện giữa người dùng và các chatbot bình đẳng: biết tên đồng đội, chào hỏi, trả lời đúng người, từng ý ngắn, tự cùng tìm giải pháp. Bỏ ép báo cáo/sổ ý tưởng/bàn giao ở mỗi lượt chat; Hub Code giữ workflow nghiên cứu hiện có.
