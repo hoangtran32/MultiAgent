@@ -18,7 +18,7 @@
         user: 'user-query, [data-test-id="user-query"]', assistant: 'model-response, [data-test-id="model-response"]',
         response: 'message-content, .markdown, .model-response-text',
         stop: 'button.send-button.stop, button.send-button:has(mat-icon[data-mat-icon-name="stop"]), button.send-button:has(mat-icon[fonticon="stop"]), button[aria-label="Stop response"], button[aria-label="Stop generating"], button[aria-label="Stop"], button[aria-label="Dừng câu trả lời"], button[aria-label="Dừng phản hồi"]',
-        actions: 'button[data-test-id="copy-button"], button[data-test-id="copy-response-button"], button.copy-button, button[aria-label="Copy response"], button[aria-label="Sao chép phản hồi"]'}},
+        actions: generic.actions + ', button[data-test-id="copy-button"], button[data-test-id="copy-response-button"], button.copy-button'}},
     {id: "chatgpt-web", name: "ChatGPT", host: "chatgpt.com", path: /^\/(?:c\/[^/]+)?\/?$/, fresh: /^\/$/,
       selectors: {input: '#prompt-textarea, textarea[data-testid="prompt-textarea"]',
         send: 'button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label="Send message"], button[aria-label="Gửi tin nhắn"]',

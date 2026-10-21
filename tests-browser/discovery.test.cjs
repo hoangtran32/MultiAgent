@@ -36,3 +36,16 @@ test("ambiguous send buttons do not trigger a click", () => {
 test("stop controls and disabled controls cannot be mistaken for send", () => {
   assert.equal(rules.send([send({trusted: true, excluded: true}), send({trusted: true, enabled: false})]), null);
 });
+
+
+test("folded group prompts correlate only with a cleared verified submission and exactly one new user turn", () => {
+  const prompt = "Bạn là thành viên của nhóm. ".repeat(40) + "Nội dung riêng của lượt này.";
+  const fragment = prompt.slice(0, 240) + "… Xem thêm";
+  const evidence = {collapsed: true, submitted: true, editorCleared: true, extraUsers: 1};
+  assert.equal(rules.userMatch(fragment, prompt, evidence), "folded");
+  for (const denied of [{editorCleared: false}, {submitted: false}, {collapsed: false}, {extraUsers: 2}, {interfered: true}])
+    assert.equal(rules.userMatch(fragment, prompt, {...evidence, ...denied}), "");
+  assert.equal(rules.userMatch("Bạn là…", prompt, evidence), "");
+  assert.equal(rules.userMatch("Khác nội dung ".repeat(20), prompt, evidence), "");
+  assert.equal(rules.userMatch(prompt, prompt, {extraUsers: 1}), "exact");
+});

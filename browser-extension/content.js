@@ -2,7 +2,7 @@
   "use strict";
   // Older injected documents need a reload, rather than two competing listeners.
   if (globalThis.__multiAgentHubBrowserContent) return;
-  globalThis.__multiAgentHubBrowserContent = "1.3.0";
+  globalThis.__multiAgentHubBrowserContent = "1.3.1";
   const nonce = crypto.randomUUID();
   let apiLinked = false, apiLabel = "", apiModels = [], apiCapturedAt = 0, apiRun = null;
   const apiPost = (type, fields = {}) => window.postMessage({source: "multi-agent-hub-api-control", channel: nonce, type, ...fields}, location.origin);
@@ -28,6 +28,21 @@
   document.addEventListener("click", event => { if (event.target.closest?.('button, [role="button"]')) prepareApiCapture(); }, true);
   document.addEventListener("keydown", event => { if (event.key === "Enter" && !event.shiftKey) prepareApiCapture(); }, true);
   document.addEventListener("submit", prepareApiCapture, true);
+
+  document.addEventListener("click", event => {
+    if (!event.isTrusted || !active?.submittedAt) return;
+    const anchor = event.target.closest?.('a[href]');
+    if (event.target.closest?.('button, [role="button"]') === active.sendButton) active.interfered = true;
+    if (anchor) {
+      try { const url = new URL(anchor.getAttribute("href"), location.href);
+        if (url.origin === location.origin && url.href !== active.url && (assignedUrl(url.href, currentProvider()) || initialUrl(url.href, currentProvider()))) active.interfered = true;
+      } catch { /* An external/invalid link cannot authorize a conversation assignment. */ }
+    }
+  }, true);
+  window.addEventListener("popstate", event => { if (event.isTrusted && active?.submittedAt) active.interfered = true; });
+  document.addEventListener("keydown", event => {
+    if (event.isTrusted && active?.submittedAt && event.key === "Enter" && !event.shiftKey && active.input?.contains(event.target)) active.interfered = true;
+  }, true);
 
   let active = null;
   let pickedInput = null;
@@ -201,11 +216,19 @@
   function ownUser(request) {
     const users = list(request.selectors.user);
     if (users.length <= request.userCount) return null;
+    if (users.length > request.userCount + 1 || request.interfered) throw new Error("Tab đã nhận thao tác gửi/chuyển chat khác. Đã dừng cầu nối để tránh trộn cuộc trò chuyện.");
     const user = users[request.userCount];
-    const actual = normal(readText(user));
-    const expected = normal(request.prompt);
-    if (!(actual === expected || actual.startsWith(expected) || actual.endsWith(expected))) return null;
-    if (users.length > request.userCount + 1) throw new Error("Có thêm tin nhắn khác trong tab. Đã dừng cầu nối để tránh trộn cuộc trò chuyện.");
+    if (request.ownedUser === user) return user;
+    const collapsed = [...user.querySelectorAll('button, [role="button"], [aria-expanded="false"]')].some(item =>
+      /(?:xem them|hien thi them|mo rong|show more|read more|expand)/.test(folded([item.textContent, item.getAttribute("aria-label"), item.getAttribute("title")].join(" "))))
+      || user.clientHeight > 0 && user.scrollHeight > user.clientHeight + 8;
+    let editorCleared = false;
+    try { const editor = request.input?.isConnected ? request.input : oneInput(request.selectors); editorCleared = !normal(inputText(editor)); } catch { /* Wait for the unique composer after rerender. */ }
+    const matched = discovery.userMatch(readText(user), request.prompt, {collapsed, submitted: !!request.submittedAt,
+      editorCleared, extraUsers: users.length - request.userCount,
+      networkConfirmed: request.networkConfirmed, interfered: request.interfered});
+    if (!matched) return null;
+    request.ownedUser = user;
     return user;
   }
   function afterOwnUser(request) {
@@ -274,6 +297,7 @@
       if (normal(inputText(input))) throw new Error("Khung nhập đang có nội dung của bạn. Giữ nguyên nội dung và chưa gửi yêu cầu Hub.");
       if (isGenerating(selectors, null)) throw new Error("Website đang tạo phản hồi khác. Đợi hoàn tất hoặc dừng trực tiếp trong tab.");
       request.userCount = list(selectors.user).length;
+      request.input = input;
       fill(input, request.prompt);
       let send;
       const deadline = Date.now() + 5000;
@@ -290,6 +314,7 @@
       if (request.cancelled) return;
       if (location.href !== request.url || normal(inputText(input)) !== normal(request.prompt)) throw new Error("Tab hoặc nội dung đã đổi trước khi gửi. Chưa gửi yêu cầu Hub.");
       request.submittedAt = Date.now();
+      request.sendButton = send;
       send.click(); // Only a verified send control; never synthesize a keyboard shortcut.
       let sawGenerating = false;
       let unrecognizedSince = 0;
@@ -297,6 +322,7 @@
       let lastText = "";
       let lastDelta = 0;
       while (!request.cancelled) {
+        if (request.interfered) throw new Error("Tab đã nhận thao tác gửi/chuyển chat khác; không tự gửi lại yêu cầu Hub.");
         if (location.href !== request.url) {
           // Wait briefly for the background to approve only our initial conversation URL assignment.
           if (!request.navigationWait) request.navigationWait = Date.now();
@@ -326,7 +352,8 @@
           lastText = text; lastDelta = Date.now();
           if (text) emit(request, "hub-delta", {text});
         }
-        const terminal = assistant && text && (sawGenerating || !!network?.text) && !generating && terminalActions(assistant, selectors);
+        // The freshly owned assistant's copy control proves completion even if generation finished between polls.
+        const terminal = assistant && text && !generating && terminalActions(assistant, selectors);
         if (terminal) {
           if (!terminalSince) terminalSince = Date.now();
           // Stability only debounces an explicit terminal control; quiet text alone never completes a turn.
@@ -421,14 +448,21 @@
       const request = active;
       try {
         const allowed = request?.id === message.id && !request.navigationUsed && request.submittedAt
-          && Date.now() - request.submittedAt < 20000 && request.url === message.from && location.href === message.to
+          && request.url === message.from && location.href === message.to
           && sameWebAccount(message.from, message.to)
           && initialUrl(message.from, currentProvider()) && assignedUrl(message.to, currentProvider())
           && (!!ownUser(request) || request.networkConfirmed && list(request.selectors.user).length <= request.userCount + 1);
-        if (allowed) { request.navigationUsed = true; request.url = message.to; }
+        if (allowed) request.navigationCandidate = {from: message.from, to: message.to};
         reply({allowed: !!allowed, nonce, url: location.href});
       } catch { reply({allowed: false, nonce, url: location.href}); }
       return false;
+    }
+    if (message.type === "hub-navigation-commit") {
+      const request = active, candidate = request?.navigationCandidate;
+      const committed = !!candidate && request.id === message.id && !request.interfered && request.url === message.from
+        && candidate.from === message.from && candidate.to === message.to && location.href === message.to;
+      if (committed) { request.navigationUsed = true; request.url = message.to; request.navigationCandidate = null; }
+      reply({committed, nonce, url: location.href}); return false;
     }
     if (message.type !== "hub-request") return false;
     if (active) { reply({accepted: false, message: "Tab đang xử lý yêu cầu khác."}); return false; }

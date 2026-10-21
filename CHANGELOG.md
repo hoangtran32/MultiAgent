@@ -1,5 +1,12 @@
 # Changelog
 
+## 5.11.1 — 2026-10-21
+
+- Sửa kênh tab chatbot làm rơi câu trả lời khi prompt nhóm bị web thu gọn: đối chiếu phần đầu đủ dài với đúng một tin mới, composer đã gửi/rỗng và dấu hiệu thu gọn; giữ nonce document, bằng chứng request và chặn thao tác gửi/chuyển chat xen vào.
+- Xác nhận URL mới theo hai bước: background cập nhật route trước, content chỉ phát phản hồi sau commit; tránh mất kết quả về ngay trong lúc SPA gán URL cuộc trò chuyện.
+- Nhận kết quả từ tin AI mới có nút sao chép và đã hết trạng thái tạo, kể cả trả lời nhanh đến mức không bắt được spinner. Bổ sung nhãn Copy/Sao chép của Gemini. Không dùng im lặng văn bản để giả hoàn thành.
+- Extension 1.3.1; fixture offline chạy chính content script cho prompt thu gọn, trả lời nhanh, hai website và chuyển chat thủ công, kèm fixture race URL/response. Không chạy UI/inference tại máy người dùng.
+
 ## 5.11.0 — 2026-10-21
 
 - Thêm Gateway & tài khoản web: registry tên tài khoản/liên kết document, model từ request thật; không tạo agent/model mặc định, không thay model/quota web bằng OAuth CLI. Đăng nhập/xác minh giữ trong trình duyệt, tab cần mở.

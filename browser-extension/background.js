@@ -392,8 +392,15 @@ async function reconcileTab(tabId, change) {
             }
           }
           if (check?.allowed && check.nonce === binding.nonce && check.url === url) {
+            const from = binding.url;
             binding.url = url;
             if (active) active.url = url;
+            // Publish the new route before content may emit its first delta/result on that route.
+            if (active) {
+              const commit = await chrome.tabs.sendMessage(tabId, {type: "hub-navigation-commit", id: active.id,
+                nonce: binding.nonce, from, to: url}, {frameId: 0});
+              if (!commit?.committed || commit.nonce !== binding.nonce || commit.url !== url) throw new Error("Navigation commit rejected");
+            }
             await persist(); publishState();
           } else await removeBinding(binding.id, "Chưa xác nhận được URL do lượt vừa gửi tạo ra; chưa chắc bạn đã đổi cuộc trò chuyện. Kiểm tra tab và liên kết lại; không tự gửi lại prompt.");
         } catch { await removeBinding(binding.id, "Tab đã đổi trang hoặc mất kết nối."); }

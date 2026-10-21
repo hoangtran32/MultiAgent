@@ -12,7 +12,7 @@ function browser(saved = [], options = {}) {
   let listener;
   const tab = {id: 1, title: "Gemini", url: options.url || "https://gemini.google.com/app"};
   let nonce = options.nonce || "document-one";
-  const session = {bindings: structuredClone(saved)}, local = {}, ports = [], sent = [], cancels = [], navigations = [];
+  const session = {bindings: structuredClone(saved)}, local = {}, ports = [], sent = [], cancels = [], navigations = [], commits = [];
   const event = () => { const handlers = []; return {addListener: f => handlers.push(f), emit: (...args) => handlers.forEach(f => f(...args))}; };
   const storage = data => ({get: async key => ({[key]: structuredClone(data[key])}), set: async value => Object.assign(data, structuredClone(value))});
   const chrome = {
@@ -31,6 +31,12 @@ function browser(saved = [], options = {}) {
         if (message.type === "hub-ping") return {nonce, url: tab.url};
         if (message.type === "hub-request" || message.type === "hub-api-request") { sent.push(structuredClone(message)); return {accepted: true}; }
         if (message.type === "hub-cancel") { cancels.push(message.id); return {ok: true}; }
+        if (message.type === "hub-navigation-commit") {
+          commits.push(structuredClone(message));
+          if (options.earlyResult) listener({type: "hub-result", id: message.id, nonce, url: tab.url, text: "Fast completed answer"},
+            {id: chrome.runtime.id, tab: structuredClone(tab), frameId: 0, url: tab.url}, () => {});
+          return {committed: options.commitFailure !== true, nonce, url: tab.url};
+        }
         if (message.type === "hub-navigation") { navigations.push(structuredClone(message)); return {allowed: options.allowNavigation !== false, nonce, url: tab.url}; }
         throw new Error("Unexpected content command: " + message.type);
       }}
@@ -39,7 +45,7 @@ function browser(saved = [], options = {}) {
   context = vm.createContext({importScripts: name => vm.runInContext(fs.readFileSync(path.join(__dirname, "../browser-extension/", name), "utf8"), context), URLSearchParams, chrome, crypto: {randomUUID}, URL, Date, setTimeout, clearTimeout, structuredClone});
   vm.runInContext(source, context, {filename: "background.js"});
   const popup = message => new Promise(resolve => listener(message, {id: chrome.runtime.id}, resolve));
-  return {tab, ports, sent, cancels, navigations, session, popup, content: message => listener(message, {id: chrome.runtime.id, tab: structuredClone(tab), frameId: 0, url: tab.url}, () => {}), setNonce: value => { nonce = value; },
+  return {tab, ports, sent, cancels, navigations, commits, session, popup, content: message => listener(message, {id: chrome.runtime.id, tab: structuredClone(tab), frameId: 0, url: tab.url}, () => {}), setNonce: value => { nonce = value; },
     update: async change => { if (change.url) tab.url = change.url; chrome.tabs.onUpdated.emit(tab.id, change); await settle(); },
     connect: (model = "Argon") => popup({type: "popup-connect", tabId: tab.id, confirmed: true, model, selectors: {}})};
 }
@@ -171,4 +177,22 @@ test("gateway API calls require discovered models and do not fall back to compos
   b.ports[0].onMessage.emit({type: "api-request", id: "unknown-api", bindingId: binding.id, modelId: "missing", prompt: "Hello"});
   await settle(); assert.equal(b.sent.length, 1);
   assert.ok(b.ports[0].frames.some(f => f.type === "error" && f.id === "unknown-api"));
+});
+
+
+test("URL route is committed before a fast result from the content script is delivered", async () => {
+  const b = browser([], {earlyResult: true}); await b.connect(); const binding = b.session.bindings[0];
+  b.ports[0].onMessage.emit({type: "request", id: "fast-result", bindingId: binding.id, expectedModel: "Argon", prompt: "Offline test"});
+  await settle(); await b.update({url: "https://gemini.google.com/app/assigned-fast"});
+  assert.equal(b.commits.length, 1);
+  assert.ok(b.ports[0].frames.some(f => f.type === "result" && f.id === "fast-result" && f.text === "Fast completed answer"));
+  assert.equal(b.sent.length, 1); assert.equal(b.cancels.length, 0);
+});
+
+test("a rejected URL commit fails the existing request without replay", async () => {
+  const b = browser([], {commitFailure: true}); await b.connect(); const binding = b.session.bindings[0];
+  b.ports[0].onMessage.emit({type: "request", id: "commit-rejected", bindingId: binding.id, expectedModel: "Argon", prompt: "Offline test"});
+  await settle(); await b.update({url: "https://gemini.google.com/app/assigned-rejected"});
+  assert.equal(b.session.bindings.length, 0); assert.equal(b.sent.length, 1);
+  assert.ok(b.ports[0].frames.some(f => f.type === "error" && f.id === "commit-rejected"));
 });

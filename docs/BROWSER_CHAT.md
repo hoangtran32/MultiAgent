@@ -76,3 +76,10 @@ Gỡ extension tại trang quản lý tiện ích. Có thể xóa đúng subkey 
 ## Gateway API web 5.11.0
 
 Có thêm đường gọi API trực tiếp trong document, tách khỏi tự nhập/bấm/đọc DOM. Cài extension 1.3.0 và nhận diện request đầu tiên theo [Web Gateway](WEB_GATEWAY.md). Thông tin đăng nhập cần cho request được giữ trong bộ nhớ tab; không xuất token/cookie sang Hub. Website yêu cầu xác minh hoặc handshake chưa hỗ trợ phải xử lý trên web; không tự đổi sang quota CLI.
+
+
+## Bản sửa nhận phản hồi 5.11.1 / extension 1.3.1
+
+Kênh tab cũ không còn đòi đọc đủ prompt dài khi web có nút thu gọn: chỉ nhận một tin mới sau khi chính Hub đã xác minh/gửi composer, ô nhập đã rỗng, phần đầu đủ dài khớp và có dấu hiệu thu gọn. Gửi thêm/chuyển chat bằng tay làm hủy bằng chứng đó. Nonce document và ranh giới URL vẫn được kiểm tra. Background nhận route mới trước khi content tiếp tục phát delta/result nên không bỏ mất kết quả về nhanh.
+
+Tin AI mới có nút sao chép, có nội dung và không còn dấu hiệu tạo được nhận là hoàn tất ngay cả khi spinner xuất hiện quá ngắn để quan sát. Bổ sung nhãn Copy/Sao chép Gemini. Giữ nội dung website khi dừng cầu nối; không tự gửi lại lượt đã lỗi. Sau cập nhật cần Reload extension và tải lại tab để thay script đang tiêm.
