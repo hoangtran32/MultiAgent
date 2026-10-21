@@ -5,7 +5,7 @@
     try {
       const u = new URL(url, origin);
       if (u.origin !== origin) return "";
-      if (u.hostname === "gemini.google.com" && /^\/_\/BardChatUi\/data\/assistant\.lamda\.BardFrontendService\/StreamGenerate$/.test(u.pathname)) return "gemini-rpc";
+      if (u.hostname === "gemini.google.com" && /^(?:\/u\/\d+)?\/_\/BardChatUi\/data\/assistant\.lamda\.BardFrontendService\/StreamGenerate$/.test(u.pathname)) return "gemini-rpc";
       if (u.hostname === "chatgpt.com" && /^\/backend-api\/(f\/)?conversation$/.test(u.pathname)) return "chatgpt-message";
       if (/\/chat\/completions$/.test(u.pathname)) return "chat-completions";
     } catch { /* Unrecognized route is not a generic fetch proxy. */ }

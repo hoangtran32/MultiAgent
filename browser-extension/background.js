@@ -152,6 +152,7 @@ async function removeBinding(id, reason) {
   const binding = bindings.get(id);
   if (!binding) return;
   bindings.delete(id);
+  void chrome.tabs.sendMessage(binding.tabId, {type: "hub-api-unlink", nonce: binding.nonce}, {frameId: 0}).catch(() => {});
   for (const request of [...requests.values()].filter(item => item.bindingId === id)) {
     void chrome.tabs.sendMessage(request.tabId, {type: "hub-cancel", id: request.id, nonce: request.nonce}, {frameId: 0}).catch(() => {});
     finishError(request.id, reason);

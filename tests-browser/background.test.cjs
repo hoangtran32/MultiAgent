@@ -26,7 +26,7 @@ function browser(saved = [], options = {}) {
       onRemoved: event(), onUpdated: event(), sendMessage: async (id, message) => {
         assert.equal(id, tab.id);
         if (message.type === "hub-bind") return {ready: true, nonce, url: tab.url, model: options.detectedModel || ""};
-        if (message.type === "hub-api-link") return {ok: true};
+        if (message.type === "hub-api-link" || message.type === "hub-api-unlink") return {ok: true};
         if (message.type === "hub-api-navigation") return {allowed: false, nonce, url: tab.url};
         if (message.type === "hub-ping") return {nonce, url: tab.url};
         if (message.type === "hub-request" || message.type === "hub-api-request") { sent.push(structuredClone(message)); return {accepted: true}; }

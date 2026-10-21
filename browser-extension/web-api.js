@@ -112,6 +112,7 @@
     if (event.source !== window || event.origin !== location.origin || m?.source !== "multi-agent-hub-api-control" || typeof m.channel !== "string" || m.channel.length > 128) return;
     if (m.type === "link") { if (link?.channel !== m.channel) { active?.controller.abort(); templates.clear(); } link = {channel: m.channel}; emit("models", {models: publicModels()}); return; }
     if (!link || m.channel !== link.channel) return;
+    if (m.type === "unlink") { active?.controller.abort(); active = null; armed = null; templates.clear(); link = null; return; }
     if (m.type === "arm") arm(m.prompt, m.label);
     else if (m.type === "cancel" && active?.id === m.id) active.controller.abort();
     else if (m.type === "call" && typeof m.id === "string" && m.id.length <= 128 && typeof m.prompt === "string" && m.prompt.trim() && m.prompt.length <= 200000) void execute(m);

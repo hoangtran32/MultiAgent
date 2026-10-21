@@ -362,9 +362,14 @@
     const url = new URL(value);
     return providers.fresh(value);
   }
+  function sameWebAccount(from, to) {
+    const a = new URL(from), b = new URL(to);
+    return a.origin === b.origin && (a.pathname.match(/^\/u\/(\d+)\//)?.[1] || "0") === (b.pathname.match(/^\/u\/(\d+)\//)?.[1] || "0")
+      && (a.searchParams.get("authuser") || "") === (b.searchParams.get("authuser") || "");
+  }
   function assignedUrl(value, provider) {
     const url = new URL(value);
-    return provider === "gemini-web" ? /^\/app\/[^/]+\/?$/.test(url.pathname) : provider === "chatgpt-web" ? /^\/c\/[^/]+\/?$/.test(url.pathname) : providers.providerOf(value) === "browser-web";
+    return provider === "gemini-web" ? /^(?:\/u\/\d+)?\/app\/[^/]+\/?$/.test(url.pathname) : provider === "chatgpt-web" ? /^\/c\/[^/]+\/?$/.test(url.pathname) : providers.providerOf(value) === "browser-web";
   }
   chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (sender.id !== chrome.runtime.id || !message) return false;
@@ -393,10 +398,11 @@
       return false;
     }
     if (message.nonce !== nonce) { reply({accepted: false, message: "Tab đã tải lại. Cần kết nối lại."}); return false; }
+    if (message.type === "hub-api-unlink") { apiPost("unlink"); apiLinked = false; apiRun = null; apiModels = []; apiCapturedAt = 0; reply({ok: true}); return false; }
     if (message.type === "hub-api-link") { apiLinked = true; apiLabel = String(message.label || ""); apiPost("link"); reply({ok: true}); return false; }
     if (message.type === "hub-api-navigation") {
       const allowed = apiCapturedAt > 0 && Date.now() - apiCapturedAt < 20000 && initialUrl(message.from, currentProvider())
-        && assignedUrl(message.to, currentProvider()) && location.href === message.to && new URL(message.from).origin === new URL(message.to).origin;
+        && assignedUrl(message.to, currentProvider()) && location.href === message.to && sameWebAccount(message.from, message.to);
       reply({allowed, nonce, url: location.href}); return false;
     }
     if (message.type === "hub-api-request") {
@@ -416,7 +422,7 @@
       try {
         const allowed = request?.id === message.id && !request.navigationUsed && request.submittedAt
           && Date.now() - request.submittedAt < 20000 && request.url === message.from && location.href === message.to
-          && new URL(message.from).origin === new URL(message.to).origin
+          && sameWebAccount(message.from, message.to)
           && initialUrl(message.from, currentProvider()) && assignedUrl(message.to, currentProvider())
           && (!!ownUser(request) || request.networkConfirmed && list(request.selectors.user).length <= request.userCount + 1);
         if (allowed) { request.navigationUsed = true; request.url = message.to; }

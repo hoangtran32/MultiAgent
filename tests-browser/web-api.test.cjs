@@ -6,6 +6,7 @@ const api = require("../browser-extension/web-api-protocol.js");
 
 test("API adapters recognize generation routes only on the linked origin", () => {
   assert.equal(api.kind("https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate", "https://gemini.google.com"), "gemini-rpc");
+  assert.equal(api.kind("/u/1/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate", "https://gemini.google.com"), "gemini-rpc");
   assert.equal(api.kind("/backend-api/f/conversation", "https://chatgpt.com"), "chatgpt-message");
   for (const url of ["https://evil.example/v1/chat/completions", "/api/auth/session", "/backend-api/f/conversation/prepare", "/login"])
     assert.equal(api.kind(url, "https://chatgpt.com"), "");
@@ -65,6 +66,9 @@ test("web API broker stays dormant until linked and exports descriptors/text wit
   assert.equal(p.frames.find(f => f.id === "api-one" && f.type === "result").text, "Answer");
   const exported = JSON.stringify(p.frames.filter(f => f.source === "multi-agent-hub-web-api"));
   assert.ok(!exported.includes("private-token") && !exported.includes("never-reuse") && !exported.includes("first"));
+  p.control("unlink"); p.control("link"); p.control("call", {id: "after-unlink", modelId: descriptor.id, prompt: "hello"});
+  await p.until(() => p.frames.some(f => f.id === "after-unlink" && f.type === "error"));
+  assert.equal(p.calls.length, 3);
 });
 test("unknown API model fails before any fetch, without fallback or model substitution", async () => {
   const p = page(); p.control("link"); p.control("call", {id: "missing", modelId: "unknown", prompt: "hello"});

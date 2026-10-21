@@ -12,7 +12,7 @@
     busy: '[aria-busy="true"], [data-is-streaming="true"]'
   };
   const adapters = [
-    {id: "gemini-web", name: "Gemini", host: "gemini.google.com", path: /^\/app(?:\/[^/]+)?\/?$/, fresh: /^\/app\/?$/,
+    {id: "gemini-web", name: "Gemini", host: "gemini.google.com", path: /^(?:\/u\/\d+)?\/app(?:\/[^/]+)?\/?$/, fresh: /^(?:\/u\/\d+)?\/app\/?$/,
       selectors: {input: 'rich-textarea .ql-editor[contenteditable="true"], rich-textarea [contenteditable="true"], .text-input-field textarea',
         send: 'button.send-button, button[aria-label="Send message"], button[aria-label="Gửi tin nhắn"], button[aria-label="Send"]',
         user: 'user-query, [data-test-id="user-query"]', assistant: 'model-response, [data-test-id="model-response"]',

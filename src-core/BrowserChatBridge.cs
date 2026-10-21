@@ -73,7 +73,7 @@ public sealed class BrowserChatBridge : IDisposable
             string answer = await request.Answer.Task;
             BrowserChatBinding? observed;
             lock (gate) observed = request.Client.Bindings.FirstOrDefault(b => b.Id == bindingId);
-            if (observed != null) log($"\nChatbot: {observed.DisplaySite} · {observed.DisplayModel} · {observed.Transport}\n");
+            if (observed != null) log(request.ApiModelId.Length > 0 ? $"\nĐã nhận phản hồi qua API web · {observed.DisplaySite}.\n" : $"\nChatbot: {observed.DisplaySite} · {observed.DisplayModel} · {observed.Transport}\n");
             return answer;
         }
         finally { lock (gate) pending.Remove(request.Id); }

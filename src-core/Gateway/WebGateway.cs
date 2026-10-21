@@ -104,8 +104,8 @@ public sealed class WebGateway(GatewayAccounts accounts, BrowserChatBridge bridg
         if (input.ValueKind != JsonValueKind.Object || !input.TryGetProperty("model", out var model) || model.ValueKind != JsonValueKind.String
             || string.IsNullOrWhiteSpace(model.GetString()) || model.GetString()!.Length > 200 || !input.TryGetProperty("messages", out var messages)
             || messages.ValueKind != JsonValueKind.Array || messages.GetArrayLength() is < 1 or > 128) throw new ArgumentException("Model/messages không hợp lệ.");
-        foreach (string unsupported in new[] { "tools", "functions", "tool_choice", "function_call", "response_format", "audio", "modalities", "max_tokens", "max_completion_tokens", "temperature", "top_p", "stop", "seed", "logprobs", "presence_penalty", "frequency_penalty" })
-            if (input.TryGetProperty(unsupported, out _)) throw new ArgumentException("Tham số chưa được web adapter hỗ trợ: " + unsupported);
+        foreach (var property in input.EnumerateObject())
+            if (property.Name is not ("model" or "messages" or "stream" or "n")) throw new ArgumentException("Tham số chưa được web adapter hỗ trợ: " + property.Name);
         if (input.TryGetProperty("n", out var n) && (n.ValueKind != JsonValueKind.Number || !n.TryGetInt32(out int count) || count != 1)) throw new ArgumentException("Chỉ hỗ trợ n=1.");
         bool stream = false;
         if (input.TryGetProperty("stream", out var streaming)) { if (streaming.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new ArgumentException("stream cần boolean."); stream = streaming.GetBoolean(); }
