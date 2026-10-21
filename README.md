@@ -6,6 +6,8 @@
 
 ## Bắt đầu
 
+**API chạy ngầm dùng gói ChatGPT (5.12.0):** vào **Agent & model → Tài khoản ChatGPT • API**, đăng nhập chính thức và chọn model do tài khoản trả về. Sau đăng nhập không cần extension/tab/app mở. Model/tính năng API có giới hạn riêng; Gemini cùng quota app chưa có kết nối API được xác minh. Xem [hướng dẫn và giới hạn](docs/CHATGPT_PLAN_API.md).
+
 Tải `MultiAgentHub-<version>-win-x64.exe` từ mục Releases của repository rồi mở trực tiếp. Bản EXE có sẵn .NET runtime, không cần cài đặt. Nếu dùng bản ZIP, giải nén toàn bộ rồi mở `MultiAgentHub.exe`.
 
 1. Lần đầu app không có agent được cài sẵn. Bấm **Thêm agent của bạn** hoặc **Agent & model** để dò công cụ đã cài và model.

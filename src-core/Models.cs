@@ -15,7 +15,7 @@ public static class Catalog
     public const int MaxAgents = 32;
     public static readonly Choice[] Providers = [new("codex", "Codex"), new("claude", "Claude / Anthropic"),
         new("antigravity", "Google Antigravity"), new("gemini", "Google Gemini"), new("chatgpt", "ChatGPT • chatbot"),
-        new("browser", "Chatbot từ extension • tự nhận diện"), new("gateway", "Gateway • tài khoản web"), new("compatible", "API tương thích OpenAI / local AI"), new("custom", "Công cụ AI khác")];
+        new("chatgpt-plan", "ChatGPT • API dùng gói đăng ký"), new("browser", "Chatbot từ extension • tự nhận diện"), new("gateway", "Gateway • tài khoản web"), new("compatible", "API tương thích OpenAI / local AI"), new("custom", "Công cụ AI khác")];
     public static Choice[] Connections(string provider) => provider switch
     {
         "codex" => [new("codex-cli", "Codex CLI • tự động"), new("manual", "Sao chép / dán kết quả")],
@@ -23,6 +23,7 @@ public static class Catalog
         "antigravity" => [new("antigravity-ide", "Antigravity IDE • dán kết quả"), new("antigravity-desktop", "Antigravity 2.0 desktop • dán kết quả"), new("agy-cli", "Antigravity CLI (agy) • tự động")],
         "gemini" => [new("gemini-web", "Gemini web • tài khoản trình duyệt"), new("gemini-api", "Gemini API • trực tiếp"), new("manual", "Gemini app / web • dán kết quả")],
         "chatgpt" => [new("chatgpt-web", "ChatGPT web • tài khoản trình duyệt"), new("manual", "ChatGPT app / web • dán kết quả")],
+        "chatgpt-plan" => [new("chatgpt-plan", "API chính thức • Using ChatGPT plan")],
         "browser" => [new("browser-web", "Tab chatbot • tài khoản trình duyệt")],
         "gateway" => [new("gateway-web", "API từ phiên web • giữ model/quota website")],
         "compatible" => [new("chat-api", "Chat Completions API • trực tiếp")],
@@ -33,6 +34,7 @@ public static class Catalog
     public static string ConnectionName(AgentConfig agent) => Connections(agent.Provider).First(c => c.Id == agent.Connection).Name;
     public static bool IsManual(string connection) => connection is "manual" or "antigravity-ide" or "antigravity-desktop";
     public static bool IsApi(string connection) => connection is "anthropic-api" or "gemini-api" or "chat-api";
+    public static bool IsTextApi(string connection) => IsApi(connection) || connection == "chatgpt-plan";
     public static bool IsBrowserChat(string connection) => connection is "browser-web" or "gemini-web" or "chatgpt-web";
     public static string Endpoint(string connection) => connection switch
     {
@@ -51,6 +53,7 @@ public static class Catalog
         if (!new[] { "read-only", "workspace-write", "full", "default" }.Contains(agent.Permission)) throw new ArgumentException("Quyền không hợp lệ.");
         if (!new[] { "", "low", "medium", "high", "xhigh", "max", "ultra" }.Contains(agent.Reasoning)) throw new ArgumentException("Mức suy luận không hợp lệ.");
         if (agent.GatewayAccountId.Length > 80 || agent.GatewayAccountId.Any(char.IsControl)) throw new ArgumentException("Tài khoản gateway không hợp lệ.");
+        if (agent.PlanAccountId.Length > 0 && !Guid.TryParseExact(agent.PlanAccountId, "N", out _)) throw new ArgumentException("Tài khoản ChatGPT không hợp lệ.");
         if (IsApi(agent.Connection)) ApiTransport.BaseUri(agent);
     }
 }
@@ -72,6 +75,7 @@ public sealed class AgentConfig
     public bool Enabled { get; set; } = true;
     public string BrowserBindingId { get; set; } = "";
     public string GatewayAccountId { get; set; } = "";
+    public string PlanAccountId { get; set; } = "";
     public AgentConfig Copy(bool newId = false)
     {
         var copy = JsonSerializer.Deserialize<AgentConfig>(JsonSerializer.Serialize(this, Json.Options), Json.Options)!;

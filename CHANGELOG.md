@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.12.0 — 2026-10-21
+
+- Thêm kết nối API chính thức dùng gói ChatGPT: OAuth public client/PKCE, callback loopback, xác minh ID token bằng JWKS; đăng nhập tài khoản/workspace riêng cho Hub, không đọc credential app Codex hay trình duyệt.
+- Model lấy động từ `/v1/models` của tài khoản. Đọc Responses SSE trực tiếp, chỉ hoàn tất khi nhận `response.completed`; giữ văn bản khi lỗi/luồng bị ngắt, không tự gửi lại, đổi model hay chuyển sang key tính phí.
+- Token mã hóa Windows DPAPI, cập nhật nguyên bộ, khóa refresh theo tài khoản giữa các tiến trình; quản lý đăng nhập/đăng xuất và liên kết ChatGPT Settings → Usage. Hiện Using ChatGPT plan cạnh composer.
+- Chưa hỗ trợ API dùng đúng quota/model Gemini desktop; không coi đường dẫn EXE là endpoint hay thay ngầm bằng CLI/API key. Kết nối extension/gateway thử nghiệm cũ giữ riêng.
+- Bổ sung fixture offline JWT, SSE, DPAPI và khóa token trong CI. Không chạy đăng nhập/inference thật hoặc kiểm tra UI cục bộ.
+
 ## 5.11.1 — 2026-10-21
 
 - Sửa kênh tab chatbot làm rơi câu trả lời khi prompt nhóm bị web thu gọn: đối chiếu phần đầu đủ dài với đúng một tin mới, composer đã gửi/rỗng và dấu hiệu thu gọn; giữ nonce document, bằng chứng request và chặn thao tác gửi/chuyển chat xen vào.

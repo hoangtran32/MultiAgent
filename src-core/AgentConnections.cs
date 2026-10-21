@@ -11,6 +11,7 @@ public static class AgentConnections
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
         try {
+            if (agent.Connection == "chatgpt-plan") return new("api", "Đăng nhập riêng trong Tài khoản ChatGPT • API. Dùng quyền và model API do gói ChatGPT cho phép; không dùng key tính phí hay phiên Codex CLI.");
             if (agent.Connection == "gateway-web") return new("browser", "Phiên API web quản lý trong Gateway & tài khoản web. Đăng nhập/xác minh trên trình duyệt; không dùng quota CLI hay API key dịch vụ.");
             if (Catalog.IsManual(agent.Connection)) return new("manual", "Kết nối sao chép/dán; đăng nhập được quản lý trong ứng dụng ngoài, Hub không xác minh tài khoản.");
             if (Catalog.IsBrowserChat(agent.Connection)) return new("browser", "Dùng tài khoản trong tab trình duyệt bạn kết nối qua extension; kiểm tra tab trong Chatbot từ trình duyệt. Hub không đọc token hoặc xác minh quota/model phía máy chủ.");
@@ -48,6 +49,7 @@ public static class AgentConnections
 
     public static void OpenLogin(AgentConfig agent)
     {
+        if (agent.Connection == "chatgpt-plan") throw new InvalidOperationException("Mở Agent & model → Tài khoản ChatGPT • API để đăng nhập riêng cho Hub.");
         if (Catalog.IsApi(agent.Connection)) throw new InvalidOperationException("Kết nối API dùng key trong Thiết lập / model; không dùng đăng nhập CLI.");
         if (agent.Connection is not ("codex-cli" or "claude-cli" or "agy-cli")) throw new InvalidOperationException("Mở ứng dụng ngoài hoặc executable tùy chỉnh để đăng nhập.");
         string binary = ProcessTransport.Find(agent) ?? throw new FileNotFoundException("Chưa cài CLI hoặc chưa chọn executable.");

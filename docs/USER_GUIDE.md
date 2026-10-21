@@ -1,4 +1,6 @@
-# Hướng dẫn Multi-Agent Hub 5.11.1
+# Hướng dẫn Multi-Agent Hub 5.12.0
+
+**Dùng gói ChatGPT qua API chạy ngầm:** mở **Agent & model → Tài khoản ChatGPT • API**, bấm **Continue with ChatGPT**, cấp quyền dùng gói rồi chọn model trong danh sách máy chủ. Không cần extension hay mở app/tab khi gửi tin. Chi tiết quota, giới hạn tính năng và Gemini desktop chưa hỗ trợ ở [CHATGPT_PLAN_API.md](CHATGPT_PLAN_API.md).
 
 **Trò chuyện / Hub Chat** là hội thoại độc lập, không cần project. Sidebar chỉ hiện các cuộc trò chuyện, ghim/lưu trữ và tìm kiếm; tiếp tục được dù thư mục làm việc trước đó đã đổi/xóa. **Làm việc / Hub Code** dùng project và đội agent để thực hiện task. Chuyển mục mở phiên nhập mới; mở lịch sử đúng mục để tiếp tục. Chatbot extension có thể được chọn thêm trong Làm việc để tư vấn/code mẫu/phản biện qua văn bản, không có công cụ filesystem/terminal trên máy. Khi CLI hết quota, bạn chủ động quyết định dùng chatbot, Hub không tự chuyển dữ liệu.
 

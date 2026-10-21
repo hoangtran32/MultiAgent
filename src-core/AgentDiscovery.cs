@@ -37,6 +37,7 @@ public static class AgentDiscovery
             choices.Add((selected, binary, match != null));
         }
         foreach (var agent in existing.Where(a => !Catalog.IsManual(a.Connection))) {
+            if (agent.Connection == "chatgpt-plan") continue; // Account-specific models are listed after explicit OAuth sign-in.
             string? binary = Catalog.IsApi(agent.Connection) ? "" : TryFind(agent);
             if (binary != null && (Catalog.IsApi(agent.Connection) || !choices.Any(c => c.Agent.Connection == agent.Connection && string.Equals(c.Executable, binary, StringComparison.OrdinalIgnoreCase))))
                 choices.Add((agent, binary, true));
