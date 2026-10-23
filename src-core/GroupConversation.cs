@@ -31,9 +31,9 @@ public static class GroupConversation
                 if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("state", out var state) && state.ValueKind == JsonValueKind.String
                     && state.GetString() is "continue" or "wait" or "complete") {
                     string next = root.TryGetProperty("next", out var to) && to.ValueKind == JsonValueKind.String ? to.GetString()! : "";
-                    if (state.GetString() == "continue" && userScope.Length > 0) {
+                    if (state.GetString() is "continue" or "complete" && userScope.Length > 0) {
                         var gaps = root.TryGetProperty("scopeGaps", out var gapList) ? JsonSerializer.Deserialize<List<CompletionGap>>(gapList.GetRawText(), Json.Options) ?? [] : [];
-                        TeamProtocol.ValidateCompletion(new() { ScopeGaps = gaps }, userScope);
+                        TeamProtocol.ValidateCompletion(new() { Finished = state.GetString() == "complete", ScopeGaps = gaps }, userScope);
                     }
                     if (next.Length <= 128 && !next.Any(char.IsControl)) return new(visible, state.GetString()!, next);
                 }

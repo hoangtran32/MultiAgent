@@ -47,11 +47,14 @@ if (args.FirstOrDefault() == "--fixture")
     }
     Console.Write(JsonSerializer.Serialize(new { input, args = args.Skip(1).ToArray() })); return;
 }
-int passed = 0;
+int passed = 0, failed = 0;
 var root = Path.Combine(Path.GetTempPath(), "MultiAgentHub-tests-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
 void Assert(bool condition, string message = "Assertion failed") { if (!condition) throw new Exception(message); }
 void Throws(Action action) { try { action(); } catch (Exception) { return; } throw new Exception("Expected failure"); }
-async Task Test(string name, Func<Task> action) { await action(); passed++; Console.WriteLine("PASS " + name); }
+async Task Test(string name, Func<Task> action) {
+    try { await action(); passed++; Console.WriteLine("PASS " + name); }
+    catch (Exception error) { failed++; Console.Error.WriteLine("FAIL " + name + "\n" + error); }
+}
 Storage Store() => new(Path.Combine(root, Guid.NewGuid().ToString("N")));
 AgentConfig Agent(string provider, string connection, string? name = null) => new() { Provider = provider, Connection = connection, Name = name ?? provider };
 async Task Until(Func<bool> condition)
@@ -416,7 +419,7 @@ try
         var runner = new JobRunner(fixture, Store()); var disabled = new List<string>(); runner.AgentQuotaReached += disabled.Add;
         runner.Start(new() { Project = root, Mode = "discussion", Agents = [first, second], Discussion = new() { MaxTurns = 4, PauseSeconds = 0 } }, "topic"); await runner.Completion!;
         Assert(disabled.SequenceEqual(new[] { first.Id }) && fixture.Calls.Count(c => c.Name == "exhausted") == 1);
-        Assert(fixture.Calls.Skip(1).All(c => c.Name == "available") && fixture.Calls[2].Prompt.Contains("tự phản biện"));
+        Assert(fixture.Calls.Skip(1).All(c => c.Name == "available") && fixture.Calls[2].Prompt.Contains("đối chiếu yêu cầu"));
         Assert(runner.Snapshot()!.State == "partial" && runner.Snapshot()!.ReportByModel);
     });
     await Test("discussion stops when all models exhaust; ordinary errors do not uncheck", async () => {
@@ -623,6 +626,7 @@ try
     await BrowserChatSelectionTests.Run(Test, root);
     await ConversationScopeTests.Run(Test, root);
     Console.WriteLine($"{passed} native tests passed");
+    if (failed > 0) throw new Exception($"{failed} native tests failed; see named failures above.");
 }
 catch (Exception e) { Console.Error.WriteLine(e); Environment.ExitCode = 1; }
 finally { Directory.Delete(root, true); }
