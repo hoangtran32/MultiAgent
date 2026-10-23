@@ -1,4 +1,6 @@
-# Hướng dẫn Multi-Agent Hub 5.12.0
+# Hướng dẫn Multi-Agent Hub 5.13.0
+
+**Điểm dừng và tệp:** nhóm kết thúc khi cùng xác nhận đáp ứng đúng yêu cầu. Nút + hỗ trợ nhiều ảnh/PDF/Word/văn bản; có kéo thả, Ctrl+V ảnh và bỏ từng tệp. Xem [hướng dẫn chi tiết](COMPLETION_AND_ATTACHMENTS.md).
 
 **Dùng gói ChatGPT qua API chạy ngầm:** mở **Agent & model → Tài khoản ChatGPT • API**, bấm **Continue with ChatGPT**, cấp quyền dùng gói rồi chọn model trong danh sách máy chủ. Không cần extension hay mở app/tab khi gửi tin. Chi tiết quota, giới hạn tính năng và Gemini desktop chưa hỗ trợ ở [CHATGPT_PLAN_API.md](CHATGPT_PLAN_API.md).
 

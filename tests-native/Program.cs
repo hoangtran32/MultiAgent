@@ -619,6 +619,7 @@ try
     await BrowserChatBridgeTests.Run(Test, root);
     await GatewayTests.Run(Test, root);
     await ChatGptPlanTests.Run(Test, root);
+    await AttachmentTests.Run(Test, root);
     await BrowserChatSelectionTests.Run(Test, root);
     await ConversationScopeTests.Run(Test, root);
     Console.WriteLine($"{passed} native tests passed");

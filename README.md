@@ -6,6 +6,8 @@
 
 ## Bắt đầu
 
+**5.13.0:** nhóm kết thúc khi đã đối chiếu và xác nhận đáp ứng yêu cầu; gợi ý tùy chọn không tự thành task. Khung chat hỗ trợ nhiều ảnh/PDF/Word/văn bản, kéo thả và Ctrl+V ảnh. Xem [điểm dừng và đính kèm](docs/COMPLETION_AND_ATTACHMENTS.md).
+
 **API chạy ngầm dùng gói ChatGPT (5.12.0):** vào **Agent & model → Tài khoản ChatGPT • API**, đăng nhập chính thức và chọn model do tài khoản trả về. Sau đăng nhập không cần extension/tab/app mở. Model/tính năng API có giới hạn riêng; Gemini cùng quota app chưa có kết nối API được xác minh. Xem [hướng dẫn và giới hạn](docs/CHATGPT_PLAN_API.md).
 
 Tải `MultiAgentHub-<version>-win-x64.exe` từ mục Releases của repository rồi mở trực tiếp. Bản EXE có sẵn .NET runtime, không cần cài đặt. Nếu dùng bản ZIP, giải nén toàn bộ rồi mở `MultiAgentHub.exe`.

@@ -51,7 +51,10 @@ internal sealed partial class MainWindow : Form
     private volatile JobRecord? latest;
     private JobRecord? displayed;
     private string lastLoadedJob = "";
-    private string? contextFile;
+    private readonly List<ChatAttachment> pendingAttachments = [];
+    private readonly FlowLayoutPanel attachmentTray = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, Visible = false, Margin = Padding.Empty };
+    private bool preparingAttachments;
+    private int attachmentGeneration;
     private readonly Dictionary<string, (long Stamp, List<JobRecord> Jobs, long Access)> loadedConversations = [];
     private CancellationTokenSource? conversationLoad;
     private int conversationLoadVersion;
@@ -219,7 +222,10 @@ internal sealed partial class MainWindow : Form
         inputLayout.Controls.Add(workspacePath, 0, 0);
         prompt.BorderStyle = BorderStyle.None; prompt.ScrollBars = ScrollBars.Vertical; prompt.AcceptsReturn = true; prompt.AccessibleName = "Tin nhắn cho agent"; prompt.PlaceholderText = "Hỏi điều gì đó hoặc mô tả việc cần làm…"; prompt.Tag = "composer-input";
         prompt.Font = new Font("Segoe UI", 9.5f); prompt.Margin = new Padding(0, 2, 0, 4); inputLayout.Controls.Add(prompt, 0, 1); locked.Add(prompt);
-        prompt.KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; StartJob(); } };
+        prompt.KeyDown += (_, e) => { if (e.Control && e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; StartJob(); } else HandleAttachmentPaste(e); };
+        prompt.AllowDrop = true;
+        prompt.DragEnter += (_, e) => e.Effect = !runner.Busy && !preparingAttachments && e.Data?.GetDataPresent(DataFormats.FileDrop) == true ? DragDropEffects.Copy : DragDropEffects.None;
+        prompt.DragDrop += (_, e) => { if (e.Data?.GetData(DataFormats.FileDrop) is string[] files) AddAttachmentFiles(files); };
         var toolbar = Ui.Table(2); toolbar.Margin = Padding.Empty; toolbar.RowCount = 1; toolbar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         var choices = Ui.Flow(); choices.WrapContents = false;
@@ -232,7 +238,7 @@ internal sealed partial class MainWindow : Form
         stop = sessionProgress.StopButton; stop.Enabled = false; stop.Visible = false;
         send.Controls.AddRange([teamButton, run]); toolbar.Controls.Add(send, 1, 0); locked.Add(run);
         attachment.AutoEllipsis = true; attachment.AutoSize = false; attachment.Height = 22; attachment.Dock = DockStyle.Top; attachment.Visible = false;
-        inputLayout.Controls.Add(attachment, 0, 2); inputLayout.Controls.Add(toolbar, 0, 3);
+        inputLayout.Controls.Add(attachmentTray, 0, 2); inputLayout.Controls.Add(toolbar, 0, 3);
         root.Controls.Add(composer, 0, 2);
         bool adjustingComposer = false, composerLayoutQueued = false;
         int measuredPromptWidth = -1;
@@ -257,7 +263,7 @@ internal sealed partial class MainWindow : Form
                 using (var graphics = prompt.CreateGraphics())
                     lineHeight = TextRenderer.MeasureText(graphics, "Mg", prompt.Font, Size.Empty, TextFormatFlags.SingleLine | TextFormatFlags.NoPadding).Height + D(2);
                 int textHeight = (int)Math.Clamp((long)Math.Max(1, lines) * lineHeight + D(8), D(58), D(150));
-                int attachmentHeight = contextFile != null ? D(24) : 0;
+                int attachmentHeight = pendingAttachments.Count == 0 ? 0 : D(Math.Min(3, (pendingAttachments.Count + 1) / 2) * 38);
                 int toolbarHeight = D(36);
                 int workspaceHeight = D(24);
                 // The parent row owns the height of its docked child. Setting composer.Height
@@ -282,7 +288,7 @@ internal sealed partial class MainWindow : Form
         prompt.SizeChanged += (_, _) => { if (prompt.ClientSize.Width != measuredPromptWidth) { measuredPromptWidth = prompt.ClientSize.Width; QueueComposerLayout(); } };
         prompt.FontChanged += (_, _) => QueueComposerLayout();
         composer.Resize += (_, _) => QueueComposerLayout(); DpiChanged += (_, _) => QueueComposerLayout();
-        attachment.TextChanged += (_, _) => { attachment.Visible = contextFile != null; QueueComposerLayout(); }; Shown += (_, _) => QueueComposerLayout();
+        attachment.TextChanged += (_, _) => { attachmentTray.Visible = pendingAttachments.Count > 0; QueueComposerLayout(); }; Shown += (_, _) => QueueComposerLayout();
         var output = Ui.Table(); output.RowStyles.Add(new RowStyle(SizeType.AutoSize)); output.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); detailPanel.Controls.Add(output);
         var outputHeader = Ui.Flow(); outputHeader.Controls.AddRange([history, Ui.Button("Xem lịch sử", (_, _) => ShowHistory()), Ui.Button("Dùng lại yêu cầu", (_, _) => Reuse()), Ui.Button("Xuất Markdown…", (_, _) => ExportJob())]); output.Controls.Add(outputHeader, 0, 0);
         history.AccessibleName = "Lịch sử tác vụ"; output.Controls.Add(results, 0, 1);
@@ -356,10 +362,11 @@ internal sealed partial class MainWindow : Form
     private void OpenAttachmentMenu()
     {
         if (runner.Busy) return;
-        if (contextFile == null) { Attach(); return; }
+        if (pendingAttachments.Count == 0) { Attach(); return; }
         StyleMenu(attachmentMenu); attachmentMenu.Items.Clear();
-        attachmentMenu.Items.Add("Thay file đính kèm…", null, (_, _) => Attach());
-        attachmentMenu.Items.Add("Bỏ file đính kèm", null, (_, _) => { contextFile = null; attachment.Text = "Không đính kèm file"; });
+        attachmentMenu.Items.Add("Thêm tệp…", null, (_, _) => Attach());
+        foreach (var file in pendingAttachments) { var selected = file; attachmentMenu.Items.Add("Bỏ " + selected.Info.Name, null, (_, _) => { pendingAttachments.Remove(selected); RefreshAttachments(); }); }
+        attachmentMenu.Items.Add("Bỏ tất cả tệp đính kèm", null, (_, _) => ClearAttachments());
         if (attachmentMenu.Tag is Control button) attachmentMenu.Show(button, new Point(0, -attachmentMenu.PreferredSize.Height));
     }
     private string ModeExplanation(string id) => (config.Surface, id) switch {
@@ -532,7 +539,7 @@ internal sealed partial class MainWindow : Form
     private void SetProject(string value) => Protect(() => {
         string path = Path.GetFullPath(value.Trim()); if (!Directory.Exists(path)) throw new DirectoryNotFoundException("Project không tồn tại.");
         CancelConversationLoad(); run.Enabled = !runner.Busy;
-        if (path != config.Project) { contextFile = null; attachment.Text = "Không đính kèm file"; }
+        if (path != config.Project) ClearAttachments();
         bool changed = !string.Equals(path, config.Project, StringComparison.OrdinalIgnoreCase);
         var next = CopyConfig(); next.Project = path; next.RecentProjects = new[] { path }.Concat(next.RecentProjects).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         ProjectCatalog.Ensure(next, path);
@@ -545,10 +552,11 @@ internal sealed partial class MainWindow : Form
     private void Attach() => Protect(() => {
         bool chat = config.Surface == "chat";
         using var dialog = new OpenFileDialog { InitialDirectory = chat ? Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) : Directory.Exists(project.Text) ? project.Text : config.Project,
-            Title = chat ? "Đính kèm file văn bản vào cuộc trò chuyện (tối đa 512 KB)" : "Chọn file trong project (tối đa 512 KB)" };
-        if (dialog.ShowDialog(this) == DialogResult.OK) { if (chat) ProjectContext.ReadAttachment(dialog.FileName); else ProjectContext.Read(project.Text, dialog.FileName); contextFile = dialog.FileName; attachment.Text = Path.GetFileName(contextFile); }
+            Title = "Đính kèm ảnh, PDF, Word hoặc văn bản (10 tệp, tổng 20 MB)", Multiselect = true, Filter = ChatAttachments.FileFilter };
+        if (dialog.ShowDialog(this) == DialogResult.OK) AddAttachmentFiles(dialog.FileNames);
     });
     private void StartJob() => Protect(() => {
+        if (preparingAttachments) { status.Text = "Đang đọc tệp đính kèm, đợi hoàn tất rồi gửi."; return; }
         if (conversationLoading || projectMutation) { status.Text = "Đang mở hội thoại/cập nhật thư viện, đợi hoàn tất rồi gửi yêu cầu."; return; }
         if (!runner.Busy && config.Agents.Count == 0) { OpenAgents(); status.Text = "Thêm agent và cấu hình kết nối trước khi gửi yêu cầu."; return; }
         if (runner.Busy) {
@@ -562,8 +570,9 @@ internal sealed partial class MainWindow : Form
             ProjectCatalog.Ensure(config, config.Project); LoadProjects();
         }
         Save();
-        string context = contextFile == null ? "" : config.Surface == "chat" ? ProjectContext.ReadAttachment(contextFile) : ProjectContext.Read(config.Project, contextFile);
-        try { runner.Start(config, prompt.Text.Trim(), context, continueFrom, topic.Text.Trim()); }
+        string requestText = prompt.Text.Trim();
+        if (requestText.Length == 0 && pendingAttachments.Count > 0) requestText = "Đọc và tóm tắt ngắn các tệp đính kèm.";
+        try { runner.Start(config, requestText, "", continueFrom, topic.Text.Trim(), pendingAttachments.ToArray()); }
         catch (BrowserChatConnectionException error) {
             status.Text = error.Message + " Yêu cầu chưa được gửi, nội dung nhập vẫn được giữ lại.";
             if (config.Agents.FirstOrDefault(a => a.Id == error.AgentId) is { } agent) EditAgent(agent);
@@ -599,7 +608,7 @@ internal sealed partial class MainWindow : Form
         if (runner.Busy) return;
         CancelConversationLoad();
         selectedConversationId = null; continueFrom = null; conversationJobs = []; latest = null; displayed = null;
-        config.LastConversationId = ""; contextFile = null; attachment.Text = "Không đính kèm file"; Protect(Save);
+        config.LastConversationId = ""; ClearAttachments(); Protect(Save);
         topic.ReadOnly = false; topic.Clear(); prompt.Clear(); teamBoard.Clear(); sessionProgress.Clear(); canvas.ShowWelcome(config.Surface); UpdateSummary(); ReloadLibrary(); run.Enabled = true;
         status.Text = "Cuộc trò chuyện mới. Đặt tên topic hoặc để Hub lấy tên từ yêu cầu đầu tiên."; prompt.Focus();
     }
@@ -623,12 +632,18 @@ internal sealed partial class MainWindow : Form
             else jobs = await Task.Run(() => storage.ReadConversationJobs(info.Id, token: request.Token), request.Token);
             if (request.IsCancellationRequested || version != conversationLoadVersion || runner.Busy || closing || IsDisposed) return;
             if (jobs.Count == 0) throw new InvalidDataException("Cuộc trò chuyện chưa có nội dung.");
+            List<ChatAttachment> savedAttachments = [];
+            string attachmentWarning = "";
+            try { savedAttachments = await Task.Run(() => storage.LoadAttachments(jobs[^1].Attachments), request.Token); }
+            catch (Exception error) when (error is IOException or ArgumentException or InvalidDataException) { attachmentWarning = "Không nạp được tệp cũ: " + error.Message; }
+            if (request.IsCancellationRequested || version != conversationLoadVersion || runner.Busy || closing || IsDisposed) return;
             loadedConversations[info.Id] = (stamp, jobs, Environment.TickCount64);
             while (loadedConversations.Count > 4) loadedConversations.Remove(loadedConversations.MinBy(p => p.Value.Access).Key);
             selectedConversationId = info.Id; continueFrom = jobs[^1]; conversationJobs = jobs; latest = null; displayed = jobs[^1];
             config.LastConversationId = info.Id;
             if (continueFrom.Surface == "work") { config.Project = info.Project; project.Text = info.Project; }
-            contextFile = null; attachment.Text = "Không đính kèm file";
+            ClearAttachments();
+            pendingAttachments.AddRange(savedAttachments); RefreshAttachments();
             updating = true;
             try {
                 config.Discussion = RestoreDiscussionLimits(continueFrom.Discussion);
@@ -638,7 +653,7 @@ internal sealed partial class MainWindow : Form
                 topic.ReadOnly = true; topic.Text = info.Title; prompt.Clear();
             } finally { updating = false; }
             RenderJob(displayed, false); Save(); UpdateSummary(); ReloadLibrary(); LoadHistory(); sidebar.SelectConversation(info.Id, info.Project);
-            status.Text = $"{info.Title} • {jobs.Count} lần trao đổi • Nhập yêu cầu mới để tiếp tục.";
+            status.Text = attachmentWarning.Length > 0 ? attachmentWarning : $"{info.Title} • {jobs.Count} lần trao đổi • Nhập yêu cầu mới để tiếp tục.";
             if (focus) { if (config.Surface == "work" && !Directory.Exists(info.Project)) throw new DirectoryNotFoundException("Thư mục project không còn tồn tại; hội thoại vẫn đọc được."); prompt.Focus(); }
         }
         catch (OperationCanceledException) { }

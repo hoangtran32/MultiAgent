@@ -18,6 +18,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         var team = job.Team!; var options = team.Options;
         bool consensus = job.Mode == "consensus";
         var failedParticipants = new HashSet<string>();
+        bool closureUnresolved = false, scopeGoalConfirmed = false;
         DateTimeOffset? deadline = options.DurationMinutes > 0 ? DateTimeOffset.UtcNow.AddMinutes(options.DurationMinutes) : null;
         change(() => job.Deadline = deadline);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -36,13 +37,16 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             }
             if (!added) return;
             change(() => {
-                foreach (var task in team.Tasks.Where(t => consensus || t.State == "done")) {
+                foreach (var task in team.Tasks.Where(t => t.State is not ("done" or "planned"))) {
                     if (consensus && task.State == "blocked") task.NeedsScopeReview = true;
                     if (consensus) IdeaConsensus.Invalidate(task); else task.State = "proposed";
                     task.Feedback = "Yêu cầu vừa thay đổi: cần rà soát lại phạm vi và tiêu chí trước khi thực hiện.";
                 }
-                foreach (var evidence in team.Evidence) evidence.Current = false;
-                foreach (var task in team.Tasks.Where(t => t.Verification == "passed")) task.Verification = "stale";
+                // Completed tasks remain completed. New user scope is handled explicitly;
+                // a chat interjection alone is not evidence that existing work must be redone.
+                var changed = team.Tasks.Where(t => t.State is not ("done" or "planned")).Select(t => t.Id).ToHashSet();
+                foreach (var evidence in team.Evidence.Where(e => changed.Contains(e.TaskId))) evidence.Current = false;
+                foreach (var task in team.Tasks.Where(t => changed.Contains(t.Id) && t.Verification == "passed")) task.Verification = "stale";
                 team.NextAgentId = "";
             });
             Save();
@@ -70,6 +74,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 "Đây là BÀN TRÒN ngang hàng. Không có vai trên/dưới. Phát triển điểm hữu ích của đồng đội, hỏi/đáp trực tiếp, giữ bất đồng có lý do, chốt task nhỏ có tiêu chí. Dùng công cụ theo quyền CLI để khảo sát; đưa thay đổi project vào task để Hub điều phối thực hiện. Chọn người tiếp theo theo chuyên môn, không theo chức danh. Có thể phản biện kế hoạch trước và đề xuất thử nghiệm.";
             return $"Bạn là {agent.Name}, ID={agent.Id}. Chuyên môn trong nhóm: {Expertise(agent)}. Vai của lượt này: {TeamRoles.Name(role)}.\n{mode}\n" +
                 WorkspacePolicy.Instructions(job, agent, phase == "work" && task?.RequiresWorkspace == true) +
+                CompletionScope.Contract + "\n" +
                 (agent.Instructions.Length > 0 ? "Hướng dẫn riêng:\n" + agent.Instructions + "\n" : "") +
                 $"YÊU CẦU GỐC:\n{Clip(job.Prompt, 24000)}\nNGỮ CẢNH:\n{Clip(context, 18000)}\nBỔ SUNG TỪ NGƯỜI DÙNG:\n{Latest(string.Join("\n", team.Directives.TakeLast(10)), 18000)}\n" +
                 $"THÀNH VIÊN:\n{JsonSerializer.Serialize(peers, Json.Options)}\nBẢNG TASK:\n{JsonSerializer.Serialize(board, Json.Options)}\n" +
@@ -125,6 +130,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 }
                 try {
                     var reply = TeamProtocol.Parse(answer, phase);
+                    if (phase == "completion-review") TeamProtocol.ValidateCompletion(reply, job.Prompt + "\n" + string.Join("\n", team.Directives));
                     if (blockerReview) TaskBlocker.ValidateReview(reply);
                     if (phase == "roundtable") {
                         if (consensus) IdeaConsensus.Validate(team, reply);
@@ -184,6 +190,37 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 if (consensus && IdeaConsensus.Active(team)?.State is "ready" or "blocked") break;
             }
             return Available().Count > 0 && Available().All(a => finished.Contains(a.Id));
+        }
+        async Task<string> CompletionReview()
+        {
+            int scopeRevision = team.Directives.Count;
+            string gaps = "";
+            // One independent pass and, only if peers disagree, one reconciliation pass.
+            for (int pass = 0; pass < 2 && Capacity(); pass++) {
+                var replies = new List<TeamReply>();
+                foreach (var speaker in Available()) {
+                    var reply = await Call(speaker, "completion-review", "reviewer", extra:
+                        "\nĐỐI CHIẾU KẾT THÚC — các task đã chốt hiện tại đều xong. Đối chiếu kết quả/bằng chứng với CHỈ yêu cầu gốc và bổ sung người dùng. " +
+                        "Không tạo task, sửa tiêu chí, đề xuất cải tiến hoặc lặp thao tác đã nghiệm thu. Nếu đã đủ: finished=true, scopeGaps=[]. " +
+                        "Nếu thật sự thiếu: finished=false, scopeGaps=[{requestQuote:nguyên văn yêu cầu người dùng,missing:phần bắt buộc còn thiếu và bằng chứng}]. " +
+                        "Gợi ý tùy chọn không phải phần còn thiếu. Danh sách tasks/taskReviews/taskAmendments phải rỗng.\n" + gaps);
+                    if (reply == null) return "unresolved";
+                    replies.Add(reply);
+                }
+                if (!instructions.IsEmpty || scopeRevision != team.Directives.Count) return "changed";
+                if (unavailable.Count > 0 || replies.Count != agents.Count) return "unresolved";
+                if (replies.All(r => r.Finished)) {
+                    bool committed = false;
+                    change(() => { if (instructions.IsEmpty && team.Directives.Count == scopeRevision) { scopeGoalConfirmed = true; committed = true; } });
+                    return committed ? "complete" : "changed";
+                }
+                if (replies.All(r => !r.Finished && r.ScopeGaps.Count > 0)) {
+                    change(() => team.Decisions.Add("Phần bắt buộc còn thiếu trong yêu cầu: " + string.Join("; ", replies.SelectMany(r => r.ScopeGaps).Select(g => g.RequestQuote + " → " + g.Missing).Distinct())));
+                    return "continue";
+                }
+                gaps = "Các đánh giá khác nhau cần đối chiếu lại, không mở vấn đề mới:\n" + JsonSerializer.Serialize(replies.Select(r => new { r.Finished, r.ScopeGaps }), Json.Options);
+            }
+            return "unresolved";
         }
         async Task ReviewBlocker(TeamTask task) {
             while (Capacity() && failedParticipants.Count == 0) {
@@ -300,6 +337,12 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     if (blocked.State == "blocked" || failedParticipants.Count > 0) break;
                     continue;
                 }
+                if (team.Tasks.Count > 0 && team.Tasks.All(t => t.State is "done" or "planned")) {
+                    string closure = await CompletionReview();
+                    if (closure == "complete") { agreed = true; break; }
+                    if (closure == "changed") { Directives(); agreed = false; continue; }
+                    if (closure == "unresolved") { closureUnresolved = true; agreed = false; break; }
+                }
                 agreed = await Round();
                 if (!Capacity() || team.StopAfterStep) break;
                 if (consensus && failedParticipants.Count > 0) break;
@@ -326,8 +369,11 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             change(() => {
                 bool implemented = team.Tasks.Count > 0 && team.Tasks.All(t => t.State == "done");
                 bool verified = !team.Tasks.Any(t => t.RequiresWorkspace) || options.RunVerification && options.Checks.All(c => team.Evidence.Any(e => e.Name == c.Name && e.Current && e.State == "passed"));
-                job.State = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "cancelled" : "partial" : consensus && (failedParticipants.Count > 0 || team.PendingDirectives.Count > 0 || (!options.ExecuteTasks || job.Surface == "chat") && (!agreed || IdeaConsensus.Active(team) != null)) ? "partial" : !options.ExecuteTasks || job.Surface == "chat" ? "planned" : !implemented || team.PendingDirectives.Count > 0 ? "partial" : !agreed || !verified || team.Tasks.Any(t => !t.IndependentReview || consensus && t.AgreedBy.Count < 2) ? "unverified" : "completed";
+                job.State = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "cancelled" : "partial" : closureUnresolved ? "unverified" : consensus && (failedParticipants.Count > 0 || team.PendingDirectives.Count > 0 || (!options.ExecuteTasks || job.Surface == "chat") && (!agreed || IdeaConsensus.Active(team) != null)) ? "partial" : !options.ExecuteTasks || job.Surface == "chat" ? "planned" : !implemented || team.PendingDirectives.Count > 0 ? "partial" : !agreed || !verified || team.Tasks.Any(t => !t.IndependentReview || consensus && t.AgreedBy.Count < 2) ? "unverified" : "completed";
+                job.CompletionConfirmed = scopeGoalConfirmed && job.State is "completed" or "planned";
                 job.StopReason = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "Người dùng dừng phiên." : "Đã đạt giới hạn thời gian." : team.StopAfterStep ? "Đã dừng sau bước hiện tại theo yêu cầu. Có thể tiếp tục từ hội thoại này." : Available().Count == 0 ? "Không còn agent khả dụng." : !options.HasCallCapacity(team.Calls) ? "Đã đạt giới hạn gọi model." :
+                    job.CompletionConfirmed ? "Đã đối chiếu độc lập với yêu cầu người dùng và kết thúc; không tự mở rộng công việc." :
+                    closureUnresolved ? "Các task đã chốt đã xong nhưng đánh giá phạm vi chưa thống nhất. Đã dừng; không tự tạo thêm task hoặc giả hoàn tất." :
                     consensus && failedParticipants.Count > 0 ? FailureReason(job, failedParticipants) :
                     consensus && IdeaConsensus.Active(team) is { State: "blocked" } obstacle ? TaskBlocker.Describe(obstacle) :
                     consensus && IdeaConsensus.Active(team) is { } unresolved ? $"Ý {unresolved.Id} v{unresolved.ProposalVersion} chưa xong; không chuyển sang ý khác." :

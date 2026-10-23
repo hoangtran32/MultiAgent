@@ -15,6 +15,41 @@ internal static class GroupConversationTests
     {
         Storage Store() => new(Path.Combine(root, "group-chat-" + Guid.NewGuid().ToString("N")));
         HubConfig Config(params string[] names) => new() { Surface = "chat", Mode = "discussion", Agents = names.Select(Agent).ToList() };
+        await test("fulfilled group request ends after independent completion votes without a summary or idle session", async () => {
+            var fixture = new Fixture((agent, n, prompt) => Task.FromResult(Answer(prompt, "The requested answer is complete.", "complete")));
+            var runner = new JobRunner(fixture, Store()); runner.Start(Config("A", "B"), "Answer one question, then stop.");
+            await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10));
+            var job = runner.Snapshot()!;
+            Assert(!runner.Busy && fixture.Count == 2 && job.CompletionConfirmed && job.State == "completed");
+            Assert(job.Turns.Count == 2 && !job.Turns.Any(t => t.Kind == "summary") && job.StopReason.Contains("không mở rộng"));
+        });
+        await test("a concrete unresolved requirement invalidates earlier completion votes", async () => {
+            var fixture = new Fixture((agent, n, prompt) => Task.FromResult(Answer(prompt, "Reply " + n, n == 2 ? "continue" : "complete")));
+            var runner = new JobRunner(fixture, Store()); runner.Start(Config("A", "B"), "Deliver the bounded answer.");
+            await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert(fixture.Count == 4 && runner.Snapshot()!.CompletionConfirmed);
+        });
+        await test("unbounded discussion stops unresolved after a repeated missing control footer", async () => {
+            var fixture = new Fixture((agent, n, prompt) => Task.FromResult("A reply without the required control state."));
+            var runner = new JobRunner(fixture, Store()); runner.Start(Config("A", "B"), "Answer only this question.");
+            await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert(fixture.Count == 3 && !runner.Snapshot()!.CompletionConfirmed && runner.Snapshot()!.State == "failed");
+        });
+        await test("work discussion also ends on completion and never requires invented ideas", async () => {
+            var fixture = new Fixture((agent, n, prompt) => Task.FromResult(Answer(prompt, "The requested analysis is ready.", "complete")));
+            var config = Config("A", "B"); config.Surface = "work"; config.Project = root;
+            var runner = new JobRunner(fixture, Store()); runner.Start(config, "Provide a bounded analysis.");
+            await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert(fixture.Count == 2 && runner.Snapshot()!.CompletionConfirmed);
+            Assert(fixture.Prompts.All(p => !p.Contains("phát triển ý tưởng mới") && !p.Contains("Kết thúc bằng ý cần model tiếp theo giải quyết")));
+        });
+        await test("user input during final completion review prevents closing on stale votes", async () => {
+            TaskCompletionSource started = new(TaskCreationOptions.RunContinuationsAsynchronously), release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var fixture = new Fixture(async (agent, n, prompt) => { if (n == 2) { started.TrySetResult(); await release.Task; } return Answer(prompt, "Reply " + n, "complete"); });
+            var runner = new JobRunner(fixture, Store()); runner.Start(Config("A", "B"), "Initial bounded request.");
+            try { await started.Task.WaitAsync(TimeSpan.FromSeconds(10)); runner.AddDiscussionInstruction("Also answer this new user requirement."); release.TrySetResult(); await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(10)); Assert(fixture.Count == 4 && fixture.Prompts[2].Contains("new user requirement")); }
+            finally { release.TrySetResult(); runner.Cancel(); await runner.Completion!; }
+        });
         await test("group chat prompt names peers and keeps mixed user/AI messages in order without forced research artifacts", () => {
             var a = Agent("A"); var b = Agent("B");
             var job = new JobRecord { Surface = "chat", Prompt = "hello", Turns = [
@@ -35,9 +70,9 @@ internal static class GroupConversationTests
             Assert(reply.Text == "Xin chào cả nhóm!" && reply.State == "wait" && reply.Next == "B");
             Assert(GroupConversation.VisibleText("Hi" + marker[..20], marker) == "Hi");
             Assert(GroupConversation.VisibleText(wire, marker) == reply.Text);
-            Assert(GroupConversation.Parse("Missing control", marker).State == "continue");
-            Assert(GroupConversation.Parse("Answer" + marker + "{\"state\":\"execute\"}", marker).State == "continue");
-            Assert(GroupConversation.Parse("Answer" + GroupConversation.Marker() + "{\"state\":\"wait\"}", marker).State == "continue");
+            Assert(GroupConversation.Parse("Missing control", marker).State == "invalid");
+            Assert(GroupConversation.Parse("Answer" + marker + "{\"state\":\"execute\"}", marker).State == "invalid");
+            Assert(GroupConversation.Parse("Answer" + GroupConversation.Marker() + "{\"state\":\"wait\"}", marker).State == "invalid");
             return Task.CompletedTask;
         });
         await test("both chatbots greet user and peer then idle; new topic triggers autonomous exchange without another user message", async () => {

@@ -7,6 +7,7 @@ public static class Export
     public static string PlainText(JobRecord job)
     {
         var text = new StringBuilder($"{job.Timestamp.LocalDateTime:dd/MM/yyyy HH:mm:ss} • {job.Mode} • {job.State}\n\nBẠN\n{job.Prompt}\n");
+        if (job.Attachments.Count > 0) text.AppendLine(ChatAttachments.Summary(job.Attachments));
         if (job.Mode is "collaboration" or "team" or "consensus") {
             foreach (var turn in job.Turns) text.Append($"\nLƯỢT {turn.Number} • {turn.Name} • {turn.Model} • {turn.Role} • {turn.TaskId} • {turn.State}\n{turn.Text}\n{turn.Error}\n");
             if (job.Team != null) text.Append("\n" + TeamText(job));

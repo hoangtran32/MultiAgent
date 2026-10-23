@@ -27,6 +27,7 @@ public sealed class TeamReply
     public string Message { get; set; } = "";
     public string NextAgentId { get; set; } = "";
     public bool Finished { get; set; }
+    public List<CompletionGap> ScopeGaps { get; set; } = [];
     public string Outcome { get; set; } = "";
     public string BlockedReason { get; set; } = "";
     public string RequiredAction { get; set; } = "";
@@ -38,6 +39,8 @@ public sealed class TeamReply
     public List<string> Files { get; set; } = [];
 }
 
+public sealed record CompletionGap(string RequestQuote, string Missing);
+
 /// <summary>Only validated structured fields can change workflow state; prose is never a command.</summary>
 public static class TeamProtocol
 {
@@ -48,6 +51,7 @@ public static class TeamProtocol
           "message": "Đề xuất, phần hữu ích từ đồng đội, bất đồng và bằng chứng",
           "nextAgentId": "ID agent phù hợp tiếp theo hoặc chuỗi rỗng",
           "finished": false,
+          "scopeGaps": [],
           "outcome": "",
           "blockedReason": "",
           "requiredAction": "",
@@ -58,6 +62,8 @@ public static class TeamProtocol
           "files": ["đường/dẫn/tương/đối/file/đã/sửa"]
         }
         Chỉ tạo tasks và taskReviews ở bàn tròn. Mỗi task phải nhỏ, có tiêu chí kiểm chứng;
+        Chỉ tạo task cần thiết cho yêu cầu người dùng; không biến gợi ý tùy chọn thành công việc.
+        Khi toàn bộ yêu cầu đã đủ, finished=true và các danh sách task rỗng; không tự dựng vấn đề mới.
         không đề xuất lại task đã tồn tại. requiresWorkspace=false dành cho phân tích/tài liệu trả về trong artifacts.
         Khi thực hiện task: outcome="done" hoặc "blocked"; mô tả trung thực thay đổi và giới hạn.
         Khi review: outcome="approve", "revise" hoặc "blocked". Không sửa file trong lượt review.
@@ -79,7 +85,7 @@ public static class TeamProtocol
         var reply = JsonSerializer.Deserialize<TeamReply>(json, Json.Options) ?? throw new InvalidDataException("Đầu ra hub rỗng.");
         if (string.IsNullOrWhiteSpace(reply.Message) || reply.Message.Length > 48000 || reply.NextAgentId == null || reply.Outcome == null ||
             reply.BlockedReason == null || reply.RequiredAction == null || reply.BlockedReason.Length > 3000 || reply.RequiredAction.Length > 3000 ||
-            reply.Tasks == null || reply.TaskAmendments == null || reply.TaskReviews == null || reply.Artifacts == null || reply.Decisions == null || reply.Files == null)
+            reply.Tasks == null || reply.TaskAmendments == null || reply.TaskReviews == null || reply.Artifacts == null || reply.Decisions == null || reply.Files == null || reply.ScopeGaps == null)
             throw new InvalidDataException("Thiếu message hoặc trường dữ liệu nhóm không hợp lệ.");
         if (reply.Tasks.Count > 12 || reply.TaskAmendments.Count > 1 || reply.TaskReviews.Count > 50 || reply.Artifacts.Count > 6 || reply.Decisions.Count > 12 || reply.Files.Count > 30) throw new InvalidDataException("Đầu ra nhóm vượt giới hạn.");
         if (phase == "work" && reply.Outcome is not ("done" or "blocked") || phase == "review" && reply.Outcome is not ("approve" or "revise" or "blocked")) throw new InvalidDataException("Thiếu outcome hợp lệ cho bước đang chạy.");
@@ -90,6 +96,14 @@ public static class TeamProtocol
             reply.Artifacts.Any(a => a == null || string.IsNullOrWhiteSpace(a.Title) || a.Title.Length > 160 || a.Kind == null || a.Kind.Length > 40 || a.Content == null || a.Content.Length > 20000) ||
             reply.Decisions.Any(d => d == null || d.Length > 3000) || reply.Files.Any(f => f == null || f.Length > 500)) throw new InvalidDataException("Tài liệu, nhận xét hoặc file không hợp lệ.");
         return reply;
+    }
+
+    public static void ValidateCompletion(TeamReply reply, string userScope)
+    {
+        if (reply.Tasks.Count + reply.TaskAmendments.Count + reply.TaskReviews.Count > 0) throw new InvalidDataException("Đối chiếu kết thúc không được tạo task/sửa tiêu chí. Ghi scopeGaps nếu còn yêu cầu bắt buộc chưa đáp ứng.");
+        if (reply.ScopeGaps.Count > 8 || reply.ScopeGaps.Any(g => g == null || string.IsNullOrWhiteSpace(g.RequestQuote) || g.RequestQuote.Length < Math.Min(8, userScope.Trim().Length) || g.RequestQuote.Length > 1200 || string.IsNullOrWhiteSpace(g.Missing) || g.Missing.Length > 1600 || !userScope.Contains(g.RequestQuote, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidDataException("Phần còn thiếu phải dẫn nguyên văn yêu cầu người dùng và nêu việc cụ thể chưa đạt, không dẫn đề xuất chatbot.");
+        if (reply.Finished && reply.ScopeGaps.Count > 0 || !reply.Finished && reply.ScopeGaps.Count == 0) throw new InvalidDataException("Chọn finished=true khi đã đủ; nếu chưa đủ phải ghi scopeGaps có căn cứ trong yêu cầu.");
     }
 
     public static void ValidateProposals(TeamRun team, IEnumerable<TaskProposal> proposals)

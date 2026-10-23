@@ -162,7 +162,7 @@ public sealed class ChatGptPlan(ChatGptPlanStore store)
     {
         Validate(agent); string access = await AccessToken(agent.PlanAccountId, token);
         using var request = Authorized(HttpMethod.Post, "/responses", access);
-        request.Content = new StringContent(JsonSerializer.Serialize(new { model = agent.Model, input = new[] { new { role = "user", content = prompt } }, store = false, stream = true }), Encoding.UTF8, "application/json");
+        request.Content = new StringContent(JsonSerializer.Serialize(new { model = agent.Model, input = ChatAttachments.ResponsesInput(prompt, agent.RuntimeAttachments), store = false, stream = true }), Encoding.UTF8, "application/json");
         // The caller owns the exchange timeout. Do not terminate a healthy stream on HttpClient's short metadata timeout.
         using var response = await Client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
         if (!response.IsSuccessStatusCode) throw ChatGptPlanException.From(response, await ReadBounded(response.Content, token));

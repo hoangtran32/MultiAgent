@@ -1,4 +1,4 @@
-# ChatGPT plan API — 5.12.0
+# ChatGPT plan API — 5.13.0
 
 Hub có kết nối **API chính thức dùng gói ChatGPT**, độc lập với extension, Codex CLI và app ChatGPT/Codex đang cài. Sau bước đăng nhập, yêu cầu chạy ngầm qua Responses API. Không cần giữ tab hay điều khiển cửa sổ. Đây không phải API điều khiển phần Chat trong Codex, không nhập lại lịch sử/cookie của ứng dụng đó.
 
@@ -14,7 +14,7 @@ Lần đăng nhập đầu phải có thao tác đồng ý trong trình duyệt;
 
 ## Model, quota và tính năng
 
-Chỉ những model API do tài khoản trả về mới được chọn. Không cam kết danh sách/tính năng giống hoàn toàn Chat trên app/web: tính năng này có giới hạn preview riêng. Hub gửi văn bản và toàn bộ ngữ cảnh cần thiết của lượt, không dùng bộ nhớ/lịch sử ChatGPT có sẵn. Kết nối này chưa cung cấp tools, tệp đa phương tiện hay nghiên cứu tự động bằng web search; nội dung file văn bản đính kèm được ghép vào prompt theo cơ chế hiện tại của Hub.
+Chỉ những model API do tài khoản trả về mới được chọn. Không cam kết danh sách/tính năng giống hoàn toàn Chat trên app/web: tính năng này có giới hạn preview riêng. Hub gửi văn bản và toàn bộ ngữ cảnh cần thiết của lượt, không dùng bộ nhớ/lịch sử ChatGPT có sẵn. Kết nối này chưa cung cấp tools hay nghiên cứu tự động bằng web search. Từ 5.13.0, ảnh/PDF được gửi trực tiếp, Word/văn bản được trích chữ; xem COMPLETION_AND_ATTACHMENTS.md.
 
 Hạn mức áp dụng theo quyền và gói ChatGPT; các ứng dụng dùng chung gói có thể cùng tính vào hạn mức. Xem và quản lý quyền, hạn mức ứng dụng và lựa chọn dùng credits tại [ChatGPT Settings → Usage](https://chatgpt.com/settings/usage). Hub không cấu hình API key trả phí, không đổi sang tài khoản/model khác khi lỗi/quota. Các lựa chọn chi tiêu đã cấp cho ứng dụng tại ChatGPT Settings vẫn áp dụng.
 

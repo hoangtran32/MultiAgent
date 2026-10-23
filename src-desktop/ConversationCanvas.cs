@@ -67,7 +67,7 @@ internal sealed class ConversationCanvas : UserControl
         var next = new List<ChatSection>();
         foreach (var job in records) {
             string Key(string part) => job.Id + ":" + part;
-            next.Add(new("Bạn", job.Timestamp.LocalDateTime.ToString("dd/MM HH:mm"), job.Prompt, true, Key("user")));
+            next.Add(new("Bạn", job.Timestamp.LocalDateTime.ToString("dd/MM HH:mm"), job.Prompt + (job.Attachments.Count > 0 ? "\n\n" + ChatAttachments.Summary(job.Attachments) : ""), true, Key("user")));
             var supplements = ConversationTimeline.TeamInputs(job, records.FirstOrDefault(j => j.Id == job.PreviousJobId));
             if (supplements.Count > 0) next.Add(new("Bạn bổ sung", "Bổ sung đã lưu của phiên này", string.Join("\n\n", supplements), true, Key("directives")));
             if (job.Mode is "discussion" or "collaboration" or "team" or "consensus") {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.13.0 — 2026-10-23
+
+- Bỏ yêu cầu mỗi lượt phải phát triển ý mới/bàn giao. Giữ phạm vi theo yêu cầu trực tiếp của người dùng; gợi ý tùy chọn không thành task hay điều kiện nghiệm thu.
+- Chat/Bàn luận kết thúc khi các thành viên xác nhận complete trên cùng phiên bản yêu cầu, không gọi thêm lượt tổng hợp. Tin mới vô hiệu hóa xác nhận cũ; lỗi/quota không tính là đồng thuận. Footer thiếu lặp lại ở phiên không giới hạn dừng rõ là lỗi điều phối, không gọi vô hạn.
+- Nhóm/Chốt từng ý có bước đối chiếu điểm dừng khi task đã chốt xong: không tạo task trong bước này; phần bắt buộc còn thiếu phải dẫn nguyên văn yêu cầu người dùng. Bất đồng chưa giải quyết dừng chưa kiểm chứng. Không tự mở lại task đã xong chỉ vì một tin nhắn bổ sung.
+- Đính kèm nhiều ảnh/PDF/Word .docx/văn bản qua nút +, kéo thả, Ctrl+V; danh sách có bỏ từng tệp. Bản sao riêng có kiểm tra hash khi mở lại, metadata hiện trong hội thoại, không đưa base64 vào lịch sử JSON.
+- API ChatGPT plan/Chat Completions/Gemini/Anthropic gửi ảnh và PDF gốc khi model hỗ trợ. Kênh CLI/extension nhận chữ trích từ PDF/Word, chặn ảnh/PDF quét trước khi gửi. Không đổi kết nối, billing hay tệp nguồn. Giới hạn 10 tệp/20 MB, 10 MB mỗi tệp, 120.000 ký tự trích xuất; chưa OCR hoặc trích hình Word.
+- Fixture offline mới cho điểm dừng, tin nhắn mới trong lượt, ngăn task ngoài phạm vi, parser tài liệu, payload tệp và bản lưu. Không chạy suy luận/kiểm tra UI trên tài khoản thật tại máy.
+
 ## 5.12.0 — 2026-10-21
 
 - Thêm kết nối API chính thức dùng gói ChatGPT: OAuth public client/PKCE, callback loopback, xác minh ID token bằng JWKS; đăng nhập tài khoản/workspace riêng cho Hub, không đọc credential app Codex hay trình duyệt.

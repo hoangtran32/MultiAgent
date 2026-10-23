@@ -64,13 +64,15 @@ public sealed class ApiTransport
     public async Task<string> Execute(AgentConfig agent, string prompt, CancellationToken token)
     {
         if (string.IsNullOrWhiteSpace(agent.Model)) throw new ArgumentException("Chọn model trước khi gọi API.");
+        ChatAttachments.ValidateFor(agent, agent.RuntimeAttachments);
+        bool media = agent.RuntimeAttachments.Any(f => f.Image || f.Pdf);
         object payload; string route;
         if (agent.Connection == "anthropic-api")
-        { route = "messages"; payload = new { model = agent.Model, max_tokens = 8192, messages = new[] { new { role = "user", content = prompt } } }; }
+        { route = "messages"; payload = new { model = agent.Model, max_tokens = 8192, messages = new[] { new { role = "user", content = media ? (object)ChatAttachments.ApiParts(agent.Connection, prompt, agent.RuntimeAttachments) : prompt } } }; }
         else if (agent.Connection == "gemini-api")
-        { route = "models/" + Uri.EscapeDataString(agent.Model.Replace("models/", "")) + ":generateContent"; payload = new { contents = new[] { new { role = "user", parts = new[] { new { text = prompt } } } } }; }
+        { route = "models/" + Uri.EscapeDataString(agent.Model.Replace("models/", "")) + ":generateContent"; payload = new { contents = new[] { new { role = "user", parts = ChatAttachments.ApiParts(agent.Connection, prompt, agent.RuntimeAttachments) } } }; }
         else
-        { route = "chat/completions"; payload = new { model = agent.Model, messages = new[] { new { role = "user", content = prompt } }, stream = false }; }
+        { route = "chat/completions"; payload = new { model = agent.Model, messages = new[] { new { role = "user", content = media ? (object)ChatAttachments.ApiParts(agent.Connection, prompt, agent.RuntimeAttachments) : prompt } }, stream = false }; }
         using var request = Request(agent, HttpMethod.Post, route);
         request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
         using var doc = await Send(agent, request, token); var root = doc.RootElement; string result;

@@ -13,6 +13,13 @@ internal static class ConsensusTests
 
     public static async Task Run(Func<string, Func<Task>, Task> test, string root)
     {
+        await test("completion audit rejects invented follow-up tasks instead of reopening completed work", async () => {
+            var fixture = new ConsensusFixture { InventAtCompletion = true };
+            var runner = new JobRunner(fixture, new Storage(Path.Combine(root, Guid.NewGuid().ToString("N"))));
+            runner.Start(Config(root), "Produce exactly one bounded analysis."); await Complete(runner); var job = runner.Snapshot()!;
+            Assert(job.Team!.Tasks.Count == 1 && job.Team.Tasks[0].State == "done" && fixture.WorkVersions.Count == 1);
+            Assert(!job.CompletionConfirmed && job.State != "completed");
+        });
         await test("idea agreement locks next idea and expires approvals on revision", () => {
             var team = new TeamRun(); string[] members = ["A", "B"];
             IdeaConsensus.Apply(team, new() { Message = "First idea", Tasks = [Proposal("I1")] }, "A", members);
@@ -200,6 +207,7 @@ internal static class ConsensusTests
     private sealed class ConsensusFixture : IAgentExecutor
     {
         public int DesiredIdeas { get; init; } = 1;
+        public bool InventAtCompletion { get; init; }
         public bool ReviseFirst { get; init; }
         public bool AlwaysDisagree { get; init; }
         public bool FailPeer { get; init; }
@@ -225,7 +233,14 @@ internal static class ConsensusTests
             int end = prompt.IndexOf("\nTÀI LIỆU GẦN ĐÂY:", start, StringComparison.Ordinal);
             var board = JsonSerializer.Deserialize<List<TeamTask>>(prompt[start..end], Json.Options)!;
             TeamReply reply;
-            if (prompt.Contains("Đây là lượt THỰC HIỆN task.")) {
+            if (prompt.Contains("ĐỐI CHIẾU KẾT THÚC")) {
+                int requestStart = prompt.IndexOf("YÊU CẦU GỐC:\n", StringComparison.Ordinal) + "YÊU CẦU GỐC:\n".Length;
+                int requestEnd = prompt.IndexOf("\nNGỮ CẢNH:", requestStart, StringComparison.Ordinal);
+                string quote = prompt[requestStart..requestEnd];
+                reply = InventAtCompletion ? new() { Message = "Invent an optional follow-up.", Tasks = [Proposal("optional-extra")] } : board.Count >= DesiredIdeas ? new() { Message = "The requested bounded ideas are complete.", Finished = true } :
+                    new() { Message = "The user explicitly requested another bounded idea.", ScopeGaps = [new(quote, "Another requested idea is still missing.")] };
+            }
+            else if (prompt.Contains("Đây là lượt THỰC HIỆN task.")) {
                 if (TimeoutWork) { text("Reported work saved before timeout"); throw new OperationCanceledException("fixture work timeout"); }
                 WorkVersions.Add(IdeaConsensus.Active(new() { Tasks = board })!.ProposalVersion);
                 reply = BlockEveryWork || BlockFirstWork && WorkVersions.Count == 1 ?

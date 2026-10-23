@@ -24,7 +24,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
         string progress = team != null ? total == 0 ? "Đang xác định các task" : $"{done}/{total} {(planning ? "ý đã chốt kế hoạch" : "task đã review")} · {total - done} chưa xong" :
             job.Mode == "discussion" ? $"{job.Turns.Count(t => t.Kind == "discussion" && t.State == "success")} lượt trao đổi đã xong" : $"{done}/{total} agent đã trả lời";
         string title, tone, detail;
-        bool canContinue = unfinishedHistory || !active && job.State is "partial" or "failed" or "cancelled" or "interrupted" or "quota" or "running";
+        bool canContinue = unfinishedHistory || !active && job.State is "partial" or "failed" or "cancelled" or "interrupted" or "quota" or "running" or "unverified";
         string reason = "";
         if (active) {
             tone = "active";
@@ -34,6 +34,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
                 team?.Phase == "verifying" ? "Đang chạy kiểm tra" :
                 current?.Role == "Kiểm chứng vướng mắc" ? "Đang kiểm chứng vướng mắc" :
                 team?.Phase == "review" ? "Đang phản biện kết quả" :
+                team?.Phase == "completion-review" ? "Đang đối chiếu điểm dừng" :
                 team?.Phase == "roundtable" ? job.Mode == "consensus" ? "Đang thống nhất ý" : "Đang bàn tròn" :
                 discussion && job.DiscussionPhase == "summarizing" ? "Đang tổng hợp" :
                 discussion && job.DiscussionFinishRequested ? "Đang kết thúc sau lượt hiện tại" :
@@ -56,7 +57,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
         } else {
             tone = unfinishedHistory ? "warning" : job.State == "completed" ? "success" : job.State is "failed" or "quota" || job.Turns.Any(t => t.State is "timeout" or "error") && job.State == "partial" ? "error" : "warning";
             title = unfinishedHistory ? "Phiên đã kết thúc — còn task chưa xong" : job.State switch {
-                "completed" => "Hoàn tất phiên",
+                "completed" => job.CompletionConfirmed ? "Đã hoàn thành yêu cầu" : discussion ? "Đã kết thúc trao đổi" : "Hoàn tất phiên",
                 "unverified" => "Đã có kết quả — chưa kiểm chứng",
                 "planned" => "Đã lưu kế hoạch — chưa thực hiện",
                 "cancelled" => "Đã dừng theo yêu cầu",

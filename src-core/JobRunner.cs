@@ -27,7 +27,9 @@ public sealed class AgentExecutor(ApiTransport api, BrowserChatBridge? browser =
     }
     public async Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token)
     {
+        ChatAttachments.ValidateFor(agent, agent.RuntimeAttachments);
         if (agent.Connection == "chatgpt-plan") return await (chatGptPlan ?? throw new InvalidOperationException("API dùng gói ChatGPT chưa mở.")).Execute(agent, prompt, text, token);
+        prompt = ChatAttachments.WithText(prompt, agent);
         if (agent.Connection == "gateway-web") return await (gateway ?? throw new InvalidOperationException("Gateway chưa được mở.")).Execute(agent.GatewayAccountId, agent.Model, prompt, text, log, token);
         if (Catalog.IsBrowserChat(agent.Connection)) return await (browser ?? throw new InvalidOperationException("Bridge trình duyệt chưa được mở.")).Execute(agent.Connection, agent.BrowserBindingId, agent.Model, prompt, text, log, token);
         if (Catalog.IsApi(agent.Connection)) return await api.Execute(agent, prompt, token);
@@ -80,13 +82,16 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         }
         return options;
     }
-    public void Start(HubConfig config, string prompt, string context = "", JobRecord? previous = null, string title = "")
+    public void Start(HubConfig config, string prompt, string context = "", JobRecord? previous = null, string title = "", IReadOnlyList<ChatAttachment>? attachments = null)
     {
         Storage.Validate(config);
         bool chat = config.Surface == "chat";
         if (!chat && !Directory.Exists(config.Project)) throw new DirectoryNotFoundException("Project không tồn tại.");
         if (string.IsNullOrWhiteSpace(prompt) || prompt.Length > 200000) throw new ArgumentException("Yêu cầu cần có 1–200.000 ký tự.");
         var agents = config.SelectedAgents().Select(a => a.Copy()).ToList();
+        var files = attachments ?? [];
+        ChatAttachments.ValidateSet(files);
+        foreach (var agent in agents) { ChatAttachments.ValidateFor(agent, files); agent.RuntimeAttachments = files; }
         if (config.Surface == "chat") foreach (var agent in agents) agent.Permission = "read-only";
         if (agents.Count == 0) throw new ArgumentException("Chọn ít nhất một agent.");
         if (config.Mode is "discussion" or "team" or "consensus") DiscussionEngine.ValidateAgents(agents);
@@ -103,6 +108,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         lock (gate)
         {
             if (cancellation != null) throw new InvalidOperationException("Đang có tác vụ chạy.");
+            storage.SaveAttachments(files);
             string conversationId = previous == null ? Guid.NewGuid().ToString("N") : previous.ConversationId.Length > 0 ? previous.ConversationId : previous.Id;
             var browserAgents = agents.Where(a => Catalog.IsBrowserChat(a.Connection)).ToList();
             if (browserAgents.Count > 0) {
@@ -126,6 +132,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 Mode = config.Mode, Discussion = config.Mode == "discussion" ? config.Discussion.Copy() : null,
                 Team = Catalog.IsTeamMode(config.Mode) ? new() { Options = SessionTeamOptions(config) } : null,
                 ConversationId = conversationId,
+                Attachments = files.Select(f => f.Info).ToList(),
                 Title = previous == null ? Storage.Topic(title.Length > 0 ? title : prompt) : previous.Title.Length > 0 ? previous.Title : Storage.Topic(previous.Prompt), PreviousJobId = previous?.Id ?? "",
                 Results = agents.Select(a => new AgentResult { AgentId = a.Id, Name = a.Name, Provider = a.Provider, Connection = a.Connection, Model = a.Model }).ToList() };
             if (Catalog.IsTeamMode(config.Mode) && previous?.Team is { } earlier) {
@@ -158,7 +165,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         {
             var agent = agents[index]; var result = job.Results[index];
             if (token.IsCancellationRequested) { Change(() => result.State = "cancelled"); return; }
-            string prompt = WorkspacePolicy.Instructions(job, agent, true) + purpose + (agent.Instructions.Length > 0 ? $"Vai trò / hướng dẫn cho {agent.Name}:\n{agent.Instructions}\n\n" : "") + job.Prompt +
+            string prompt = WorkspacePolicy.Instructions(job, agent, true) + CompletionScope.Contract + "\n" + purpose + (agent.Instructions.Length > 0 ? $"Vai trò / hướng dẫn cho {agent.Name}:\n{agent.Instructions}\n\n" : "") + job.Prompt +
                 (context.Length > 0 ? "\n\n" + context : "") + (previous.Length > 0 ? "\n\nKết quả các bước trước:\n" + previous + "\nRà soát và hoàn thiện giải pháp dựa trên yêu cầu gốc." : "");
             DiscussionTurn? turn = job.Mode == "collaboration" ? new() { Number = job.Turns.Count + 1, AgentId = agent.Id, Name = agent.Name, Model = agent.Model, Kind = "work" } : null;
             if (turn != null) Change(() => { job.Turns.Add(turn); result.Text = ""; });
@@ -166,6 +173,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
             {
                 if (Catalog.IsManual(agent.Connection))
                 {
+                    prompt = ChatAttachments.WithText(prompt, agent);
                     prompt = $"Model mong muốn: {(agent.Model.Length > 0 ? agent.Model : "Theo lựa chọn trong ứng dụng AI")}\nChọn model và quyền trong ứng dụng AI.\n\n" + prompt;
                     var reply = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                     replies[agent.Id] = reply;
