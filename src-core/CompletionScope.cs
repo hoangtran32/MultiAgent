@@ -2,6 +2,7 @@ namespace MultiAgentHub.Core;
 
 public static class CompletionScope
 {
+    public static string UserText(JobRecord job) => job.Prompt + "\n" + string.Join("\n", job.Turns.Where(t => t.Kind == "user").Select(t => t.Text));
     public const string Contract = """
         PHẠM VI VÀ ĐIỂM DỪNG:
         Mục tiêu chỉ gồm yêu cầu trực tiếp của người dùng và bổ sung trực tiếp mới nhất của họ.

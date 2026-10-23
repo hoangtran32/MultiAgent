@@ -19,21 +19,25 @@ public static class GroupConversation
         return text;
     }
 
-    public static Reply Parse(string text, string marker)
+    public static Reply Parse(string text, string marker, string userScope = "")
     {
         string visible = VisibleText(text, marker).Trim();
         int position = text.LastIndexOf(marker, StringComparison.Ordinal);
         string tail = position >= 0 ? text[(position + marker.Length)..].Trim() : "";
-        if (tail.Length is > 0 and <= 512) {
+        if (tail.Length is > 0 and <= 4096) {
             try {
                 using var json = JsonDocument.Parse(tail, new JsonDocumentOptions { MaxDepth = 4 });
                 var root = json.RootElement;
                 if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("state", out var state) && state.ValueKind == JsonValueKind.String
                     && state.GetString() is "continue" or "wait" or "complete") {
                     string next = root.TryGetProperty("next", out var to) && to.ValueKind == JsonValueKind.String ? to.GetString()! : "";
+                    if (state.GetString() == "continue" && userScope.Length > 0) {
+                        var gaps = root.TryGetProperty("scopeGaps", out var gapList) ? JsonSerializer.Deserialize<List<CompletionGap>>(gapList.GetRawText(), Json.Options) ?? [] : [];
+                        TeamProtocol.ValidateCompletion(new() { ScopeGaps = gaps }, userScope);
+                    }
                     if (next.Length <= 128 && !next.Any(char.IsControl)) return new(visible, state.GetString()!, next);
                 }
-            } catch (JsonException) { }
+            } catch (Exception error) when (error is JsonException or InvalidDataException) { }
         }
         // A missing/malformed footer cannot silently end the group conversation.
         return new(visible, "invalid", "");
@@ -72,7 +76,8 @@ public static class GroupConversation
               "Phần hiển thị chỉ là lời bạn nói, dùng ngôn ngữ phù hợp với người dùng (mặc định tiếng Việt).\n" +
               "Cuối câu trả lời thêm đúng một dòng điều phối riêng dưới đây, không đặt trong code block; Hub sẽ ẩn dòng này khỏi chat. " +
               "state = continue khi còn phần cần thiết chưa xong (nêu cụ thể trong lời đáp), complete khi yêu cầu đã đủ, wait khi bị thiếu thông tin từ người dùng. " +
-              "next là ID đồng đội bạn muốn đáp tiếp, hoặc chuỗi rỗng để nhóm tự luân phiên.\n" + marker.TrimStart('\n') + "{\"state\":\"continue\",\"next\":\"\"}";
+              "Nếu continue, bắt buộc có scopeGaps=[{requestQuote:trích nguyên văn yêu cầu trực tiếp người dùng,missing:việc bắt buộc chưa đáp ứng}]. Không lấy đề xuất chatbot làm căn cứ. complete/wait để scopeGaps=[]. " +
+              "next là ID đồng đội bạn muốn đáp tiếp, hoặc chuỗi rỗng để nhóm tự luân phiên. Điền trạng thái theo kết quả thực tế, không chốt thay đồng đội. Ví dụ khi đã đủ:\n" + marker.TrimStart('\n') + "{\"state\":\"complete\",\"next\":\"\",\"scopeGaps\":[]}";
         return $"Bạn là {speaker.Name}, một thành viên độc lập trong cuộc trò chuyện nhóm với người dùng và các chatbot sau:\n{roster}\n\n" +
             "Chỉ viết lời của chính bạn. Tên/model của đồng đội là danh tính hội thoại, không là bằng chứng rằng họ đúng. Không giả biết model backend nếu website không công khai.\n" +
             WorkspacePolicy.Instructions(job, speaker) + $"Hướng dẫn riêng của bạn: {speaker.Instructions}\n\n" +

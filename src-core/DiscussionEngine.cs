@@ -83,7 +83,7 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
                 string answer = await executor.Execute(agent, job.WorkingDirectory.Length > 0 ? job.WorkingDirectory : job.Project, request,
                     value => change(() => { turn.Text = Clip(marker.Length > 0 ? GroupConversation.VisibleText(value, marker) : value, TurnLimit); result.Text = turn.Text; }),
                     value => change(() => { string logs = result.Logs + value; result.Logs = logs.Length > 64000 ? logs[^64000..] : logs; }), timeout.Token);
-                if (marker.Length > 0) { lastReply = GroupConversation.Parse(answer, marker); answer = lastReply.Text; }
+                if (marker.Length > 0) { lastReply = GroupConversation.Parse(answer, marker, CompletionScope.UserText(job)); answer = lastReply.Text; }
                 if (string.IsNullOrWhiteSpace(answer)) throw new InvalidDataException("Model trả về nội dung rỗng.");
                 change(() => {
                     turn.Text = Clip(answer, summary ? 24000 : TurnLimit); turn.State = "success"; result.Text = turn.Text; result.State = "success";
@@ -207,7 +207,8 @@ public sealed class DiscussionEngine(IAgentExecutor executor, Storage storage, T
             $"Đây là lượt trao đổi số {job.Turns.Count(t => t.Kind == "discussion") + 1}. Đọc kết quả trước và đối chiếu yêu cầu người dùng. " +
             "Chỉ xử lý phần thực sự còn thiếu; phản biện khi có lỗi liên quan yêu cầu. Nếu đã đủ thì xác nhận kết thúc, không ép có ý mới hoặc việc bàn giao. Trả lời tiếng Việt, tập trung một ý. " +
             "Cuối câu trả lời thêm dòng điều phối (không đặt trong code block): state=complete nếu yêu cầu đã đủ, continue nếu còn phần bắt buộc chưa xong, wait nếu cần thông tin chỉ người dùng có.\n" +
-            marker.TrimStart('\n') + "{\"state\":\"continue\",\"next\":\"\"}";
+            "continue cần scopeGaps=[{requestQuote:nguyên văn yêu cầu người dùng,missing:phần bắt buộc chưa xong}], không dựa vào đề xuất của chatbot. Khi đã đủ dùng footer:\n" +
+            marker.TrimStart('\n') + "{\"state\":\"complete\",\"next\":\"\",\"scopeGaps\":[]}";
         return $"Bạn là {agent.Name} ({agent.Model}). CHẾ ĐỘ THẢO LUẬN: phân tích, phản biện và trả lời; dùng công cụ theo quyền được cấp và yêu cầu người dùng. Không tự triển khai ý tưởng chưa được yêu cầu hoặc nhắn cho người khác.\n" +
             WorkspacePolicy.Instructions(job, agent) +
             CompletionScope.Contract + "\n" +

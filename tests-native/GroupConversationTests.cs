@@ -9,7 +9,11 @@ internal static class GroupConversationTests
     private static string Answer(string prompt, string text, string state = "continue", string next = "")
     {
         var marker = Regex.Match(prompt, @"<\|hub_turn_[a-f0-9]{32}\|>");
-        return marker.Success ? text + "\n" + marker.Value + "{\"state\":\"" + state + "\",\"next\":\"" + next + "\"}" : text;
+        string userMarker = prompt.Contains("TIN NHẮN MỞ ĐẦU CỦA NGƯỜI DÙNG:\n") ? "TIN NHẮN MỞ ĐẦU CỦA NGƯỜI DÙNG:\n" : "CHỦ ĐỀ GỐC:\n";
+        int userStart = prompt.IndexOf(userMarker, StringComparison.Ordinal) + userMarker.Length;
+        string quote = userStart >= userMarker.Length ? prompt[userStart..].Split('\n')[0] : "";
+        var gaps = state == "continue" ? new[] { new CompletionGap(quote, "The explicitly requested fixture answer still needs its final part.") } : [];
+        return marker.Success ? text + "\n" + marker.Value + System.Text.Json.JsonSerializer.Serialize(new { state, next, scopeGaps = gaps }, Json.Options) : text;
     }
     public static async Task Run(Func<string, Func<Task>, Task> test, string root)
     {
