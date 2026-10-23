@@ -45,7 +45,18 @@ internal static class AttachmentTests
             Assert(parts.Single(p => p.Str("type") == "input_file").Str("file_data") == pdf.DataUrl);
             foreach (string connection in new[] { "chat-api", "gemini-api", "anthropic-api" }) {
                 using var body = JsonDocument.Parse(JsonSerializer.Serialize(ChatAttachments.ApiParts(connection, "Read attachments", [image, pdf])));
-                Assert(body.RootElement.GetArrayLength() == 5 && body.RootElement.GetRawText().Contains(Convert.ToBase64String(png)));
+                Assert(body.RootElement.GetArrayLength() == 5);
+                var imagePart = body.RootElement[1]; var pdfPart = body.RootElement[3];
+                if (connection == "gemini-api") {
+                    Assert(imagePart.GetProperty("inlineData").Str("data") == Convert.ToBase64String(png));
+                    Assert(pdfPart.GetProperty("inlineData").Str("data") == Convert.ToBase64String(pdf.Data));
+                } else if (connection == "anthropic-api") {
+                    Assert(imagePart.GetProperty("source").Str("data") == Convert.ToBase64String(png));
+                    Assert(pdfPart.GetProperty("source").Str("data") == Convert.ToBase64String(pdf.Data));
+                } else {
+                    Assert(imagePart.GetProperty("image_url").Str("url") == image.DataUrl);
+                    Assert(pdfPart.GetProperty("file").Str("file_data") == pdf.DataUrl);
+                }
             }
             var fixture = new Executor(); var runner = new JobRunner(fixture, new Storage(Path.Combine(root, "attachment-preflight")));
             var config = new HubConfig { Surface = "chat", Agents = [new() { Provider = "chatgpt-plan", Connection = "chatgpt-plan" }, new() { Provider = "custom", Connection = "custom-cli" }] };
