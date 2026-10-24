@@ -50,6 +50,7 @@ function activate(context) {
     return client;
   }
   async function initialize() {
+    if (!vscode.workspace.isTrusted) { post({ type: 'restricted' }); return; }
     const c = await connect(); catalog = await c.request('initialize');
     post({ type: 'catalog', data: catalog }); treeChanged.fire();
     if (current?.id && !displayedId && !fresh) { displayedId = current.id; post({ type: 'state', data: current }); }
@@ -75,7 +76,8 @@ function activate(context) {
       if (message.type === 'ready' || message.type === 'refresh') { await initialize(); if (displayedId && current?.id === displayedId) post({ type: 'state', data: current }); return; }
       if (message.type === 'new') { newChat(); return; }
       if (message.type === 'settings') { await settings(); return; }
-      if (message.type === 'terminal') { vscode.window.createTerminal({ cwd: root(), name: 'Hub Code' }).show(); return; }
+      if (message.type === 'trust') { await vscode.commands.executeCommand('workbench.trust.manage'); return; }
+      if (message.type === 'terminal') { if (!vscode.workspace.isTrusted) throw new Error('Project đang ở Restricted Mode. Mở Quản lý quyền project trước khi chạy terminal.'); vscode.window.createTerminal({ cwd: root(), name: 'Hub Code' }).show(); return; }
       if (message.type === 'changes') { await vscode.commands.executeCommand('workbench.view.scm'); return; }
       if (message.type === 'openLink') {
         const target = linkTarget(root(), message.url);
@@ -153,6 +155,7 @@ function activate(context) {
   };
   for (const [name, action] of Object.entries(commands)) context.subscriptions.push(vscode.commands.registerCommand(name, (...args) => run(() => action(...args))));
   context.subscriptions.push(output, status, treeChanged, artifactsChanged, { dispose: () => client?.dispose() });
+  context.subscriptions.push(vscode.workspace.onDidGrantWorkspaceTrust(() => run(initialize)));
   const profile = process.env.MULTI_AGENT_HUB_PROFILE || process.env.MULTI_AGENT_HUB_DATA_DIR || (process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'MultiAgentHub'));
   if (profile && fs.existsSync(profile)) {
     let reload;

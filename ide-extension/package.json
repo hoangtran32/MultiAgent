@@ -10,7 +10,7 @@
   "main": "./extension.cjs",
   "extensionKind": ["ui"],
   "activationEvents": ["onStartupFinished"],
-  "capabilities": { "untrustedWorkspaces": { "supported": false }, "virtualWorkspaces": { "supported": false } },
+  "capabilities": { "untrustedWorkspaces": { "supported": "limited", "description": "Khung Agent luôn mở được. Chỉ kết nối backend/chạy agent và terminal sau khi project được tin cậy." }, "virtualWorkspaces": { "supported": false } },
   "contributes": {
     "commands": [
       { "command": "multiagent.open", "title": "Hub Code: Mở Agent" },

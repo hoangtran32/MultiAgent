@@ -2,7 +2,7 @@
 const vscode = acquireVsCodeApi();
 const $ = id => document.getElementById(id);
 const saved = vscode.getState() || {};
-let catalog = { agents: [], history: [] }, state = {}, submitting = false, nearBottom = true, lastPrompt = '', rolesDirty = false;
+let catalog = { agents: [], history: [] }, state = {}, submitting = false, nearBottom = true, lastPrompt = '', rolesDirty = false, restricted = false;
 const nodes = new Map();
 const persist = () => vscode.setState({ prompt: $('prompt').value, mode: $('mode').value, agentId: $('agent').value, model: $('model').value });
 const send = (type, data = {}) => vscode.postMessage({ type, ...data });
@@ -37,7 +37,7 @@ function controls() {
   document.body.classList.toggle('running', busy); document.body.classList.toggle('success', !busy && state.state === 'completed');
   $('stop').hidden = !busy; $('progress').hidden = !busy;
   $('mode').disabled = $('agent').disabled = $('model').disabled = busy || submitting;
-  $('send').disabled = submitting || !catalog.agents.length || busy && $('mode').value !== 'plan';
+  $('send').disabled = restricted || submitting || !catalog.agents.length || busy && $('mode').value !== 'plan';
   $('send').textContent = submitting ? 'Đang gửi…' : busy ? 'Bổ sung ↑' : 'Gửi ↑';
   $('new').disabled = busy || submitting;
   $('modeHelp').textContent = $('mode').value === 'fast' ? 'Một agent xử lý yêu cầu rồi dừng. Không mở vòng bàn luận.' : $('mode').value === 'review' ? 'Chỉ đọc và nhận xét code; không sửa project.' : 'Cả nhóm review toàn bộ giải pháp → Đầu não → Thợ code → kiểm tra/review.';
@@ -67,7 +67,7 @@ function render(next) {
 }
 $('feed').addEventListener('scroll', () => { nearBottom = $('feed').scrollHeight - $('feed').scrollTop - $('feed').clientHeight < 70; if (nearBottom) $('bottom').hidden = true; });
 $('bottom').onclick = () => { nearBottom = true; $('feed').scrollTop = $('feed').scrollHeight; $('bottom').hidden = true; };
-for (const id of ['new', 'refresh', 'settings', 'plan', 'walkthrough', 'changes', 'terminal', 'logs', 'attach', 'stop']) $(id).onclick = () => send(id);
+for (const id of ['new', 'refresh', 'settings', 'plan', 'walkthrough', 'changes', 'terminal', 'logs', 'attach', 'stop', 'trust']) $(id).onclick = () => send(id);
 function submit() {
   const prompt = $('prompt').value.trim(); if (!prompt || submitting || $('send').disabled) return;
   $('error').hidden = true; lastPrompt = prompt;
@@ -88,7 +88,9 @@ $('roleModels').onclick = () => { for (const agentId of new Set([$('brain').valu
 $('saveRoles').onclick = () => send('coding', { coding: { enabled: true, brain: { role: 'brain', agentId: $('brain').value, model: $('brainModel').value.trim() }, implementer: { role: 'implementer', agentId: $('worker').value, model: $('workerModel').value.trim() } } });
 window.addEventListener('message', event => {
   const message = event.data;
-  if (message.type === 'catalog') {
+  if (message.type === 'restricted') { restricted = true; $('trustNotice').hidden = false; text($('status'), 'Chờ quyền project'); text($('activity'), 'Khung Agent sẵn sàng; chưa chạy công cụ.'); controls(); }
+  else if (message.type === 'catalog') {
+    restricted = false; $('trustNotice').hidden = true;
     const chosen = $('agent').value || saved.agentId; catalog = message.data;
     options($('agent'), catalog.agents, chosen); modelOptions('models', $('agent').value); if (!$('model').value && saved.agentId === $('agent').value) $('model').value = saved.model || '';
     options($('brain'), catalog.agents, rolesDirty ? $('brain').value : catalog.coding?.brain?.agentId); options($('worker'), catalog.agents, rolesDirty ? $('worker').value : catalog.coding?.implementer?.agentId);
