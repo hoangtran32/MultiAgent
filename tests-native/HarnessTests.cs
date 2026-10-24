@@ -11,7 +11,7 @@ internal static class HarnessTests
     private static HarnessCall Call(string name, object args, string? id = null) => new(id ?? Guid.NewGuid().ToString("N"), name, JsonValue(args));
     private static HarnessTurn Tools(params HarnessCall[] calls) => new("", calls, JsonValue(new { role = "assistant", tool_calls = calls.Select(c => new { id = c.Id, type = "function", function = new { name = c.Name, arguments = c.Arguments.GetRawText() } }) }));
     private static HarnessTurn Final(string text = "Requested result") => new(text, [], JsonValue(new { role = "assistant", content = text }));
-    private static async Task Reject(Func<Task> action) { try { await action(); } catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException) { return; } throw new Exception("Expected harness rejection"); }
+    private static async Task Reject(Func<Task> action) { try { await action(); } catch (Exception e) when (e is ArgumentException or IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException) { return; } throw new Exception("Expected harness rejection"); }
     private static HarnessBinding Binding(string root, string surface = "work", HarnessOptions? options = null, Action<HarnessRun>? observe = null) {
         string project = Path.Combine(root, "project"); Directory.CreateDirectory(project);
         return new(new Storage(Path.Combine(root, "profile")), Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N"), surface, surface == "work" ? project : "", options ?? new(), observe ?? (_ => { }));

@@ -61,7 +61,7 @@ public sealed class AgentHarness(IHarnessModel model)
                     HarnessResult result;
                     try { string output = JsonSerializer.Serialize(await Task.Run(() => tools.Execute(call, token), token), Json.Options); state.Plan = tools.Plan.ToList(); state.Artifacts = tools.Artifacts.ToList(); result = new(call.Id, call.Name, output); }
                     catch (OperationCanceledException) { throw; }
-                    catch (Exception error) when (error is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or System.Net.Http.HttpRequestException or System.ComponentModel.Win32Exception or JsonException or TimeoutException) {
+                    catch (Exception error) when (error is ArgumentException or IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Net.Http.HttpRequestException or System.ComponentModel.Win32Exception or JsonException or TimeoutException) {
                         result = new(call.Id, call.Name, JsonSerializer.Serialize(new { error = error.Message }, Json.Options), true);
                     }
                     journal.Save(receipt, new { state = result.Error ? "failed" : "completed", tool = call.Name, arguments = call.Arguments, output = result.Output, finishedAt = DateTimeOffset.UtcNow });
