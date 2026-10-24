@@ -82,6 +82,8 @@ internal static class HarnessTests
             await Reject(() => tools.Execute(Call("read_trace", new { run = "../../outside", receipt = "call-1" }), default));
             for (int i = 0; i < 7; i++) await tools.Execute(Call("memory_write", new { key = "unicode-" + i, value = new string('ệ', 7000) }), default);
             Assert(JsonValue(await tools.Execute(Call("memory_read", new { }), default)).Str("unicode-6").Length == 7000);
+            var legacy = binding with { ConversationId = "legacy-topic-1" }; var journal = new HarnessJournal(legacy, Guid.NewGuid().ToString("N")); journal.Save("state", new HarnessRun());
+            await new HarnessTools(legacy, new()).Execute(Call("memory_write", new { key = "legacy", value = "Kept" }), default);
         });
         await test("project instructions are scoped and Chat artifacts stay outside any user project", async () => {
             var binding = Binding(Path.Combine(root, "harness-instructions")); var tools = new HarnessTools(binding, new());
@@ -145,6 +147,12 @@ internal static class HarnessTests
             var parsed = await ChatGptPlanStream.ReadTurn(new StringReader(data), _ => { }, default);
             var turn = ProviderHarnessModel.Responses(parsed.Text, parsed.Output);
             Assert(turn.Calls.Single().Name == "memory_read" && turn.Native[0].Str("encrypted_content") == "opaque");
+            var file = ChatAttachments.FromBytes("notes.txt", Encoding.UTF8.GetBytes("Unique document sentence"));
+            var agent = new AgentConfig { Connection = "chatgpt-plan", RuntimeAttachments = [file] };
+            var input = new HarnessInput("Instructions", ChatAttachments.WithText("Question", agent), [new(turn, [new("id", "memory_read", "{}")])], [], [file]);
+            var payload = JsonValue(ChatGptPlan.HarnessPayload(agent, input));
+            Assert(payload.GetProperty("input")[0].GetProperty("content").GetArrayLength() == 1);
+            Assert(payload.GetProperty("input")[1].Str("encrypted_content") == "opaque" && payload.GetProperty("input")[3].Str("type") == "function_call_output");
             await Reject(() => ChatGptPlanStream.ReadTurn(new StringReader("data: {\"type\":\"response.output_item.done\"}\n\n"), _ => { }, default));
         });
         await test("provider truncation and private network addresses are rejected before tool execution", async () => {

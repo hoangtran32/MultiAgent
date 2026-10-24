@@ -6,9 +6,11 @@ namespace MultiAgentHub.Core;
 public sealed class HarnessJournal
 {
     private readonly string directory;
+    internal static void ValidateScope(string id) { if (!System.Text.RegularExpressions.Regex.IsMatch(id, "^[a-zA-Z0-9-]{1,80}$")) throw new ArgumentException("ID hội thoại harness không hợp lệ."); }
     public HarnessJournal(HarnessBinding binding, string runId)
     {
-        if (!Guid.TryParseExact(binding.ConversationId, "N", out _) || !Guid.TryParseExact(runId, "N", out _)) throw new ArgumentException("ID harness không hợp lệ.");
+        ValidateScope(binding.ConversationId);
+        if (!Guid.TryParseExact(runId, "N", out _)) throw new ArgumentException("ID harness không hợp lệ.");
         directory = Path.Combine(binding.Storage.DataDir, "harness", binding.ConversationId, runId);
         PlainPath(directory); Directory.CreateDirectory(directory);
     }
@@ -36,6 +38,7 @@ public sealed class HarnessJournal
     }
     public static object Runs(HarnessBinding binding)
     {
+        ValidateScope(binding.ConversationId);
         string folder = Path.Combine(binding.Storage.DataDir, "harness", binding.ConversationId); PlainPath(folder);
         if (!Directory.Exists(folder)) return Array.Empty<object>();
         return Directory.EnumerateDirectories(folder).Take(1000).Where(p => Guid.TryParseExact(Path.GetFileName(p), "N", out _))

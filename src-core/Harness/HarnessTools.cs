@@ -19,6 +19,7 @@ public sealed class HarnessTools
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> MemoryLocks = new(StringComparer.OrdinalIgnoreCase);
     public HarnessTools(HarnessBinding binding, AgentConfig agent, CancellationToken lifetime = default)
     {
+        HarnessJournal.ValidateScope(binding.ConversationId);
         this.binding = binding; this.agent = agent; this.lifetime = lifetime;
         var tools = new List<HarnessTool>();
         void Add(string name, string description, params (string Name, string Type, bool Required)[] fields)
