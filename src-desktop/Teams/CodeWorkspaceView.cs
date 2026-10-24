@@ -63,7 +63,7 @@ internal sealed class CodeWorkspaceView : UserControl
             if (IsDisposed || revision != generation || node.TreeView != files) return; node.Nodes.Clear();
             foreach (var entry in entries) { var child = new TreeNode(System.IO.Path.GetFileName(entry.Path)) { Tag = entry.Path }; if (entry.Folder) child.Nodes.Add(new TreeNode("…")); node.Nodes.Add(child); }
             if (entries.Length == 1000) node.Nodes.Add(new TreeNode("Danh sách giới hạn 1.000 mục; mở thư mục cụ thể."));
-        } catch (Exception error) when (error is not OutOfMemoryException) { if (!IsDisposed) pathLabel.Text = error.Message; }
+        } catch (Exception error) when (error is not OutOfMemoryException) { if (!IsDisposed && revision == generation) pathLabel.Text = error.Message; }
     }
     private async Task OpenFile(string relative)
     {
@@ -72,7 +72,7 @@ internal sealed class CodeWorkspaceView : UserControl
         try {
             var loaded = await Task.Run(() => WorkspaceDocuments.Read(root, relative), lifetime.Token);
             if (IsDisposed || revision != generation || request != fileLoadVersion) return; document = loaded; settingText = true; editor.Text = loaded.Text; settingText = false; dirty = false; pathLabel.Text = System.IO.Path.Combine(root, relative); editor.ReadOnly = busy(); UpdateSave();
-        } catch (Exception error) when (error is not OutOfMemoryException) { if (!IsDisposed) pathLabel.Text = error.Message; }
+        } catch (Exception error) when (error is not OutOfMemoryException) { if (!IsDisposed && revision == generation && request == fileLoadVersion) pathLabel.Text = error.Message; }
     }
     private void SaveFile()
     {

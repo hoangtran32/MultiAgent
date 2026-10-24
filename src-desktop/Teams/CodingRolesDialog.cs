@@ -36,13 +36,13 @@ internal sealed class CodingRolesDialog : Form
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
                     var choices = selected.Connection == "chatgpt-plan" ? (await plan.Models(selected.PlanAccountId, timeout.Token)).Select(c => c.Id).ToArray() : (await AgentDiscovery.Models(selected, secrets, timeout.Token)).Models.ToArray();
                     if (IsDisposed || Ui.Value(connection) != id) return;
-                    model.Items.Clear(); model.Items.AddRange(choices.Distinct().Cast<object>().ToArray()); model.Text = previousText;
+                    string currentText = model.Text; model.Items.Clear(); model.Items.AddRange(choices.Distinct().Cast<object>().ToArray()); model.Text = currentText;
                 } catch (Exception error) when (error is not OutOfMemoryException) { if (!IsDisposed && !lifetime.IsCancellationRequested) MessageBox.Show(this, error is OperationCanceledException ? "Đã hủy/quá thời gian dò metadata; chưa gọi suy luận." : error.Message, Text); }
                 finally { if (!IsDisposed) discover.Enabled = true; }
             };
             line.Controls.Add(connection, 0, 0); line.Controls.Add(model, 1, 0); line.Controls.Add(discover, 2, 0); Add(line); fields.Add((item.Item1, connection, model));
         }
-        Add(Ui.Label(live ? "Phân công mới áp dụng sau bước đang chạy; không ngắt thao tác hiện tại hoặc chạy lại task đã xong. Trong phiên chỉ chọn agent đang tham gia; thêm kết nối ở Agent & model cho phiên sau." : "Chỉ chọn agent đang tham gia. Để trống model riêng để dùng model của agent. Luồng IDE dùng trong Hub Code → Chốt từng ý và bật Thực hiện task; chưa bật thì giữ cách phối hợp hiện tại."));
+        var roleNote = Ui.Label(live ? "Phân công mới áp dụng sau bước đang chạy; không ngắt thao tác hiện tại hoặc chạy lại task đã xong. Trong phiên chỉ chọn agent đang tham gia; thêm kết nối ở Agent & model cho phiên sau." : "Hai agent được chọn sẽ tham gia phiên. Để trống model riêng để dùng model của agent. Luồng IDE dùng trong Hub Code → Chốt từng ý và bật Thực hiện task; chưa bật thì giữ cách phối hợp hiện tại."); roleNote.MaximumSize = new(750, 0); Add(roleNote);
         var actions = Ui.Flow(); actions.Controls.Add(Ui.Button(live ? "Áp dụng sau bước hiện tại" : "Lưu phân công", (_, _) => {
             try {
                 RoleBinding Binding(string role) { var field = fields.First(f => f.Role == role); return new() { Role = role, AgentId = Ui.Value(field.Agent), Model = field.Model.Text.Trim() }; }
