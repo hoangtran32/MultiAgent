@@ -21,6 +21,7 @@ internal static class Program
                 if (args.Contains("--code") || config.Surface == "work") {
                     int index = Array.IndexOf(args, "--code");
                     string project = index >= 0 && index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal) ? Path.GetFullPath(args[index + 1]) : config.Project;
+                    if (firstProfile) { config.Project = index >= 0 ? project : ""; profile.Write("native-config", config); }
                     if (index < 0 && (firstProfile || !Directory.Exists(project))) {
                         using var choose = new FolderBrowserDialog { Description = "Chọn thư mục project để mở Hub Code", UseDescriptionForTitle = true };
                         if (choose.ShowDialog() != DialogResult.OK) return;
