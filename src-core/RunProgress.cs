@@ -90,7 +90,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
         }));
         double seconds = active ? Math.Max(0, (now - job.Timestamp).TotalSeconds) : Math.Max(0, job.Seconds);
         string timing = $"{(int)(seconds / 60)} phút {(int)seconds % 60:00} giây" + (team != null ? " · " + team.Options.CallUsage(team.Calls) : "");
-        if (job.HarnessRuns.Count > 0) timing += $" · Harness: {job.HarnessRuns.Sum(r => r.ModelCalls)} lần model / {job.HarnessRuns.Sum(r => r.ToolCalls)} công cụ";
+        if (job.HarnessRuns.Count > 0) timing += $" · Harness: {Math.Max(job.HarnessModelCalls, job.HarnessRuns.Sum(r => (long)r.ModelCalls))} lần model / {Math.Max(job.HarnessToolCalls, job.HarnessRuns.Sum(r => (long)r.ToolCalls))} công cụ";
         return new(title, detail, reason, progress, agents, timing, tone, done, total, active, canContinue);
     }
     public static string TaskState(TeamTask task) => task.NeedsScopeReview ? "cần cập nhật phạm vi" : task.State switch {

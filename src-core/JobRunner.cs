@@ -142,7 +142,11 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 agent.RuntimeHarness = new(storage, conversationId, current.Id, config.Surface, chat ? "" : config.Project, config.Harness.Copy(), run => {
                     Change(() => {
                         int index = harnessJob.HarnessRuns.FindIndex(r => r.Id == run.Id);
-                        if (index >= 0) harnessJob.HarnessRuns[index] = run; else { harnessJob.HarnessRuns.Add(run); if (harnessJob.HarnessRuns.Count > 200) harnessJob.HarnessRuns.RemoveAt(0); }
+                        var old = index >= 0 ? harnessJob.HarnessRuns[index] : null;
+                        harnessJob.HarnessModelCalls += Math.Max(0, run.ModelCalls - (old?.ModelCalls ?? 0));
+                        harnessJob.HarnessToolCalls += Math.Max(0, run.ToolCalls - (old?.ToolCalls ?? 0));
+                        if (index >= 0) harnessJob.HarnessRuns[index] = run; else harnessJob.HarnessRuns.Add(run);
+                        if (harnessJob.HarnessRuns.Count > 200) { int retired = harnessJob.HarnessRuns.FindIndex(r => r.State != "running" && r.Id != run.Id); if (retired >= 0) harnessJob.HarnessRuns.RemoveAt(retired); }
                     });
                     CheckpointCurrent();
                 }) { WriterHeld = !chat && Catalog.IsTeamMode(config.Mode) && config.Team.ExecuteTasks,

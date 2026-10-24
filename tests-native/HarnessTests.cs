@@ -171,6 +171,7 @@ internal static class HarnessTests
                 var config = new HubConfig { Surface = surface, Project = directory, Mode = "parallel", Agents = [new() { Provider = "compatible", Connection = "chat-api", Model = "chosen" }] };
                 runner.Start(config, "Read notes"); await runner.Completion!;
                 var job = runner.Snapshot()!; Assert(job.Results.Single().Text == "Finished" && job.HarnessRuns.Single().State == "completed" && calls == 2 && !runner.Busy);
+                Assert(job.HarnessModelCalls == 2 && job.HarnessToolCalls == 1);
                 Assert((surface == "chat") == (job.Project.Length == 0));
             }
         });

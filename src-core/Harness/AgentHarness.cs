@@ -33,14 +33,14 @@ public sealed class AgentHarness(IHarnessModel model)
             Observe();
             while (binding.Options.MaxModelCalls == 0 || state.ModelCalls < binding.Options.MaxModelCalls) {
                 token.ThrowIfCancellationRequested();
-                if (state.ModelCalls > 0 && !binding.TryAdditionalModelCall()) throw new HarnessLimitException("Đã chạm ngân sách lần gọi của nhóm; giữ kết quả, chưa xác nhận hoàn tất.");
-                state.Activity = "Đang suy luận"; state.ModelCalls++; Observe();
                 string updates = binding.UserUpdates();
                 string currentPrompt = original + (updates.Length == 0 ? "" : "\n\nBỔ SUNG TRỰC TIẾP MỚI NHẤT TỪ NGƯỜI DÙNG (ưu tiên khi khác kế hoạch cũ):\n" + updates);
                 if (currentPrompt.Length + Instructions.Length + 8000 > binding.Options.ContextChars) throw new HarnessLimitException("Yêu cầu bổ sung vượt ngân sách ngữ cảnh; đã giữ trong hội thoại, cần tăng giới hạn.");
                 var selected = Context(currentPrompt, history, binding.Options, state.Id, out string contextNote);
                 state.CompactedExchanges = history.Count - selected.Count;
                 if (state.CompactedExchanges > 0) log($"\nHarness: giữ {selected.Count}/{history.Count} lượt công cụ trong ngữ cảnh; bản đầy đủ ở nhật ký.\n");
+                if (state.ModelCalls > 0 && !binding.TryAdditionalModelCall()) throw new HarnessLimitException("Đã chạm ngân sách lần gọi của nhóm; giữ kết quả, chưa xác nhận hoàn tất.");
+                state.Activity = "Đang suy luận"; state.ModelCalls++; Observe();
                 var turn = await model.Turn(agent, new(Instructions + "\n" + CompletionScope.Contract, currentPrompt + contextNote, selected, tools.Definitions, agent.RuntimeAttachments), text, token);
                 if (updates != binding.UserUpdates()) { log("\nHarness: có bổ sung mới trong lúc suy luận; chưa chạy công cụ của câu trả lời cũ, đang áp dụng yêu cầu mới.\n"); continue; }
                 if (turn.Calls.Count == 0) {
@@ -55,8 +55,9 @@ public sealed class AgentHarness(IHarnessModel model)
                     token.ThrowIfCancellationRequested();
                     if (updates != binding.UserUpdates()) { results.Add(new(call.Id, call.Name, "Chưa chạy: người dùng vừa bổ sung yêu cầu. Đọc yêu cầu mới trước khi quyết định lại.", true)); continue; }
                     if (binding.Options.MaxToolCalls > 0 && state.ToolCalls >= binding.Options.MaxToolCalls) throw new HarnessLimitException("Đã chạm giới hạn công cụ của harness; kết quả và thay đổi đã giữ, chưa xác nhận hoàn tất.");
-                    string receipt = "call-" + (++state.ToolCalls); state.Activity = "Công cụ: " + call.Name;
-                    journal.Save(receipt, new { state = "pending", tool = call.Name, arguments = call.Arguments, startedAt = DateTimeOffset.UtcNow }); Observe();
+                    string receipt = "call-" + (state.ToolCalls + 1);
+                    journal.Save(receipt, new { state = "pending", tool = call.Name, arguments = call.Arguments, startedAt = DateTimeOffset.UtcNow });
+                    state.ToolCalls++; state.Activity = "Công cụ: " + call.Name; Observe();
                     log($"\n{agent.Name} · {call.Name} · {state.Id}/{receipt} · đang chạy\n");
                     HarnessResult result;
                     try { string output = JsonSerializer.Serialize(await Task.Run(() => tools.Execute(call, token), token), Json.Options); state.Plan = tools.Plan.ToList(); state.Artifacts = tools.Artifacts.ToList(); result = new(call.Id, call.Name, output); }

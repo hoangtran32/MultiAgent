@@ -157,6 +157,8 @@ public sealed class JobRecord
     public bool CompletionConfirmed { get; set; }
     public List<AttachmentInfo> Attachments { get; set; } = [];
     public List<HarnessRun> HarnessRuns { get; set; } = [];
+    public long HarnessModelCalls { get; set; }
+    public long HarnessToolCalls { get; set; }
     public string StopReason { get; set; } = "";
     public DateTimeOffset? Deadline { get; set; }
     public DateTimeOffset? NextTurnAt { get; set; }
