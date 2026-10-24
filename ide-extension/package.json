@@ -1,0 +1,41 @@
+{
+  "name": "code",
+  "displayName": "Hub Code",
+  "description": "Multi-Agent Hub on Code OSS: agent workspace, plan-first coding and bounded task completion.",
+  "version": "6.0.0",
+  "publisher": "multiagent-hub",
+  "license": "MIT",
+  "repository": "https://github.com/hoangtran32/MultiAgent",
+  "engines": { "vscode": "^1.100.0" },
+  "main": "./extension.cjs",
+  "extensionKind": ["ui"],
+  "activationEvents": ["onStartupFinished"],
+  "capabilities": { "untrustedWorkspaces": { "supported": false }, "virtualWorkspaces": { "supported": false } },
+  "contributes": {
+    "commands": [
+      { "command": "multiagent.open", "title": "Hub Code: Mở Agent" },
+      { "command": "multiagent.new", "title": "Hub Code: Cuộc trò chuyện mới", "icon": "$(add)" },
+      { "command": "multiagent.settings", "title": "Hub Code: Agent & model", "icon": "$(settings-gear)" },
+      { "command": "multiagent.stop", "title": "Hub Code: Dừng agent", "icon": "$(debug-stop)" },
+      { "command": "multiagent.plan", "title": "Hub Code: Xem kế hoạch", "icon": "$(notebook)" },
+      { "command": "multiagent.walkthrough", "title": "Hub Code: Xem kết quả" },
+      { "command": "multiagent.refresh", "title": "Hub Code: Nạp lại agent & lịch sử", "icon": "$(refresh)" },
+      { "command": "multiagent.openHistory", "title": "Hub Code: Mở phiên" },
+      { "command": "multiagent.selection", "title": "Hub Code: Gửi đoạn code đang chọn" }
+    ],
+    "viewsContainers": { "activitybar": [{ "id": "multiagent", "title": "Hub Code", "icon": "icon.svg" }] },
+    "views": { "multiagent": [{ "id": "multiagent.sessions", "name": "Agents & Tasks" }] },
+    "menus": {
+      "view/title": [
+        { "command": "multiagent.new", "when": "view == multiagent.sessions", "group": "navigation" },
+        { "command": "multiagent.refresh", "when": "view == multiagent.sessions", "group": "navigation" },
+        { "command": "multiagent.settings", "when": "view == multiagent.sessions", "group": "navigation" }
+      ],
+      "editor/context": [{ "command": "multiagent.selection", "when": "editorHasSelection", "group": "1_modification" }]
+    },
+    "keybindings": [{ "command": "multiagent.open", "key": "ctrl+alt+a" }],
+    "configuration": { "title": "Hub Code", "properties": {
+      "multiagent.backendExecutable": { "type": "string", "default": "", "scope": "machine", "description": "MultiAgentHub.exe. Normally supplied by the Hub launcher; never read from project settings." }
+    } }
+  }
+}

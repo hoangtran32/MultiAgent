@@ -4,6 +4,17 @@ namespace MultiAgentHubApp;
 
 internal sealed partial class MainWindow
 {
+    internal void ShowAgentSettings()
+    {
+        if (agentPanel.FindForm() is { } dialog && dialog != this && dialog.Visible) { dialog.Activate(); return; }
+        Activate(); OpenAgents();
+    }
+    private void OpenCodeIde()
+    {
+        if (runner.Busy) { status.Text = "Phiên hiện tại vẫn đang chạy. Đợi hoặc dừng phiên trước khi chuyển sang IDE."; return; }
+        using var launch = new IdeLaunchWindow(storage, config.Project); launch.ShowDialog(this);
+        if (launch.Launched) { config.Surface = "work"; Protect(Save); Close(); }
+    }
     private void ConfigureCodingRoles() => Protect(() => {
         var active = runner.Snapshot(); bool live = runner.Busy && active != null && CodingWorkflow.Active(active);
         if (runner.Busy && !live) throw new InvalidOperationException("Phiên hiện tại chưa dùng luồng IDE; cấu hình phân công khi phiên này kết thúc.");

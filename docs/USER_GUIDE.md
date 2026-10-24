@@ -1,4 +1,6 @@
-# Hướng dẫn Multi-Agent Hub 5.15.0
+# Hướng dẫn Multi-Agent Hub 6.0.0
+
+**Hub Code dùng Code OSS:** mở EXE trong Làm việc hoặc `--code "đường-dẫn-project"`. Lần đầu tải nền editor VSCodium; dùng **Làm ngay** cho yêu cầu thông thường, **Kế hoạch → triển khai** cho nhóm Đầu não/Thợ code. Xem [CODE_OSS_IDE.md](CODE_OSS_IDE.md) cho editor, terminal, debugger, khung Agent và các giới hạn. Các phần native bên dưới vẫn dùng cho Hub Chat/thiết lập và chế độ `--native`.
 
 **Luồng IDE Hub Code:** **Agent & model → Phân công code • Đầu não / Thợ code** chọn hai vai/model riêng. Nhóm chốt và review toàn bộ giải pháp rồi tự chuyển sang thiết kế thuật toán, triển khai, kiểm tra/review. Nút Workspace trên đầu chat mở file/editor, Git diff, task và nhật ký. Xem [CODE_IDE_WORKFLOW.md](CODE_IDE_WORKFLOW.md).
 

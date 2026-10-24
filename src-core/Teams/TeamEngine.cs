@@ -20,7 +20,8 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         bool coding = CodingWorkflow.Active(job);
         if (coding && team.CodingStage.Length == 0) team.CodingStage = "planning";
         var failedParticipants = new HashSet<string>();
-        bool closureUnresolved = false, scopeGoalConfirmed = false;
+        bool closureUnresolved = false, scopeGoalConfirmed = false, stalled = false;
+        var convergence = new TeamConvergence();
         DateTimeOffset? deadline = options.DurationMinutes > 0 ? DateTimeOffset.UtcNow.AddMinutes(options.DurationMinutes) : null;
         change(() => job.Deadline = deadline);
         using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -377,6 +378,12 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     change(() => { foreach (var planned in team.Tasks.Where(t => t.State == "ready")) planned.State = "planned"; });
                     Save();
                     if (IdeaConsensus.Active(team) is { State: "blocked" } planningBlock) { if (!planningBlock.BlockConfirmed) await ReviewBlocker(planningBlock); if (planningBlock.State == "blocked") break; continue; }
+                    if (team.PlanReadyForReview && team.Tasks.Count == 0) {
+                        string answerReview = await CompletionReview();
+                        if (answerReview == "complete") { agreed = true; break; }
+                        if (answerReview == "unresolved") { closureUnresolved = true; break; }
+                        change(() => team.PlanReadyForReview = false);
+                    }
                     if (team.PlanReadyForReview && team.Tasks.Count > 0 && team.Tasks.All(t => t.State is "done" or "planned")) {
                         string planReview = await CompletionReview(true);
                         if (planReview == "complete" || planReview == "changed") continue;
@@ -384,7 +391,9 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                         change(() => team.PlanReadyForReview = false);
                     }
                     bool planReady = await Round();
-                    if (planReady) change(() => team.PlanReadyForReview = true);
+                    convergence.Observe(team);
+                    if (planReady || convergence.UnchangedRounds == 1 && team.Tasks.Count > 0 && team.Tasks.All(t => t.State is "done" or "planned")) change(() => team.PlanReadyForReview = true);
+                    if (convergence.UnchangedRounds >= 3) { stalled = true; break; }
                     continue;
                 }
                 if (consensus && options.ExecuteTasks && job.Surface == "work" && IdeaConsensus.Active(team) is { State: "ready" } ready) { await Execute(ready); continue; }
@@ -400,9 +409,16 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                     if (closure == "unresolved") { closureUnresolved = true; agreed = false; break; }
                 }
                 agreed = await Round();
+                convergence.Observe(team);
                 if (!Capacity() || team.StopAfterStep) break;
                 if (consensus && failedParticipants.Count > 0) break;
                 if (consensus && !instructions.IsEmpty) { Directives(); agreed = false; continue; }
+                if (agreed && team.Tasks.Count == 0) {
+                    string closure = await CompletionReview();
+                    if (closure == "complete") break;
+                    if (closure == "unresolved") { closureUnresolved = true; break; }
+                }
+                if (convergence.UnchangedRounds >= 3) { stalled = true; break; }
                 if (!options.ExecuteTasks || job.Surface == "chat") {
                     if (consensus) {
                         change(() => { foreach (var planned in team.Tasks.Where(t => t.State == "ready")) planned.State = "planned"; }); Save();
@@ -423,12 +439,13 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 change(() => { foreach (var e in currentEvidence) e.Current = final.Length > 0 && e.Fingerprint == final; });
             }
             change(() => {
-                bool implemented = team.Tasks.Count > 0 && team.Tasks.All(t => t.State == "done");
+                bool implemented = team.Tasks.Count > 0 && team.Tasks.All(t => t.State == "done") || team.Tasks.Count == 0 && scopeGoalConfirmed;
                 bool verified = !team.Tasks.Any(t => t.RequiresWorkspace) || options.RunVerification && options.Checks.All(c => team.Evidence.Any(e => e.Name == c.Name && e.Current && e.State == "passed"));
-                job.State = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "cancelled" : "partial" : closureUnresolved ? "unverified" : consensus && (failedParticipants.Count > 0 || team.PendingDirectives.Count > 0 || (!options.ExecuteTasks || job.Surface == "chat") && (!agreed || IdeaConsensus.Active(team) != null)) ? "partial" : !options.ExecuteTasks || job.Surface == "chat" ? "planned" : !implemented || team.PendingDirectives.Count > 0 ? "partial" : !agreed || !verified || team.Tasks.Any(t => !t.IndependentReview || consensus && t.AgreedBy.Count < 2) ? "unverified" : "completed";
+                job.State = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "cancelled" : "partial" : stalled ? "partial" : closureUnresolved ? "unverified" : consensus && (failedParticipants.Count > 0 || team.PendingDirectives.Count > 0 || (!options.ExecuteTasks || job.Surface == "chat") && (!agreed || IdeaConsensus.Active(team) != null)) ? "partial" : !options.ExecuteTasks || job.Surface == "chat" ? "planned" : !implemented || team.PendingDirectives.Count > 0 ? "partial" : !agreed || !verified || team.Tasks.Any(t => !t.IndependentReview || consensus && t.AgreedBy.Count < 2) ? "unverified" : "completed";
                 job.CompletionConfirmed = scopeGoalConfirmed && job.State is "completed" or "planned";
                 job.StopReason = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "Người dùng dừng phiên." : "Đã đạt giới hạn thời gian." : team.StopAfterStep ? "Đã dừng sau bước hiện tại theo yêu cầu. Có thể tiếp tục từ hội thoại này." : Available().Count == 0 ? "Không còn agent khả dụng." : !options.HasCallCapacity(team.Calls) ? "Đã đạt giới hạn gọi model." :
                     job.CompletionConfirmed ? "Đã đối chiếu độc lập với yêu cầu người dùng và kết thúc; không tự mở rộng công việc." :
+                    stalled ? "Đã dừng vòng lặp: 3 vòng bàn luận liên tiếp không thay đổi task, tiêu chí hoặc xác nhận. Chưa coi là hoàn tất; xem bất đồng trước khi tiếp tục." :
                     closureUnresolved ? CodingWorkflow.Planning(job) ? "Giải pháp chưa qua review toàn bộ. Đã dừng, chưa chuyển sang code." : "Các task đã chốt đã xong nhưng đánh giá phạm vi chưa thống nhất. Đã dừng; không tự tạo thêm task hoặc giả hoàn tất." :
                     consensus && failedParticipants.Count > 0 ? FailureReason(job, failedParticipants) :
                     consensus && IdeaConsensus.Active(team) is { State: "blocked" } obstacle ? TaskBlocker.Describe(obstacle) :

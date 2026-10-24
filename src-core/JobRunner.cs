@@ -230,6 +230,8 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         try
         {
             try {
+            using var standaloneWriter = job.Surface == "work" && !Catalog.IsTeamMode(job.Mode) && job.Mode != "discussion" && agents.Any(TeamRoles.CanWrite) ? TeamWorkspace.AcquireWriter(job.Project) : null;
+            if (standaloneWriter != null) foreach (var agent in agents) if (agent.RuntimeHarness is { } binding) agent.RuntimeHarness = binding with { WriterHeld = true };
             storage.SaveConversationJob(Snapshot()!);
             if (Catalog.IsTeamMode(job.Mode)) await Task.Run(() => new TeamEngine(executor, storage, teamInstructions).Run(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token, CheckpointCurrent));
             else if (job.Mode == "discussion") await new DiscussionEngine(executor, storage, time).RunInteractive(job, agents, context, Change, id => AgentQuotaReached?.Invoke(id), token, discussionControl!, () => Snapshot()!, CheckpointCurrent);

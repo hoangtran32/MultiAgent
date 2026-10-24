@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.0.0 — 2026-10-24
+
+- Chuyển Hub Code sang Code OSS qua VSCodium Windows x64, tải nền editor chính thức và xác minh SHA-256 trước khi cài. EXE tự chứa extension Hub và backend; giữ Hub Chat/thiết lập native.
+- Extension Agent bên editor: streaming, trạng thái thực tế, task/kế hoạch/walkthrough, Git changes, terminal, nhật ký, tệp đính kèm và ngữ cảnh code đang chọn. Lịch sử/checkpoint riêng theo project, nhập các phiên work cũ đúng project; không nhập tài khoản cá nhân vào source/release.
+- Làm ngay mặc định gửi đúng một agent/model rồi kết thúc; Kế hoạch giữ review toàn bộ trước code, phân công Đầu não/Thợ code riêng theo project, đổi vai tại ranh giới bước. Review code dùng quyền chỉ đọc.
+- Dừng các vòng bàn luận lặp không thay đổi công việc; chủ động review kế hoạch đã ổn định. Không dùng giới hạn gọi/thời gian để giả hoàn thành. Câu hỏi không cần task có đường đối chiếu kết thúc.
+- JSON stdio không mở cổng mới; model metadata không chặn lệnh Dừng, gửi lỗi/timeout không tự replay, khóa writer chung và khôi phục sau ngắt. Kiểm tra CI offline cho session, framing, vòng lặp, khóa workspace và backend EXE headless. Chưa kiểm tra UI/live model, chưa đạt tương đương 100% Antigravity; chi tiết trong CODE_OSS_IDE.md.
+
 ## 5.15.0 — 2026-10-24
 
 - Thêm luồng IDE tùy chọn cho Hub Code / Chốt từng ý: chốt kế hoạch từng ý, toàn nhóm review giải pháp đầy đủ trước khi mở bước code. Kế hoạch planned không bị coi là đã triển khai.

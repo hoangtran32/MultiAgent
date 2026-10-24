@@ -20,7 +20,14 @@ jobs:
           $browserTests = @(Get-ChildItem -LiteralPath tests-browser -Filter '*.test.cjs' | ForEach-Object { $_.FullName })
           node --test @browserTests
           if ($LASTEXITCODE -ne 0) { throw 'Browser discovery tests failed.' }
+          Get-ChildItem -LiteralPath ide-extension -File | Where-Object {$_.Extension -in '.js','.cjs'} | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE -ne 0) { throw 'IDE extension syntax check failed.' } }
+          $ideTests = @(Get-ChildItem -LiteralPath tests-ide -Filter '*.test.cjs' | ForEach-Object { $_.FullName })
+          node --test @ideTests
+          if ($LASTEXITCODE -ne 0) { throw 'IDE transport tests failed.' }
           ./scripts/build-desktop.ps1 -PackageOnly
+          Expand-Archive -LiteralPath release/MultiAgentHub-win-x64.zip -DestinationPath .build/ide-ci-package
+          node tests-ide/backend.integration.cjs .build/ide-ci-package/MultiAgentHub.exe
+          if ($LASTEXITCODE -ne 0) { throw 'IDE backend integration failed.' }
       - uses: actions/upload-artifact@v4
         with:
           name: MultiAgentHub-win-x64

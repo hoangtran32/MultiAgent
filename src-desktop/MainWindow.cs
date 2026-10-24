@@ -105,6 +105,7 @@ internal sealed partial class MainWindow : Form
             if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode;
             config.Surface = Ui.Value(surface);
             ConfigureModes(config.Surface == "chat" ? config.ChatMode : config.WorkMode);
+            if (config.Surface == "work") { Protect(Save); OpenCodeIde(); return; }
             NewConversation(); Populate(); LoadHistory();
         };
         sidebar.ChangeConversation += (id, title, pinned, archived) => Protect(() => {
@@ -123,7 +124,7 @@ internal sealed partial class MainWindow : Form
         var headerActions = Ui.Flow(); headerActions.WrapContents = false;
         var more = Ui.IconButton("more", "Tùy chọn hội thoại", (_, _) => OpenHeaderMenu());
         headerMenu.Tag = more; boardToggle.Click += (_, _) => OpenBoard();
-        headerActions.Controls.AddRange([Ui.IconButton("down", "Đến cuối hội thoại", (_, _) => canvas.ScrollToEnd()), more, boardToggle]); header.Controls.Add(headerActions, 1, 0); root.Controls.Add(header, 0, 0);
+        headerActions.Controls.AddRange([Ui.Button("Mở Hub Code IDE", (_, _) => OpenCodeIde()), Ui.IconButton("down", "Đến cuối hội thoại", (_, _) => canvas.ScrollToEnd()), more, boardToggle]); header.Controls.Add(headerActions, 1, 0); root.Controls.Add(header, 0, 0);
         boardPanel.Controls.Add(codeWorkspace); boardPanel.Visible = false;
         var boardHeader = new Panel { Dock = DockStyle.Top, Height = 38, Padding = new Padding(8, 2, 8, 2) };
         var boardClose = Ui.IconButton("close", "Đóng bảng công việc", (_, _) => { if (boardPanel.FindForm() is { } form && form != this) form.Close(); else boardPanel.Visible = false; }); boardClose.Dock = DockStyle.Right;
