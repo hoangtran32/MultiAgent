@@ -89,7 +89,7 @@ internal sealed class IdeLaunchWindow : Form
         status.Dock = DockStyle.Fill; status.AutoSize = false; layout.Controls.Add(status, 0, 0);
         var buttons = Ui.Flow(); buttons.Controls.Add(Ui.Button("Đóng", (_, _) => Close())); layout.Controls.Add(buttons, 0, 1); Ui.Theme(this);
         Shown += async (_, _) => {
-            try { string editor = await IdeLauncher.Prepare(profile, message => { if (!IsDisposed && IsHandleCreated) BeginInvoke(() => status.Text = message); }, closing.Token); if (!closing.IsCancellationRequested) { IdeLauncher.Launch(editor, profile, project); Launched = true; Close(); } }
+            try { if (!Directory.Exists(project)) throw new DirectoryNotFoundException("Project không tồn tại: " + project); string editor = await IdeLauncher.Prepare(profile, message => { if (!IsDisposed && IsHandleCreated) BeginInvoke(() => status.Text = message); }, closing.Token); if (!closing.IsCancellationRequested) { IdeLauncher.Launch(editor, profile, project); Launched = true; Close(); } }
             catch (OperationCanceledException) { }
             catch (Exception error) { if (!IsDisposed) status.Text = error.Message + "\nMở MultiAgentHub.exe --native để dùng Hub Chat/thiết lập."; }
         };
