@@ -16,9 +16,13 @@ internal sealed partial class MainWindow
             foreach (string id in new[] { dialog.Result.Brain.AgentId, dialog.Result.Implementer.AgentId }) next.SelectAgent(next.Agents.First(a => a.Id == id), true);
             CodingWorkflow.Validate(next.Team.Coding, next.SelectedAgents(), next.Harness.Enabled);
         }
-        if (live) runner.UpdateCodingRoles(dialog.Result);
+        bool applyNow = live && runner.Busy && runner.Snapshot() is { State: "running" } running && running.Team?.Phase != "finished";
+        if (applyNow) {
+            try { runner.UpdateCodingRoles(dialog.Result); }
+            catch (InvalidOperationException) when (runner.Snapshot() is not { State: "running", Team.Phase: not "finished" }) { applyNow = false; }
+        }
         Storage.Validate(next); storage.Write("native-config", next); config = next;
-        if (!live) Populate(Selected?.Id); else UpdateSummary();
-        status.Text = live ? "Đã nhận phân công mới; áp dụng tại ranh giới bước, giữ nguyên thao tác và task đã xong." : "Đã lưu luồng IDE: chốt và review toàn bộ giải pháp → Đầu não → Thợ code → kiểm tra/review.";
+        if (!applyNow) Populate(Selected?.Id); else UpdateSummary();
+        status.Text = applyNow ? "Đã nhận phân công mới; áp dụng tại ranh giới bước, giữ nguyên thao tác và task đã xong." : "Đã lưu luồng IDE: chốt và review toàn bộ giải pháp → Đầu não → Thợ code → kiểm tra/review.";
     });
 }

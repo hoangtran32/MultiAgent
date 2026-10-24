@@ -347,7 +347,7 @@ internal sealed partial class MainWindow : Form
         codeWorkspace.SetProject(config.Surface == "work" ? config.Project : "");
         if (conversationHost.Width >= 1300 * DeviceDpi / 96f) { boardPanel.Width = (int)(640 * DeviceDpi / 96f); boardPanel.Visible = !boardPanel.Visible; return; }
         boardPanel.Dock = DockStyle.Fill; boardPanel.Visible = true;
-        try { ShowPanel(boardPanel, "Workspace IDE • file / diff / task / nhật ký", 1180, 800); }
+        try { ShowPanel(boardPanel, config.Surface == "work" ? "Workspace IDE • file / diff / task / nhật ký" : "Công việc & đầu ra", 1180, 800); }
         finally { boardPanel.Dock = DockStyle.Right; boardPanel.Visible = false; conversationHost.Controls.Add(boardPanel); boardPanel.BringToFront(); }
     }
     private void OpenHeaderMenu()
@@ -697,6 +697,7 @@ internal sealed partial class MainWindow : Form
             if (control.Enabled != enabled) control.Enabled = enabled;
         }
         stop.Enabled = busy; stop.Visible = busy; run.Visible = !busy || liveComposer; history.Enabled = !busy;
+        codingRoles.Enabled = !busy || CodingWorkflow.Active(job);
         string sendAction = busy && liveComposer ? "Gửi bổ sung" : "Gửi yêu cầu";
         if (run.AccessibleName != sendAction) { run.AccessibleName = sendAction; Ui.Hint(run, sendAction); }
         if (busy && job.Mode == "discussion") prompt.PlaceholderText = canSend ? job.Surface == "chat" ? "Nhắn với cả nhóm… Ctrl + Enter để gửi" : "Bổ sung ý kiến… Ctrl + Enter để gửi vào lượt tiếp theo" : "Đang kết thúc bàn luận… Bạn có thể soạn yêu cầu tiếp theo tại đây";

@@ -46,6 +46,13 @@ internal static class CodingWorkflowTests
             Assert(job.State == "completed" && fixture.Work.Count == 2 && fixture.PlanReviews >= 4);
             Assert(job.Team!.Tasks.All(t => t.ProposalVersion == 2 && t.DesignVersion == 2));
         });
+        await test("role switch during implementation preserves the current slice and changes only subsequent work", async () => {
+            string path = Folder("worker-role-switch"); var fixture = new Fixture(); var runner = new JobRunner(fixture, Store(path));
+            fixture.OnWork = () => { if (fixture.Work.Count != 1) return; fixture.OnWork = null; runner.UpdateCodingRoles(Roles("B", "A", "next-brain", "next-worker")); };
+            runner.Start(Config(path), "Implement two requested slices."); await Done(runner); var job = runner.Snapshot()!;
+            Assert(job.State == "completed" && fixture.Work.Count == 2 && fixture.Work[0].Model == "implementation-model" && fixture.Work[1].Model == "next-worker");
+            Assert(job.Team!.Tasks.First(t => t.Id == "I1").AssignedTo == "B" && job.Team.Tasks.First(t => t.Id == "I2").AssignedTo == "A");
+        });
         await test("brain failure stops explicitly without substituting the worker as algorithm model", async () => {
             string path = Folder("brain-error"); var fixture = new Fixture { FailDesign = true }; var runner = new JobRunner(fixture, Store(path));
             runner.Start(Config(path), "Implement two requested slices."); await Done(runner); var job = runner.Snapshot()!;
@@ -83,7 +90,7 @@ internal static class CodingWorkflowTests
     {
         public bool RejectPlan, FailDesign;
         public int PlanReviews;
-        public Action? OnDesign, OnPlanReview, OnCodeReview;
+        public Action? OnDesign, OnPlanReview, OnCodeReview, OnWork;
         public List<DesignCall> Design { get; } = [];
         public List<WorkCall> Work { get; } = [];
         public List<string> Events { get; } = [];
@@ -102,7 +109,7 @@ internal static class CodingWorkflowTests
                 reply = new() { Message = "Algorithm and interfaces for this slice.", Outcome = "ready", ImplementationPlan = "Approved algorithm: read current files, implement the agreed slice, retain public interfaces, verify with the configured fixture." };
             } else if (prompt.Contains("Đây là lượt THỰC HIỆN task.")) {
                 Assert(agent.Permission == "full"); var task = tasks.First(t => t.State == "running"); Assert(prompt.Contains("BÀN GIAO TỪ ĐẦU NÃO"));
-                Events.Add("work " + task.Id); Work.Add(new(agent.Id, agent.Model, task.Id, prompt)); File.WriteAllText(Path.Combine(project, task.Id + ".txt"), "Implemented " + task.Id);
+                Events.Add("work " + task.Id); Work.Add(new(agent.Id, agent.Model, task.Id, prompt)); OnWork?.Invoke(); File.WriteAllText(Path.Combine(project, task.Id + ".txt"), "Implemented " + task.Id);
                 reply = new() { Message = "Implemented the assigned slice.", Outcome = "done", Files = [task.Id + ".txt"] };
             } else if (prompt.Contains("Đây là lượt REVIEW ngang hàng.")) { OnCodeReview?.Invoke(); reply = new() { Message = "The slice meets its criterion and has passing command evidence.", Outcome = "approve" }; }
             else {

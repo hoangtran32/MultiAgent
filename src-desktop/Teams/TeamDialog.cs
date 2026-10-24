@@ -42,7 +42,7 @@ internal sealed class TeamDialog : Form
         continuous.CheckedChanged += (_, _) => UpdateContinuous(); UpdateContinuous();
         var roles = Content(rolesPage, 3);
         roles.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160)); roles.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); roles.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        var note = Ui.Label(consensus ? "Một ý tại một thời điểm. Tất cả thành viên khả dụng xác nhận cùng phiên bản trước khi thực hiện/review rồi chuyển ý. Sửa ý làm hết hiệu lực xác nhận cũ; không ép đồng ý khi hết giới hạn." : "Các vai ngang hàng. Một model có thể đảm nhiệm nhiều vai. Để Tự phân công để Hub chia chuyên môn; khi quota/lỗi sẽ chọn kết nối còn lại phù hợp.");
+        var note = Ui.Label(consensus && current.Coding.Enabled ? "Luồng IDE: chốt từng ý và review toàn bộ giải pháp trước khi code. Bảng dưới là chuyên môn thảo luận/reviewer; Đầu não và Thợ code triển khai được chọn riêng tại Phân công code. Không ép đồng ý khi hết giới hạn." : consensus ? "Một ý tại một thời điểm. Tất cả thành viên khả dụng xác nhận cùng phiên bản trước khi thực hiện/review rồi chuyển ý. Sửa ý làm hết hiệu lực xác nhận cũ; không ép đồng ý khi hết giới hạn." : "Các vai ngang hàng. Một model có thể đảm nhiệm nhiều vai. Để Tự phân công để Hub chia chuyên môn; khi quota/lỗi sẽ chọn kết nối còn lại phù hợp.");
         note.MaximumSize = new Size(760, 0); roles.Controls.Add(note, 0, 0); roles.SetColumnSpan(note, 3);
         roles.Controls.Add(Ui.Label("Chuyên môn", true), 0, 1); roles.Controls.Add(Ui.Label("Kết nối ưu tiên", true), 1, 1); roles.Controls.Add(Ui.Label("Model riêng (trống = theo agent)", true), 2, 1);
         var fields = new List<(string role, ComboBox agent, TextBox model)>(); int row = 2;
@@ -53,7 +53,7 @@ internal sealed class TeamDialog : Form
             var model = Ui.Text(); model.Text = binding?.Model ?? ""; model.MaxLength = 120; model.AccessibleName = "Model cho " + role.Name;
             roles.Controls.Add(Ui.Label(role.Name), 0, row); roles.Controls.Add(agent, 1, row); roles.Controls.Add(model, 2, row++); fields.Add((role.Id, agent, model));
         }
-        var execute = new CheckBox { Text = consensus ? "Thực hiện từng ý sau khi tất cả thành viên chốt" : "Thực hiện task sau khi bàn tròn thống nhất", Checked = current.ExecuteTasks, AutoSize = true, Margin = new Padding(4, 12, 4, 4) };
+        var execute = new CheckBox { Text = consensus && current.Coding.Enabled ? "Tự triển khai sau khi review toàn bộ giải pháp" : consensus ? "Thực hiện từng ý sau khi tất cả thành viên chốt" : "Thực hiện task sau khi bàn tròn thống nhất", Checked = current.ExecuteTasks, AutoSize = true, Margin = new Padding(4, 12, 4, 4) };
         roles.Controls.Add(execute, 0, row++); roles.SetColumnSpan(execute, 3);
         var permission = Ui.Label("Thực hiện project cần CLI hoặc API có harness và quyền workspace-write/full. Luồng IDE Đầu não → Thợ code được cấu hình riêng tại Phân công code; khi bật, Hub chốt và review toàn bộ giải pháp trước khi triển khai. Trong Trò chuyện, task không được thực thi.");
         permission.MaximumSize = new Size(760, 0); roles.Controls.Add(permission, 0, row); roles.SetColumnSpan(permission, 3);
