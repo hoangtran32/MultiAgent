@@ -137,7 +137,7 @@ internal sealed class AgentEditor : Form
             "chatgpt-plan" => "Using ChatGPT plan: đăng nhập riêng cho Hub, lấy model tài khoản qua API chính thức. Không cần mở tab/app. Hạn mức theo gói và quyền đã cấp; tính năng có thể khác giao diện chat. Không tự dùng API key tính phí.",
             "custom-cli" => "Hub chạy executable của bạn với prompt qua stdin, đọc stdout làm kết quả. Đối số JSON hỗ trợ {model} và {project}.",
             _ => "Gọi API trực tiếp. API nhận yêu cầu và file đính kèm đã chọn, trả văn bản; không tự đọc project hay sửa file." };
-        ShowRow(effort, kind is "codex-cli" or "claude-cli" or "agy-cli"); ShowRow(permission, kind is "codex-cli" or "claude-cli" or "agy-cli");
+        ShowRow(effort, kind is "codex-cli" or "claude-cli" or "agy-cli"); ShowRow(permission, api || plan || kind is "codex-cli" or "claude-cli" or "agy-cli");
         ShowRow(command, executable);
         ShowRow(browserBinding, web); ShowRow(refreshBrowser, web); ShowRow(choosePlan, plan); model.Enabled = !plan && (!web || kind == "gateway-web");
         var browse = connectionFields.Controls.Cast<Control>().First(c => c.AccessibleName == "Chọn đường dẫn"); ShowRow(browse, executable);
@@ -153,6 +153,7 @@ internal sealed class AgentEditor : Form
             "codex-cli" => [new("read-only", "Chỉ đọc"), new("workspace-write", "Ghi trong workspace"), new("full", "Toàn quyền • file và terminal")],
             "claude-cli" => [new("read-only", "Plan • phân tích"), new("workspace-write", "Accept edits • sửa file"), new("full", "Bỏ phê duyệt • toàn quyền")],
             "agy-cli" => [new("default", "Theo CLI • terminal cần cấp phép"), new("read-only", "Plan • phân tích"), new("workspace-write", "Accept edits • sửa file"), new("full", "Tự phê duyệt • toàn quyền")],
+            "chatgpt-plan" or "chat-api" or "gemini-api" or "anthropic-api" => [new("default", "Harness • chỉ đọc workspace"), new("read-only", "Harness • chỉ đọc workspace"), new("workspace-write", "Harness • đọc và sửa workspace"), new("full", "Harness • file và lệnh toàn quyền")],
             _ => [new("default", manual ? "Chọn trong ứng dụng AI" : "Theo quyền của kết nối")] }, values.Permission);
         RefreshEffort(values.Effort);
         command.Text = values.Command; arguments.Text = values.Arguments; endpoint.Text = values.Endpoint; variable.Text = values.Variable; key.Text = values.Key; deleteKey.Checked = values.DeleteKey;

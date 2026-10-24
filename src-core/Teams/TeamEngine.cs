@@ -94,6 +94,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             string correction = "";
             for (int attempt = 0; attempt < 2 && Capacity(); attempt++) {
                 var agent = original.Copy();
+                if (agent.RuntimeHarness is { } harness) agent.RuntimeHarness = harness with { AllowChanges = phase == "work" && attempt == 0 && task?.RequiresWorkspace == true };
                 var binding = options.Roles.FirstOrDefault(r => r.Role == role && (r.AgentId.Length == 0 || r.AgentId == agent.Id));
                 if (binding?.Model is { Length: > 0 } model) agent.Model = model;
                 if (job.Surface == "chat") agent.Permission = "read-only";

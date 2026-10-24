@@ -1,4 +1,6 @@
-# Hướng dẫn Multi-Agent Hub 5.13.0
+# Hướng dẫn Multi-Agent Hub 5.14.0
+
+**Runtime dùng chung:** vào **Agent & model → Runtime & công cụ** để bật/tắt harness API, công cụ web/lệnh và giới hạn. Trong **Thiết lập / model**, quyền của API có Chỉ đọc, Ghi workspace và Toàn quyền. Quyền Chat luôn không có file/terminal project. Chi tiết [AGENT_HARNESS.md](AGENT_HARNESS.md).
 
 **Điểm dừng và tệp:** nhóm kết thúc khi cùng xác nhận đáp ứng đúng yêu cầu. Nút + hỗ trợ nhiều ảnh/PDF/Word/văn bản; có kéo thả, Ctrl+V ảnh và bỏ từng tệp. Xem [hướng dẫn chi tiết](COMPLETION_AND_ATTACHMENTS.md).
 

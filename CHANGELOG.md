@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.14.0 — 2026-10-24
+
+- Thêm harness native dùng chung cho Hub Chat/Code: model → function calls → thực thi công cụ → trả kết quả về cùng ngữ cảnh → câu trả lời cuối. Nối Chat Completions, Gemini, Anthropic và ChatGPT plan Responses; giữ opaque reasoning/thought signatures và cặp call/result đúng protocol. CLI/extension/gateway giữ transport hiện có.
+- Công cụ đọc/tìm workspace, ghi file có SHA256 chống ghi đè thay đổi cũ; executable + mảng đối số trong project khi quyền full. Lập kế hoạch/review/sửa schema qua API không có công cụ ghi/lệnh. Chat có tệp, bộ nhớ theo hội thoại, artifact văn bản và đọc URL HTTPS công khai; tìm kiếm dùng URL endpoint do người dùng cấu hình.
+- Nhật ký ghi pending trước thao tác, kết quả sau thao tác; giữ receipt bị gián đoạn và không tự replay. Context giữ nguyên yêu cầu, rút nhóm công cụ cũ nguyên cặp với đường dẫn đọc lại. Nhận chỉ dẫn mới ở ranh giới bước; bỏ đề xuất công cụ cũ nếu có bổ sung trong lúc model chạy.
+- Thêm Runtime & công cụ trong Agent & model, quyền API trong editor; hiển thị hoạt động công cụ và số lần gọi model/công cụ. Giới hạn chỉnh được, 0 lượt = không giới hạn; ngân sách nhóm tính cả lần gọi bên trong harness.
+- Thêm fixture offline cho quyền, ghi có hash, traversal, công cụ thật trên fixture, cancellation/receipt, steering, memory isolation, context, provider payload và JobRunner Chat/Code. Chỉ build tại máy; kiểm tra chức năng bằng CI, chưa suy luận/UI live.
+
 ## 5.13.0 — 2026-10-23
 
 - Bỏ yêu cầu mỗi lượt phải phát triển ý mới/bàn giao. Giữ phạm vi theo yêu cầu trực tiếp của người dùng; gợi ý tùy chọn không thành task hay điều kiện nghiệm thu.

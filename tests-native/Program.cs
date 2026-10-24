@@ -14,6 +14,7 @@ if (args.FirstOrDefault() == "exec" && args.Contains("--json"))
 }
 if (args.FirstOrDefault() == "--fixture")
 {
+    if (args.Contains("harness-command")) { Console.Write("Harness command proof"); return; }
     if (args.Contains("pipe-holder-long")) { await Task.Delay(12000); return; }
     if (args.Contains("pipe-holder")) { await Task.Delay(6000); return; }
     if (args.Contains("terminal-hang") || args.Contains("nonterminal-hang")) {
@@ -623,6 +624,7 @@ try
     await GatewayTests.Run(Test, root);
     await ChatGptPlanTests.Run(Test, root);
     await AttachmentTests.Run(Test, root);
+    await HarnessTests.Run(Test, root);
     await BrowserChatSelectionTests.Run(Test, root);
     await ConversationScopeTests.Run(Test, root);
     Console.WriteLine($"{passed} native tests passed");

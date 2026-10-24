@@ -6,6 +6,8 @@
 
 ## Bắt đầu
 
+**5.14.0 — Harness dùng chung:** Chat/Code có runtime gọi công cụ thật cho API, quản lý ngữ cảnh, bộ nhớ riêng hội thoại, nhật ký có receipt và nhận bổ sung trong lúc chạy. API có thể đọc/tìm/sửa file trong Code theo quyền; Chat dùng tài liệu, web và artifact riêng. Vào **Agent & model → Runtime & công cụ**. Xem [thiết kế và cách dùng](docs/AGENT_HARNESS.md).
+
 **5.13.0:** nhóm kết thúc khi đã đối chiếu và xác nhận đáp ứng yêu cầu; gợi ý tùy chọn không tự thành task. Khung chat hỗ trợ nhiều ảnh/PDF/Word/văn bản, kéo thả và Ctrl+V ảnh. Xem [điểm dừng và đính kèm](docs/COMPLETION_AND_ATTACHMENTS.md).
 
 **API chạy ngầm dùng gói ChatGPT (5.12.0):** vào **Agent & model → Tài khoản ChatGPT • API**, đăng nhập chính thức và chọn model do tài khoản trả về. Sau đăng nhập không cần extension/tab/app mở. Model/tính năng API có giới hạn riêng; Gemini cùng quota app chưa có kết nối API được xác minh. Xem [hướng dẫn và giới hạn](docs/CHATGPT_PLAN_API.md).

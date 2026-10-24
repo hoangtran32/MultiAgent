@@ -5,6 +5,11 @@ public static class WorkspacePolicy
 {
     public static string Instructions(JobRecord job, AgentConfig agent, bool allowChanges = false)
     {
+        if (agent.RuntimeHarness is { Options.Enabled: true } harness && ProviderHarnessModel.Supported(agent.Connection))
+            return job.Surface == "chat" ? "HUB CHAT: dùng công cụ tài liệu đính kèm, bộ nhớ riêng của hội thoại và đọc web nếu được cấp. Không gắn project, không có công cụ file/terminal. Dẫn URL cho thông tin nghiên cứu đã đọc.\n" :
+                $"PROJECT ĐANG CHỌN: {job.Project}\nHARNESS API: Hub cấp công cụ đọc/tìm file tại project. Quyền hiệu lực: {agent.Permission}. " +
+                (harness.AllowChanges && agent.Permission is "workspace-write" or "full" ? "Được sửa file trong project bằng hash bảo vệ. Lệnh chỉ có khi đã chọn full và bật công cụ lệnh.\n" : "Lượt này chỉ đọc workspace; không triển khai thay đổi trong bước lập kế hoạch/review/sửa schema.\n") +
+                "Thực sự dùng công cụ để đọc/kiểm tra, không đoán nội dung từ đường dẫn; chỉ báo hoàn tất theo bằng chứng công cụ và tiêu chí người dùng.\n";
         if (Catalog.IsBrowserChat(agent.Connection) || agent.Connection == "gateway-web") return (job.Surface == "work" ? "HỖ TRỢ CÔNG VIỆC QUA VĂN BẢN: tư vấn thiết kế, đề xuất code hoặc phản biện dựa trên nội dung được gửi và kết quả đồng đội cung cấp. CLI hoặc người dùng áp dụng thay đổi và kiểm tra tại project; chatbot này không tự thực thi trên máy.\n" : "TRÒ CHUYỆN ĐỘC LẬP: không gắn project, không cần thư mục làm việc của người dùng.\n")
             + "CHATBOT TRÊN WEB: trao đổi và nghiên cứu chủ đề bằng các khả năng sẵn có của chatbot, gồm tìm kiếm web nếu giao diện hiện tại hỗ trợ. Không có quyền đọc/sửa thư mục hoặc chạy terminal trên máy qua Hub. Phân biệt bằng chứng đã xác minh với ý tưởng; dẫn nguồn cho nhận định nghiên cứu. Không giả là đã chạy code hay đọc project chỉ từ đường dẫn.\n";
         if (job.Surface == "chat") return "Chế độ TRÒ CHUYỆN: trả lời bằng văn bản. Không dùng công cụ, không đọc/sửa file hoặc chạy lệnh. Muốn đọc project cần chuyển sang Hub Code.\n";

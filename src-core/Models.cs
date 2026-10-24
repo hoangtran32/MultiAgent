@@ -77,11 +77,13 @@ public sealed class AgentConfig
     public string GatewayAccountId { get; set; } = "";
     public string PlanAccountId { get; set; } = "";
     [JsonIgnore] public IReadOnlyList<ChatAttachment> RuntimeAttachments { get; set; } = [];
+    [JsonIgnore] public HarnessBinding? RuntimeHarness { get; set; }
     public AgentConfig Copy(bool newId = false)
     {
         var copy = JsonSerializer.Deserialize<AgentConfig>(JsonSerializer.Serialize(this, Json.Options), Json.Options)!;
         if (newId) copy.Id = Guid.NewGuid().ToString("N");
         copy.RuntimeAttachments = RuntimeAttachments;
+        copy.RuntimeHarness = RuntimeHarness;
         return copy;
     }
 }
@@ -111,6 +113,7 @@ public sealed class HubConfig
         else agent.Enabled = selected;
     }
     public TeamOptions Team { get; set; } = new();
+    public HarnessOptions Harness { get; set; } = new();
     public List<AgentConfig> Agents { get; set; } = [];
 }
 
@@ -153,6 +156,7 @@ public sealed class JobRecord
     public bool DiscussionFinishRequested { get; set; }
     public bool CompletionConfirmed { get; set; }
     public List<AttachmentInfo> Attachments { get; set; } = [];
+    public List<HarnessRun> HarnessRuns { get; set; } = [];
     public string StopReason { get; set; } = "";
     public DateTimeOffset? Deadline { get; set; }
     public DateTimeOffset? NextTurnAt { get; set; }

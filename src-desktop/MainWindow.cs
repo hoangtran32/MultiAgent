@@ -205,7 +205,12 @@ internal sealed partial class MainWindow : Form
             var next = CopyConfig(); next.Team = dialog.Result; Commit(next, Selected?.Id);
         })); locked.Add(teamSettings);
         var sessionSettings = Ui.Flow();
-        sessionSettings.Controls.AddRange([teamSettings, discussionSettings]); agents.Controls.Add(sessionSettings, 0, 3);
+        var harnessSettings = Ui.Button("Runtime & công cụ…", (_, _) => Protect(() => {
+            using var dialog = new HarnessDialog(config.Harness);
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+            var next = CopyConfig(); next.Harness = dialog.Result; Commit(next, Selected?.Id);
+        })); locked.Add(harnessSettings);
+        sessionSettings.Controls.AddRange([teamSettings, discussionSettings, harnessSettings]); agents.Controls.Add(sessionSettings, 0, 3);
         Ui.Hint(teamSettings, "Chọn model cho từng vai, giới hạn ý/task, lần gọi và lệnh kiểm tra của Chốt từng ý hoặc Bàn tròn & thực hiện.");
         Ui.Hint(discussionSettings, "Đặt số lượt, thời lượng, nhịp trao đổi và tổng hợp của chế độ Bàn luận qua lại.");
 

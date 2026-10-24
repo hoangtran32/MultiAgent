@@ -7,7 +7,7 @@ public static class TeamRoles
     public static readonly Choice[] All = [new("product", "Product Manager"), new("architect", "Architect"),
         new("coder", "Coder"), new("tester", "Tester"), new("reviewer", "Reviewer")];
     public static string Name(string id) => All.FirstOrDefault(r => r.Id == id)?.Name ?? id;
-    public static bool CanWrite(AgentConfig agent) => agent.Connection is "codex-cli" or "claude-cli" or "agy-cli" or "custom-cli"
+    public static bool CanWrite(AgentConfig agent) => (agent.Connection is "codex-cli" or "claude-cli" or "agy-cli" or "custom-cli" || agent.RuntimeHarness is { Surface: "work", Options.Enabled: true } && ProviderHarnessModel.Supported(agent.Connection))
         && agent.Permission is "workspace-write" or "full";
 }
 

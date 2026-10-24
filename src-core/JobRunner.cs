@@ -28,6 +28,8 @@ public sealed class AgentExecutor(ApiTransport api, BrowserChatBridge? browser =
     public async Task<string> Execute(AgentConfig agent, string project, string prompt, Action<string> text, Action<string> log, CancellationToken token)
     {
         ChatAttachments.ValidateFor(agent, agent.RuntimeAttachments);
+        if (agent.RuntimeHarness is { Options.Enabled: true } && ProviderHarnessModel.Supported(agent.Connection))
+            return await new AgentHarness(new ProviderHarnessModel(api, chatGptPlan)).Execute(agent, prompt, text, log, token);
         if (agent.Connection == "chatgpt-plan") return await (chatGptPlan ?? throw new InvalidOperationException("API dùng gói ChatGPT chưa mở.")).Execute(agent, prompt, text, token);
         prompt = ChatAttachments.WithText(prompt, agent);
         if (agent.Connection == "gateway-web") return await (gateway ?? throw new InvalidOperationException("Gateway chưa được mở.")).Execute(agent.GatewayAccountId, agent.Model, prompt, text, log, token);
@@ -135,6 +137,17 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                 Attachments = files.Select(f => f.Info).ToList(),
                 Title = previous == null ? Storage.Topic(title.Length > 0 ? title : prompt) : previous.Title.Length > 0 ? previous.Title : Storage.Topic(previous.Prompt), PreviousJobId = previous?.Id ?? "",
                 Results = agents.Select(a => new AgentResult { AgentId = a.Id, Name = a.Name, Provider = a.Provider, Connection = a.Connection, Model = a.Model }).ToList() };
+            var harnessJob = current;
+            if (config.Harness.Enabled) foreach (var agent in agents.Where(a => ProviderHarnessModel.Supported(a.Connection)))
+                agent.RuntimeHarness = new(storage, conversationId, current.Id, config.Surface, chat ? "" : config.Project, config.Harness.Copy(), run => {
+                    Change(() => {
+                        int index = harnessJob.HarnessRuns.FindIndex(r => r.Id == run.Id);
+                        if (index >= 0) harnessJob.HarnessRuns[index] = run; else { harnessJob.HarnessRuns.Add(run); if (harnessJob.HarnessRuns.Count > 200) harnessJob.HarnessRuns.RemoveAt(0); }
+                    });
+                    CheckpointCurrent();
+                }) { WriterHeld = !chat && Catalog.IsTeamMode(config.Mode) && config.Team.ExecuteTasks,
+                    TryAdditionalModelCall = () => { lock (gate) { if (harnessJob.Team is not { } team) return true; if (!team.Options.HasCallCapacity(team.Calls)) return false; team.Calls++; return true; } },
+                    UserUpdates = () => { lock (gate) return string.Join("\n\n", harnessJob.Turns.Where(t => t.Kind == "user").Select(t => t.Text)); } };
             if (Catalog.IsTeamMode(config.Mode) && previous?.Team is { } earlier) {
                 var resumed = JsonSerializer.Deserialize<TeamRun>(JsonSerializer.Serialize(earlier, Json.Options), Json.Options)!;
                 resumed.Options = SessionTeamOptions(config); resumed.Calls = 0; resumed.Phase = "roundtable"; resumed.ActiveTaskId = resumed.NextAgentId = ""; resumed.StopAfterStep = false;

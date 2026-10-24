@@ -16,7 +16,7 @@ using Microsoft.IdentityModel.Tokens;
 namespace MultiAgentHub.Core;
 
 /// <summary>Official Sign in with ChatGPT public-client flow and Responses SSE. No app/profile scraping.</summary>
-public sealed class ChatGptPlan(ChatGptPlanStore store)
+public sealed partial class ChatGptPlan(ChatGptPlanStore store)
 {
     private const string Auth = "https://auth.openai.com", Resource = "https://api.openai.com/v1";
     private const string Scope = "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct";

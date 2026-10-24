@@ -1,5 +1,11 @@
 # Kiến trúc Multi-Agent Hub
 
+## Harness API từ 5.14.0
+
+`src-core/Harness/` đặt vòng lặp chung giữa `AgentExecutor` và API transport. `IHarnessModel` trả text/calls/native output; `AgentHarness` giữ cặp call/result, ngân sách, chỉ dẫn mới, compaction và điểm dừng của một lượt agent. `HarnessTools` kiểm tra capability theo Surface/quyền/bước trước khi thực thi. `HarnessJournal` ghi receipt trước/sau thao tác trong profile; không replay khi resume. Native reasoning/signature chỉ đi tiếp đúng protocol.
+
+`JobRunner` gắn binding runtime riêng (không serialize credential/delegate), checkpoint các summary `HarnessRuns`. `TeamEngine` chỉ cấp ghi cho work lần đầu; inner model request vẫn tính ngân sách nhóm. `RunProgress` đọc hoạt động thật từ harness, giữ riêng hoàn tất một lượt với đồng thuận/nghiệm thu toàn task. CLI/extension/gateway không bị bọc vòng lặp API. Xem [hợp đồng công cụ và giới hạn](AGENT_HARNESS.md).
+
 ## Phân lớp
 
 ```

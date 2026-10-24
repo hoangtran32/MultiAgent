@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace MultiAgentHub.Core;
 
-public sealed class ApiTransport
+public sealed partial class ApiTransport
 {
     private static readonly HttpClient SharedClient = new(new HttpClientHandler { AllowAutoRedirect = false }) {
         Timeout = TimeSpan.FromMinutes(10), MaxResponseContentBufferSize = 16 * 1024 * 1024 };

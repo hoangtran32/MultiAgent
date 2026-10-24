@@ -7,6 +7,8 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
     public static string Activity(JobRecord job, bool active)
     {
         if (!active || job.State != "running") return "";
+        var harness = job.HarnessRuns.LastOrDefault(r => r.State == "running");
+        if (harness != null) return harness.AgentName + " · " + harness.Activity;
         string names = string.Join(" + ", job.Results.Where(r => r.State == "running").Select(r => r.Name).Distinct());
         return names.Length > 0 ? names + " đang xử lý…" : job.Team?.Phase == "verifying" ? "Đang chạy kiểm tra…" : "";
     }
@@ -44,6 +46,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
             string speaker = current?.Name ?? string.Join(", ", job.Results.Where(r => r.State == "running").Select(r => r.Name));
             detail = task != null ? $"{task.Id} · {task.Title}" : speaker.Length > 0 ? speaker + " đang xử lý yêu cầu" : "Đang chuẩn bị bước tiếp theo";
             if (task != null && speaker.Length > 0) detail = speaker + " — " + detail;
+            if (job.HarnessRuns.LastOrDefault(r => r.State == "running") is { } harness) detail = harness.AgentName + " · " + harness.Activity + (task == null ? "" : " · " + task.Id);
             if (waitingOnly) detail = "Mở Chi tiết và dán kết quả cho " + string.Join(", ", job.Results.Where(r => r.State == "waiting").Select(r => r.Name));
             if (discussion && job.NextTurnAt is { } next && job.DiscussionPhase == "resting") detail = $"Lượt tiếp theo sau {Math.Max(0, (int)Math.Ceiling((next - now).TotalSeconds))} giây; có thể gửi bổ sung để chạy ngay";
             if (discussion && job.DiscussionPhase == "awaiting-user") {
@@ -87,6 +90,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
         }));
         double seconds = active ? Math.Max(0, (now - job.Timestamp).TotalSeconds) : Math.Max(0, job.Seconds);
         string timing = $"{(int)(seconds / 60)} phút {(int)seconds % 60:00} giây" + (team != null ? " · " + team.Options.CallUsage(team.Calls) : "");
+        if (job.HarnessRuns.Count > 0) timing += $" · Harness: {job.HarnessRuns.Sum(r => r.ModelCalls)} lần model / {job.HarnessRuns.Sum(r => r.ToolCalls)} công cụ";
         return new(title, detail, reason, progress, agents, timing, tone, done, total, active, canContinue);
     }
     public static string TaskState(TeamTask task) => task.NeedsScopeReview ? "cần cập nhật phạm vi" : task.State switch {

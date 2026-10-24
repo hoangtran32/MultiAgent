@@ -37,6 +37,7 @@ public sealed partial class Storage
         if (new[] { config.WorkMode, config.ChatMode }.Any(m => !Catalog.Modes.Contains(m))) throw new InvalidDataException("Cách phối hợp không hợp lệ.");
         config.Discussion.Validate();
         config.Team.Validate();
+        config.Harness.Validate();
         if (config.Projects.Select(p => p.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count() != config.Projects.Count) throw new InvalidDataException("Project bị trùng đường dẫn.");
         foreach (var project in config.Projects) {
             if (!Path.IsPathFullyQualified(project.Path)) throw new InvalidDataException("Đường dẫn project cần là đường dẫn tuyệt đối.");
@@ -99,6 +100,7 @@ public sealed partial class Storage
                 active.StopReason = "Phiên chưa kết thúc trước khi Hub đóng. Nội dung đã lưu; không tự chạy lại.";
                 foreach (var turn in active.Turns.Where(t => t.State == "running")) { turn.State = "cancelled"; turn.Error = "Lượt bị gián đoạn."; }
                 foreach (var result in active.Results.Where(r => r.State is "running" or "queued")) result.State = "cancelled";
+                foreach (var run in active.HarnessRuns.Where(r => r.State == "running")) { run.State = "interrupted"; run.Activity = "Gián đoạn; kiểm tra receipt trước khi tiếp tục"; }
                 if (active.Team is { } team) {
                     team.Phase = "interrupted";
                     foreach (var task in team.Tasks.Where(t => t.State is "running" or "verifying" or "reviewing")) task.State = "interrupted";
