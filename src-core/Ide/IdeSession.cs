@@ -52,7 +52,8 @@ public sealed class IdeSession
             config.Mode = "consensus"; config.Team.Coding = request.Coding?.Copy() ?? Coding();
             if (!config.Team.Coding.Enabled) throw new ArgumentException("Chọn và bật phân công Đầu não / Thợ code để dùng Kế hoạch → triển khai.");
             config.Team.ExecuteTasks = true;
-            foreach (var agent in config.Agents) agent.Enabled = agent.Enabled || agent.Id == config.Team.Coding.Brain.AgentId || agent.Id == config.Team.Coding.Implementer.AgentId;
+            foreach (var agent in config.Agents) agent.Enabled = (agent.Enabled || agent.Id == config.Team.Coding.Brain.AgentId || agent.Id == config.Team.Coding.Implementer.AgentId)
+                && !Catalog.IsManual(agent.Connection) && !Catalog.IsBrowserChat(agent.Connection) && agent.Connection != "gateway-web";
         } else {
             var chosen = config.Agents.FirstOrDefault(a => a.Id == request.AgentId) ?? throw new ArgumentException("Chọn một agent hiện có trong Agent & model.");
             if (Catalog.IsManual(chosen.Connection) || Catalog.IsBrowserChat(chosen.Connection) || chosen.Connection == "gateway-web") throw new ArgumentException("Hub Code cần CLI/API có công cụ. Chatbot từ web dùng ở Hub Chat.");

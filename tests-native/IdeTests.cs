@@ -53,10 +53,13 @@ internal static class IdeTests
         });
         await test("an informational request in IDE planning can finish without inventing implementation tasks", async () => {
             string path = Folder("informational"); var config = Config(path); config.Team.Coding = new() { Enabled = true, Brain = new() { Role = "brain", AgentId = "A" }, Implementer = new() { Role = "implementer", AgentId = "B" } };
-            var executor = new FixtureExecutor { FinishedDiscussion = true }; var runner = new JobRunner(executor, new(path + "-profile"));
-            runner.Start(config, "Explain the project architecture; no code change is requested."); await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(15)); var job = runner.Snapshot()!;
+            config.Agents.Add(new() { Id = "manual-peer", Name = "Manual", Provider = "custom", Connection = "manual" });
+            config.Agents.Add(new() { Id = "browser-peer", Name = "Browser", Provider = "gemini", Connection = "gemini-web" });
+            var executor = new FixtureExecutor { FinishedDiscussion = true }; var session = new IdeSession(path, new(path + "-profile"), () => config, executor); var runner = session.Runner;
+            session.Start(new() { Mode = "plan", Prompt = "Explain the project architecture; no code change is requested." }); await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(15)); var job = runner.Snapshot()!;
             Assert(job.State == "completed" && job.CompletionConfirmed && job.Team!.Tasks.Count == 0 && executor.Calls.Count == 4);
             Assert(executor.Calls.All(a => a.Permission == "read-only"));
+            Assert(executor.Calls.All(a => a.Id is "A" or "B") && config.Agents.All(a => a.Enabled));
         });
         await test("IDE projection bounds large Unicode histories without exposing internal prompts or transport configuration", () => {
             string path = Folder("large"); var config = Config(path); var session = new IdeSession(path, new(path + "-profile"), () => config, new FixtureExecutor());
