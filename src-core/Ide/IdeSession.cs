@@ -79,7 +79,7 @@ public sealed class IdeSession
     }
     public object Snapshot(JobRecord? job = null)
     {
-        if (job != null) transcript = Store.ReadConversationJobs(job.ConversationId, recover: false).Where(j => j.Timestamp < job.Timestamp).TakeLast(5).ToList();
+        if (job != null) transcript = Store.ReadConversationJobs(job.ConversationId.Length > 0 ? job.ConversationId : job.Id, recover: false).Where(j => j.Timestamp < job.Timestamp).TakeLast(5).ToList();
         var live = Runner.Snapshot(); job ??= live;
         if (job == null) return new { busy = false, project = Project };
         bool active = Runner.Busy && job.Id == live?.Id;
