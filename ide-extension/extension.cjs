@@ -57,7 +57,7 @@ function activate(context) {
   async function run(action) { try { await action(); } catch (e) { error(e); } }
   function newChat() { if (current?.busy) throw new Error('Dừng hoặc đợi phiên hiện tại hoàn tất trước khi tạo cuộc trò chuyện mới.'); displayedId = ''; fresh = true; attachments = []; selectedCode = ''; post({ type: 'new' }); }
   async function open() {
-    if (panel) { panel.reveal(vscode.ViewColumn.Beside, true); return; }
+    if (panel) { panel.reveal(); return; }
     if (!context.workspaceState.get('ideLayout')) {
       await vscode.commands.executeCommand('vscode.setEditorLayout', { orientation: 0, groups: [{ size: 0.66 }, { size: 0.34 }] });
       await context.workspaceState.update('ideLayout', true);
