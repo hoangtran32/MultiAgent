@@ -20,7 +20,7 @@ internal static class IdeServer
         using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
         var outputGate = new SemaphoreSlim(1); int dirty = 1;
         var metadata = new List<Task>();
-        session.Runner.Changed += _ => Interlocked.Exchange(ref dirty, 1);
+        session.Runner.ActivityChanged += () => Interlocked.Exchange(ref dirty, 1);
         using var lifetime = new CancellationTokenSource();
         async Task Write(object message) { string line = IdeWire.Serialize(message); await outputGate.WaitAsync(); try { await output.WriteLineAsync(line); } finally { outputGate.Release(); } }
         var updates = Task.Run(async () => {

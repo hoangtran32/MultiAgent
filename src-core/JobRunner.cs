@@ -73,9 +73,10 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
     public Task? Completion { get; private set; }
     public bool Busy { get { lock (gate) return cancellation != null; } }
     public event Action<JobRecord>? Changed;
+    public event Action? ActivityChanged;
     public event Action<string>? AgentQuotaReached;
     public JobRecord? Snapshot() { lock (gate) return current == null ? null : JsonSerializer.Deserialize<JobRecord>(JsonSerializer.Serialize(current, Json.Options), Json.Options); }
-    private void Notify() { if (Snapshot() is { } snapshot) Changed?.Invoke(snapshot); }
+    private void Notify() { ActivityChanged?.Invoke(); if (Changed != null && Snapshot() is { } snapshot) Changed.Invoke(snapshot); }
     private void Change(Action update) { lock (gate) update(); Notify(); }
     private static TeamOptions SessionTeamOptions(HubConfig config)
     {

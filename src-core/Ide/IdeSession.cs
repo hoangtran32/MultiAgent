@@ -80,18 +80,18 @@ public sealed class IdeSession
     public object Snapshot(JobRecord? job = null)
     {
         if (job != null) transcript = Store.ReadConversationJobs(job.ConversationId, recover: false).Where(j => j.Timestamp < job.Timestamp).TakeLast(5).ToList();
-        job ??= Runner.Snapshot();
+        var live = Runner.Snapshot(); job ??= live;
         if (job == null) return new { busy = false, project = Project };
-        bool active = Runner.Busy && job.Id == Runner.Snapshot()?.Id;
+        bool active = Runner.Busy && job.Id == live?.Id;
         var progress = RunProgress.From(job, active, DateTimeOffset.Now);
         return new {
-            busy = active, project = Project, job.Id, job.ConversationId, job.Prompt, job.Title, job.Timestamp, job.State, job.StopReason, job.Seconds, job.CompletionConfirmed,
+            busy = active, project = Project, job.Id, job.ConversationId, prompt = Clip(job.Prompt, 32000), job.Title, job.Timestamp, job.State, stopReason = Clip(job.StopReason, 4000), job.Seconds, job.CompletionConfirmed,
             progress, activity = RunProgress.Activity(job, active),
-            history = transcript.Where(j => j.Id != job.Id).Select(j => new { j.Id, j.Prompt, results = j.Results.Select(r => new { r.AgentId, r.Name, r.Model, text = Clip(r.Text, 16000), r.State }) }),
-            turns = job.Turns.TakeLast(60).Select(t => new { t.Number, t.Kind, t.Name, t.Model, t.Role, t.TaskId, t.State, text = Clip(t.Text, 64000), error = Clip(t.Error, 4000) }),
-            results = job.Results.Select(r => new { r.AgentId, r.Name, r.Model, r.State, text = Clip(r.Text, 64000), error = Clip(r.Error, 4000) }),
-            tasks = job.Team?.Tasks.Select(t => new { t.Id, t.Title, t.Description, t.Acceptance, t.State, t.Verification, t.Feedback, t.Outcome, t.DesignModel, t.ImplementationModel, t.ImplementationPlan }),
-            artifacts = job.Team?.Artifacts.Select(a => new { a.Title, a.Kind, a.Content }),
+            history = transcript.Where(j => j.Id != job.Id).Select(j => new { j.Id, prompt = Clip(j.Prompt, 8000), results = j.Results.TakeLast(4).Select(r => new { r.AgentId, r.Name, r.Model, text = Clip(r.Text, 8000), r.State }) }),
+            turns = job.Turns.TakeLast(32).Select(t => new { t.Number, t.Kind, t.Name, t.Model, t.Role, t.TaskId, t.State, text = Clip(t.Text, 12000), error = Clip(t.Error, 2000) }),
+            results = job.Results.Select(r => new { r.AgentId, r.Name, r.Model, r.State, text = Clip(r.Text, job.Results.Count <= 4 ? 64000 : 12000), error = Clip(r.Error, 2000) }),
+            tasks = job.Team?.Tasks.Select(t => new { t.Id, t.Title, description = Clip(t.Description, 2000), acceptance = Clip(t.Acceptance, 1500), t.State, t.Verification, feedback = Clip(t.Feedback, 2000), outcome = Clip(t.Outcome, 4000), t.DesignModel, t.ImplementationModel, implementationPlan = Clip(t.ImplementationPlan, 4000) }),
+            artifacts = job.Team?.Artifacts.TakeLast(8).Select(a => new { a.Title, a.Kind, content = Clip(a.Content, 8000) }),
             calls = job.Team?.Calls ?? job.HarnessModelCalls,
             phase = job.Team?.Phase ?? "work"
         };

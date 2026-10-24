@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using MultiAgentHub.Core;
 
@@ -56,6 +57,14 @@ internal static class IdeTests
             runner.Start(config, "Explain the project architecture; no code change is requested."); await runner.Completion!.WaitAsync(TimeSpan.FromSeconds(15)); var job = runner.Snapshot()!;
             Assert(job.State == "completed" && job.CompletionConfirmed && job.Team!.Tasks.Count == 0 && executor.Calls.Count == 4);
             Assert(executor.Calls.All(a => a.Permission == "read-only"));
+        });
+        await test("IDE projection bounds large Unicode histories without exposing internal prompts or transport configuration", () => {
+            string path = Folder("large"); var config = Config(path); var session = new IdeSession(path, new(path + "-profile"), () => config, new FixtureExecutor());
+            string text = new('研', 64000); var job = new JobRecord { Prompt = text, Surface = "work", Project = path, State = "completed", Team = new() };
+            for (int i = 0; i < 32; i++) { job.Results.Add(new() { AgentId = "A" + i, Name = "Agent", Text = text, SentPrompt = "PRIVATE TRANSPORT PROMPT" }); job.Turns.Add(new() { Number = i, Kind = "team", Text = text }); }
+            for (int i = 0; i < 50; i++) job.Team.Tasks.Add(new() { Id = "T" + i, Title = "Task", Description = text, Acceptance = text, Feedback = text, Outcome = text, ImplementationPlan = text });
+            for (int i = 0; i < 150; i++) job.Team.Artifacts.Add(new() { Title = "Artifact", Content = text });
+            string wire = IdeWire.Serialize(session.Snapshot(job)); Assert(Encoding.UTF8.GetByteCount(wire) < 12 * 1024 * 1024 && !wire.Contains("PRIVATE TRANSPORT PROMPT")); return Task.CompletedTask;
         });
     }
     private sealed class FixtureExecutor : IAgentExecutor
