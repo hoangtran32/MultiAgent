@@ -9,7 +9,7 @@ const { target: linkTarget } = require('./links.cjs');
 
 function activate(context) {
   const output = vscode.window.createOutputChannel('Hub Code • Agent');
-  let client, panel, catalog, current, displayedId = '', starting = false, attachments = [], selectedCode = '';
+  let client, panel, catalog, current, displayedId = '', starting = false, fresh = false, attachments = [], selectedCode = '';
   const treeChanged = new vscode.EventEmitter();
   const artifactsChanged = new vscode.EventEmitter();
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 90);
@@ -52,10 +52,10 @@ function activate(context) {
   async function initialize() {
     const c = await connect(); catalog = await c.request('initialize');
     post({ type: 'catalog', data: catalog }); treeChanged.fire();
-    if (current?.id && !displayedId) { displayedId = current.id; post({ type: 'state', data: current }); }
+    if (current?.id && !displayedId && !fresh) { displayedId = current.id; post({ type: 'state', data: current }); }
   }
   async function run(action) { try { await action(); } catch (e) { error(e); } }
-  function newChat() { if (current?.busy) throw new Error('Dừng hoặc đợi phiên hiện tại hoàn tất trước khi tạo cuộc trò chuyện mới.'); displayedId = ''; attachments = []; selectedCode = ''; post({ type: 'new' }); }
+  function newChat() { if (current?.busy) throw new Error('Dừng hoặc đợi phiên hiện tại hoàn tất trước khi tạo cuộc trò chuyện mới.'); displayedId = ''; fresh = true; attachments = []; selectedCode = ''; post({ type: 'new' }); }
   async function open() {
     if (panel) { panel.reveal(vscode.ViewColumn.Beside, true); return; }
     if (!context.workspaceState.get('ideLayout')) {
@@ -100,13 +100,13 @@ function activate(context) {
         try {
           const result = await c.request('start', { prompt: message.prompt, mode: message.mode, agentId: message.agentId, model: message.model || '',
             previousId: displayedId, context: selectedCode, attachments: attachments.map(a => a.fsPath) });
-          current = result; displayedId = result.id; attachments = []; selectedCode = ''; post({ type: 'accepted', data: result });
+          current = result; displayedId = result.id; fresh = false; attachments = []; selectedCode = ''; post({ type: 'accepted', data: result });
         } finally { starting = false; }
       } else if (message.type === 'stop') await c.request('stop');
       else if (message.type === 'steer') { await c.request('steer', { text: message.prompt }); post({ type: 'steered' }); }
       else if (message.type === 'coding') { const result = await c.request('coding', message.coding); if (catalog) catalog.coding = result; post({ type: 'coding', data: result }); }
       else if (message.type === 'models') post({ type: 'models', agentId: message.agentId, data: await c.request('models', { agentId: message.agentId }) });
-      else if (message.type === 'history') { if (current?.busy) throw new Error('Đợi hoặc dừng phiên hiện tại trước khi đổi cuộc trò chuyện.'); const result = await c.request('open', { id: message.id }); displayedId = result.id; current = result; post({ type: 'state', data: result }); }
+      else if (message.type === 'history') { if (current?.busy) throw new Error('Đợi hoặc dừng phiên hiện tại trước khi đổi cuộc trò chuyện.'); const result = await c.request('open', { id: message.id }); displayedId = result.id; current = result; fresh = false; post({ type: 'state', data: result }); }
     }), null, context.subscriptions);
   }
   async function settings() {
@@ -143,7 +143,7 @@ function activate(context) {
     'multiagent.refresh': initialize,
     'multiagent.stop': async () => { if (client && !client.closed) await client.request('stop'); },
     'multiagent.plan': () => artifact('plan'), 'multiagent.walkthrough': () => artifact('walkthrough'),
-    'multiagent.openHistory': async id => { await open(); if (current?.busy) throw new Error('Phiên hiện tại còn chạy.'); const c = await connect(); const result = await c.request('open', { id }); current = result; displayedId = result.id; post({ type: 'state', data: result }); },
+    'multiagent.openHistory': async id => { await open(); if (current?.busy) throw new Error('Phiên hiện tại còn chạy.'); const c = await connect(); const result = await c.request('open', { id }); current = result; displayedId = result.id; fresh = false; post({ type: 'state', data: result }); },
     'multiagent.selection': async () => {
       const editor = vscode.window.activeTextEditor; if (!editor || editor.selection.isEmpty) return;
       const text = editor.document.getText(editor.selection); if (text.length > 100000) throw new Error('Đoạn chọn tối đa 100.000 ký tự.');

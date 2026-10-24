@@ -68,7 +68,9 @@ internal static class IdeServer
                         case "stop": session.Runner.Cancel(); result = new { accepted = true }; break;
                         case "steer": session.Steer(data.GetProperty("text").GetString() ?? ""); result = new { accepted = true }; break;
                         case "coding": session.SaveCoding(data.Deserialize<CodingOptions>(Json.Options) ?? throw new ArgumentException("Thiếu phân công.")); result = session.Coding(); break;
-                        case "open": result = session.Snapshot(session.ReadJob(data.GetProperty("id").GetString() ?? "") ?? throw new ArgumentException("Không tìm thấy phiên.")); break;
+                        case "open":
+                            if (session.Runner.Busy) throw new InvalidOperationException("Đợi hoặc dừng phiên hiện tại trước khi đổi cuộc trò chuyện.");
+                            result = session.Snapshot(session.ReadJob(data.GetProperty("id").GetString() ?? "") ?? throw new ArgumentException("Không tìm thấy phiên.")); break;
                         case "models":
                             metadata.RemoveAll(t => t.IsCompleted);
                             if (metadata.Count >= 4) throw new InvalidOperationException("Đang dò model; đợi các yêu cầu hiện tại kết thúc.");
