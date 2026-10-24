@@ -618,6 +618,7 @@ try
     });
     await ProgressTests.Run(Test);
     await ConsensusTests.Run(Test, root);
+    await CodingWorkflowTests.Run(Test, root);
     await DiscussionBudgetTests.Run(Test, root);
     await GroupConversationTests.Run(Test, root);
     await BrowserChatBridgeTests.Run(Test, root);

@@ -1,4 +1,6 @@
-# Hướng dẫn Multi-Agent Hub 5.14.0
+# Hướng dẫn Multi-Agent Hub 5.15.0
+
+**Luồng IDE Hub Code:** **Agent & model → Phân công code • Đầu não / Thợ code** chọn hai vai/model riêng. Nhóm chốt và review toàn bộ giải pháp rồi tự chuyển sang thiết kế thuật toán, triển khai, kiểm tra/review. Nút Workspace trên đầu chat mở file/editor, Git diff, task và nhật ký. Xem [CODE_IDE_WORKFLOW.md](CODE_IDE_WORKFLOW.md).
 
 **Runtime dùng chung:** vào **Agent & model → Runtime & công cụ** để bật/tắt harness API, công cụ web/lệnh và giới hạn. Trong **Thiết lập / model**, quyền của API có Chỉ đọc, Ghi workspace và Toàn quyền. Quyền Chat luôn không có file/terminal project. Chi tiết [AGENT_HARNESS.md](AGENT_HARNESS.md).
 

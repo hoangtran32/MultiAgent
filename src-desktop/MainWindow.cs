@@ -42,7 +42,9 @@ internal sealed partial class MainWindow : Form
     private readonly ContextMenuStrip headerMenu = new(), attachmentMenu = new();
     private readonly Button boardToggle = Ui.IconButton("tasks", "Công việc & đầu ra");
     private readonly TeamBoard teamBoard = new();
+    private readonly CodeWorkspaceView codeWorkspace;
     private readonly Button teamSettings;
+    private readonly Button codingRoles;
     private readonly Button teamButton = Ui.Button("Chọn agent");
     private readonly ContextMenuStrip teamMenu = new() { BackColor = Ui.Surface, ForeColor = Ui.Ink };
     private readonly ComboBox surface = Ui.Combo(200);
@@ -67,6 +69,7 @@ internal sealed partial class MainWindow : Form
         storage = new(dataDir);
         config = storage.LoadConfig(); browserChat.Start(); gateway = new(new GatewayAccounts(storage, secrets), browserChat);
         chatGptPlan = new(new ChatGptPlanStore(storage.DataDir)); runner = new(new AgentExecutor(new ApiTransport(secrets), browserChat, gateway, chatGptPlan), storage);
+        codeWorkspace = new(teamBoard, () => runner.Busy);
         Text = "Multi-Agent Hub"; ShowIcon = false; Font = new Font("Segoe UI", 9.5f); BackColor = Ui.Background; ForeColor = Ui.Ink;
         if (Ui.AppIcon != null) Icon = Ui.AppIcon;
         var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1400, 900);
@@ -121,10 +124,10 @@ internal sealed partial class MainWindow : Form
         var more = Ui.IconButton("more", "Tùy chọn hội thoại", (_, _) => OpenHeaderMenu());
         headerMenu.Tag = more; boardToggle.Click += (_, _) => OpenBoard();
         headerActions.Controls.AddRange([Ui.IconButton("down", "Đến cuối hội thoại", (_, _) => canvas.ScrollToEnd()), more, boardToggle]); header.Controls.Add(headerActions, 1, 0); root.Controls.Add(header, 0, 0);
-        boardPanel.Controls.Add(teamBoard); boardPanel.Visible = false;
+        boardPanel.Controls.Add(codeWorkspace); boardPanel.Visible = false;
         var boardHeader = new Panel { Dock = DockStyle.Top, Height = 38, Padding = new Padding(8, 2, 8, 2) };
         var boardClose = Ui.IconButton("close", "Đóng bảng công việc", (_, _) => { if (boardPanel.FindForm() is { } form && form != this) form.Close(); else boardPanel.Visible = false; }); boardClose.Dock = DockStyle.Right;
-        var boardCaption = Ui.Label("Công việc & đầu ra", true); boardCaption.Dock = DockStyle.Fill;
+        var boardCaption = Ui.Label("Workspace • Giải pháp & code", true); boardCaption.Dock = DockStyle.Fill;
         boardHeader.Controls.Add(boardCaption); boardHeader.Controls.Add(boardClose); boardPanel.Controls.Add(boardHeader);
         boardPanel.Paint += (_, e) => { using var pen = new Pen(Ui.Border); e.Graphics.DrawLine(pen, 0, 0, 0, boardPanel.Height); };
         conversationHost.Controls.Add(canvas); conversationHost.Controls.Add(boardPanel); root.Controls.Add(conversationHost, 0, 1);
@@ -205,12 +208,13 @@ internal sealed partial class MainWindow : Form
             var next = CopyConfig(); next.Team = dialog.Result; Commit(next, Selected?.Id);
         })); locked.Add(teamSettings);
         var sessionSettings = Ui.Flow();
+        codingRoles = Ui.Button("Phân công code • Đầu não / Thợ code…", (_, _) => ConfigureCodingRoles());
         var harnessSettings = Ui.Button("Runtime & công cụ…", (_, _) => Protect(() => {
             using var dialog = new HarnessDialog(config.Harness);
             if (dialog.ShowDialog(this) != DialogResult.OK) return;
             var next = CopyConfig(); next.Harness = dialog.Result; Commit(next, Selected?.Id);
         })); locked.Add(harnessSettings);
-        sessionSettings.Controls.AddRange([teamSettings, discussionSettings, harnessSettings]); agents.Controls.Add(sessionSettings, 0, 3);
+        sessionSettings.Controls.AddRange([teamSettings, discussionSettings, harnessSettings, codingRoles]); agents.Controls.Add(sessionSettings, 0, 3);
         Ui.Hint(teamSettings, "Chọn model cho từng vai, giới hạn ý/task, lần gọi và lệnh kiểm tra của Chốt từng ý hoặc Bàn tròn & thực hiện.");
         Ui.Hint(discussionSettings, "Đặt số lượt, thời lượng, nhịp trao đổi và tổng hợp của chế độ Bàn luận qua lại.");
 
@@ -340,9 +344,10 @@ internal sealed partial class MainWindow : Form
     }
     private void OpenBoard()
     {
-        if (conversationHost.Width >= 1020 * DeviceDpi / 96f) { boardPanel.Visible = !boardPanel.Visible; return; }
+        codeWorkspace.SetProject(config.Surface == "work" ? config.Project : "");
+        if (conversationHost.Width >= 1300 * DeviceDpi / 96f) { boardPanel.Width = (int)(640 * DeviceDpi / 96f); boardPanel.Visible = !boardPanel.Visible; return; }
         boardPanel.Dock = DockStyle.Fill; boardPanel.Visible = true;
-        try { ShowPanel(boardPanel, "Công việc & đầu ra", 1000, 760); }
+        try { ShowPanel(boardPanel, "Workspace IDE • file / diff / task / nhật ký", 1180, 800); }
         finally { boardPanel.Dock = DockStyle.Right; boardPanel.Visible = false; conversationHost.Controls.Add(boardPanel); boardPanel.BringToFront(); }
     }
     private void OpenHeaderMenu()
@@ -483,7 +488,11 @@ internal sealed partial class MainWindow : Form
         teamButton.Text = chosen.Count == 0 ? "Chọn agent ▾" : chosen.Count == 1 ? chosen[0].Name + " ▾" : $"{chosen[0].Name} + {chosen.Count-1} ▾";
         teamButton.AccessibleName = "Chọn agent tham gia: " + string.Join(" + ", chosen.Select(a => a.Name));
         teamSettings.Enabled = !runner.Busy;
-        boardToggle.Visible = Catalog.IsTeamMode(config.Mode) || Catalog.IsTeamMode(displayed?.Mode);
+        codingRoles.Visible = config.Surface == "work";
+        codingRoles.Enabled = !runner.Busy || displayed is { } activeCoding && CodingWorkflow.Active(activeCoding);
+        boardToggle.Visible = config.Surface == "work" || Catalog.IsTeamMode(config.Mode) || Catalog.IsTeamMode(displayed?.Mode);
+        boardToggle.AccessibleName = config.Surface == "work" ? "Mở Workspace IDE" : "Công việc & đầu ra";
+        codeWorkspace.SetProject(config.Surface == "work" ? config.Project : "");
         if (!boardToggle.Visible) boardPanel.Visible = false;
         summary.Text = Catalog.IsTeamMode(config.Mode) ? $"{(config.Mode == "consensus" ? "Chốt một ý mỗi lần" : "Ngang hàng")} • {(config.Team.MaxCalls == 0 ? "không giới hạn lượt" : $"≤{config.Team.MaxCalls} lần gọi")} • {(config.Team.RunVerification ? "có lệnh kiểm tra" : "bạn tự kiểm tra")}" : config.Mode == "discussion" ? $"{chosen.Count} chatbot • {(config.Discussion.MaxTurns == 0 ? "không giới hạn lượt" : $"≤{config.Discussion.MaxTurns} lượt")} • {(config.Discussion.DurationMinutes == 0 ? "không giới hạn thời gian" : $"≤{config.Discussion.DurationMinutes} phút")}" : config.Mode == "collaboration" ? "Thực hiện → rà soát → hoàn thiện" : config.Mode == "pipeline" ? string.Join(" → ", chosen.Select(a => a.Name)) : $"{chosen.Count} agent cùng nhận yêu cầu"; summary.MaximumSize = new Size(420, 32);
         discussionSettings.Enabled = !runner.Busy;
@@ -696,6 +705,7 @@ internal sealed partial class MainWindow : Form
             teamBoard.Update(job, busy); run.Text = ""; run.AccessibleName = busy ? "Gửi bổ sung" : "Gửi yêu cầu";
         }
         UpdateAddAvailability(); ShowJobStatus(job);
+        codeWorkspace.UpdateJob(job);
         if (detailPanel.FindForm() != null) RenderDetails(job);
         if (live && !busy && lastLoadedJob != job.Id) {
             lastLoadedJob = job.Id; LoadHistory(); ReloadLibrary();

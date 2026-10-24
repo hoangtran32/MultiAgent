@@ -6,7 +6,7 @@ public static class TeamRoles
 {
     public static readonly Choice[] All = [new("product", "Product Manager"), new("architect", "Architect"),
         new("coder", "Coder"), new("tester", "Tester"), new("reviewer", "Reviewer")];
-    public static string Name(string id) => All.FirstOrDefault(r => r.Id == id)?.Name ?? id;
+    public static string Name(string id) => id switch { "brain" => "Đầu não thuật toán", "implementer" => "Thợ code", _ => All.FirstOrDefault(r => r.Id == id)?.Name ?? id };
     public static bool CanWrite(AgentConfig agent) => (agent.Connection is "codex-cli" or "claude-cli" or "agy-cli" or "custom-cli" || agent.RuntimeHarness is { Surface: "work", Options.Enabled: true } && ProviderHarnessModel.Supported(agent.Connection))
         && agent.Permission is "workspace-write" or "full";
 }
@@ -16,6 +16,20 @@ public sealed class RoleBinding
     public string Role { get; set; } = "";
     public string AgentId { get; set; } = "";
     public string Model { get; set; } = "";
+}
+
+public sealed class CodingOptions
+{
+    public bool Enabled { get; set; }
+    public RoleBinding Brain { get; set; } = new() { Role = "brain" };
+    public RoleBinding Implementer { get; set; } = new() { Role = "implementer" };
+    public CodingOptions Copy() => JsonSerializer.Deserialize<CodingOptions>(JsonSerializer.Serialize(this, Json.Options), Json.Options)!;
+    public void Validate()
+    {
+        foreach (var role in new[] { Brain, Implementer })
+            if (role == null || role.AgentId == null || role.AgentId.Length > 80 || role.Model == null || role.Model.Length > 120 || role.Model.Any(char.IsControl)) throw new ArgumentException("Phân công code không hợp lệ.");
+        if (Enabled && (Brain.AgentId.Length == 0 || Implementer.AgentId.Length == 0)) throw new ArgumentException("Chọn kết nối cho cả Đầu não và Thợ code trước khi bật luồng IDE.");
+    }
 }
 
 public sealed class VerificationCommand
@@ -45,12 +59,14 @@ public sealed class TeamOptions
     public string VerificationProject { get; set; } = "";
     public List<RoleBinding> Roles { get; set; } = TeamRoles.All.Select(r => new RoleBinding { Role = r.Id }).ToList();
     public List<VerificationCommand> Checks { get; set; } = [];
+    public CodingOptions Coding { get; set; } = new();
     public TeamOptions Copy() => JsonSerializer.Deserialize<TeamOptions>(JsonSerializer.Serialize(this, Json.Options), Json.Options)!;
     public bool HasCallCapacity(int calls) => MaxCalls == 0 || calls < MaxCalls;
     public int TurnTimeoutMinutes(string phase) => phase == "work" ? WorkTimeoutMinutes : ExchangeTimeoutMinutes;
     public string CallUsage(int calls) => MaxCalls == 0 ? $"{calls} lần gọi · không giới hạn lượt" : $"{calls}/{MaxCalls} lần gọi (giới hạn)";
     public void Validate()
     {
+        Coding.Validate();
         if (MaxCalls is < 0 or > 100000 || DurationMinutes is < 0 or > 10080 || ExchangeTimeoutMinutes is < 0 or > 10080 || WorkTimeoutMinutes is < 0 or > 10080 || MaxTasks is < 1 or > 50 || MaxRevisions is < 0 or > 5) throw new ArgumentException("Giới hạn nhóm không hợp lệ. Số lần gọi và thời gian: 0 = không giới hạn.");
         if (Roles.Count > 5 || Roles.Select(r => r.Role).Distinct().Count() != Roles.Count || Roles.Any(r => !TeamRoles.All.Any(a => a.Id == r.Role) || r.Model.Length > 120 || r.Model.Any(char.IsControl))) throw new ArgumentException("Phân vai không hợp lệ.");
         if (Checks.Count > 8) throw new ArgumentException("Tối đa 8 lệnh kiểm tra.");
@@ -85,6 +101,12 @@ public sealed class TeamTask
     public string PreviousAttempt { get; set; } = "";
     public bool IndependentReview { get; set; }
     public string Verification { get; set; } = "not_run";
+    public string ImplementationPlan { get; set; } = "";
+    public string DesignAgentId { get; set; } = "";
+    public string DesignModel { get; set; } = "";
+    public int DesignVersion { get; set; }
+    public int DesignRoleRevision { get; set; }
+    public string ImplementationModel { get; set; } = "";
 }
 
 public sealed class TeamArtifact
@@ -126,4 +148,9 @@ public sealed class TeamRun
     public List<string> Directives { get; set; } = [];
     public List<string> PendingDirectives { get; set; } = [];
     public List<string> Decisions { get; set; } = [];
+    public string CodingStage { get; set; } = "";
+    public int CodingRoleRevision { get; set; } = 1;
+    public CodingOptions? PendingCoding { get; set; }
+    public string ApprovedPlanHash { get; set; } = "";
+    public bool PlanReadyForReview { get; set; }
 }

@@ -55,7 +55,7 @@ internal sealed class TeamDialog : Form
         }
         var execute = new CheckBox { Text = consensus ? "Thực hiện từng ý sau khi tất cả thành viên chốt" : "Thực hiện task sau khi bàn tròn thống nhất", Checked = current.ExecuteTasks, AutoSize = true, Margin = new Padding(4, 12, 4, 4) };
         roles.Controls.Add(execute, 0, row++); roles.SetColumnSpan(execute, 3);
-        var permission = Ui.Label("Coder sửa project cần CLI và quyền workspace-write/full trong Agent & model. Hub không tự tăng quyền. API trả lời văn bản vẫn tham gia bàn tròn, tài liệu và review. Trong Trò chuyện, task không được thực thi.");
+        var permission = Ui.Label("Thực hiện project cần CLI hoặc API có harness và quyền workspace-write/full. Luồng IDE Đầu não → Thợ code được cấu hình riêng tại Phân công code; khi bật, Hub chốt và review toàn bộ giải pháp trước khi triển khai. Trong Trò chuyện, task không được thực thi.");
         permission.MaximumSize = new Size(760, 0); roles.Controls.Add(permission, 0, row); roles.SetColumnSpan(permission, 3);
 
         var checks = Ui.Table(); checks.Padding = new Padding(10); checks.RowStyles.Add(new RowStyle(SizeType.AutoSize)); checks.RowStyles.Add(new RowStyle(SizeType.AutoSize)); checks.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -72,7 +72,7 @@ internal sealed class TeamDialog : Form
                 grid.EndEdit(); var next = new TeamOptions { MaxCalls = continuous.Checked ? 0 : (int)calls.Value, DurationMinutes = continuous.Checked ? 0 : (int)minutes.Value,
                     ExchangeTimeoutMinutes = continuous.Checked ? 0 : (int)exchangeTimeout.Value, WorkTimeoutMinutes = continuous.Checked ? 0 : (int)workTimeout.Value,
                     MaxTasks = (int)tasks.Value, MaxRevisions = (int)revisions.Value,
-                    ExecuteTasks = execute.Checked, RunVerification = verify.Checked, VerificationProject = project,
+                    ExecuteTasks = execute.Checked, RunVerification = verify.Checked, VerificationProject = project, Coding = current.Coding.Copy(),
                     Roles = fields.Select(f => new RoleBinding { Role = f.role, AgentId = Ui.Value(f.agent), Model = f.model.Text.Trim() }).ToList() };
                 foreach (DataGridViewRow data in grid.Rows) {
                     if (data.IsNewRow || data.Cells.Cast<DataGridViewCell>().All(c => string.IsNullOrWhiteSpace(c.Value?.ToString()))) continue;

@@ -68,6 +68,8 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
     private DiscussionControl? discussionControl;
     private CancellationTokenSource? cancellation;
     private JobRecord? current;
+    private List<AgentConfig> sessionAgents = [];
+    private bool sessionHarnessEnabled;
     public Task? Completion { get; private set; }
     public bool Busy { get { lock (gate) return cancellation != null; } }
     public event Action<JobRecord>? Changed;
@@ -96,6 +98,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         foreach (var agent in agents) { ChatAttachments.ValidateFor(agent, files); agent.RuntimeAttachments = files; }
         if (config.Surface == "chat") foreach (var agent in agents) agent.Permission = "read-only";
         if (agents.Count == 0) throw new ArgumentException("Chọn ít nhất một agent.");
+        if (!chat && config.Mode == "consensus" && config.Team.ExecuteTasks) CodingWorkflow.Validate(config.Team.Coding, agents, config.Harness.Enabled);
         if (config.Mode is "discussion" or "team" or "consensus") DiscussionEngine.ValidateAgents(agents);
         if (Catalog.IsTeamMode(config.Mode) && config.Team.RunVerification && config.Surface == "work" && !string.Equals(Path.GetFullPath(config.Team.VerificationProject.Length > 0 ? config.Team.VerificationProject : "."), Path.GetFullPath(config.Project), StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Lệnh kiểm tra chưa được cấu hình cho project này. Mở Agent & model → Phân vai & giới hạn nhóm để kiểm tra và lưu lại.");
@@ -127,6 +130,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
             string workingDirectory = chat && agents.Any(a => a.Connection != "gateway-web" && !Catalog.IsTextApi(a.Connection) && !Catalog.IsBrowserChat(a.Connection) && !Catalog.IsManual(a.Connection))
                 ? storage.ChatWorkingDirectory(conversationId) : chat ? "" : config.Project;
             cancellation = new(); token = cancellation.Token;
+            sessionAgents = agents; sessionHarnessEnabled = config.Harness.Enabled;
             teamInstructions.Clear();
             discussionControl = config.Mode == "discussion" ? new() : null;
             current = new() { Surface = config.Surface, Prompt = prompt, Project = chat ? "" : config.Project,
@@ -163,7 +167,7 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
                         if (blocked) { TaskBlocker.Reopen(task); task.NeedsScopeReview = true; }
                     } else task.State = "proposed";
                     task.Revisions = 0; task.Feedback += "\nTiếp tục phiên: cần xác nhận lại task và đọc workspace hiện tại.";
-                    var attempt = previous.Turns.LastOrDefault(t => t.TaskId == task.Id && t.Role == TeamRoles.Name("coder") && t.State is ("cancelled" or "timeout" or "error") && t.Text.Length > 0);
+                    var attempt = previous.Turns.LastOrDefault(t => t.TaskId == task.Id && (t.Role == TeamRoles.Name("coder") || t.Role == TeamRoles.Name("implementer")) && t.State is ("cancelled" or "timeout" or "error") && t.Text.Length > 0);
                     if (attempt != null) task.PreviousAttempt = attempt.Text[..Math.Min(attempt.Text.Length, 12000)];
                 }
                 foreach (var evidence in resumed.Evidence) evidence.Current = false;
@@ -334,6 +338,17 @@ public sealed class JobRunner(IAgentExecutor executor, Storage storage, TimeProv
         if (cancellation == null || current?.Team == null) throw new InvalidOperationException("Không có nhóm đang chạy.");
         current.Team.StopAfterStep = true;
     });
+    public void UpdateCodingRoles(CodingOptions roles)
+    {
+        lock (gate) {
+            if (cancellation == null || current?.State != "running" || !CodingWorkflow.Active(current) || current.Team!.Phase == "finished") throw new InvalidOperationException("Không có phiên IDE đang chạy; lưu phân công cho phiên tiếp theo.");
+            if (!roles.Enabled) throw new ArgumentException("Trong phiên đang chạy chỉ đổi Đầu não/Thợ code; không đổi loại luồng.");
+            CodingWorkflow.Validate(roles, sessionAgents, sessionHarnessEnabled);
+            var accepted = Snapshot()!; accepted.Team!.PendingCoding = roles.Copy(); storage.Checkpoint(accepted);
+            current.Team!.PendingCoding = roles.Copy();
+        }
+        Notify();
+    }
 }
 
 public static class ProjectContext

@@ -17,6 +17,8 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
     {
         var team = job.Team!; var options = team.Options;
         bool consensus = job.Mode == "consensus";
+        bool coding = CodingWorkflow.Active(job);
+        if (coding && team.CodingStage.Length == 0) team.CodingStage = "planning";
         var failedParticipants = new HashSet<string>();
         bool closureUnresolved = false, scopeGoalConfirmed = false;
         DateTimeOffset? deadline = options.DurationMinutes > 0 ? DateTimeOffset.UtcNow.AddMinutes(options.DurationMinutes) : null;
@@ -37,10 +39,12 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             }
             if (!added) return;
             change(() => {
-                foreach (var task in team.Tasks.Where(t => t.State is not ("done" or "planned"))) {
+                if (coding) { team.CodingStage = "planning"; team.ApprovedPlanHash = ""; team.PlanReadyForReview = false; }
+                foreach (var task in team.Tasks.Where(t => t.State != "done" && (coding || t.State != "planned"))) {
                     if (consensus && task.State == "blocked") task.NeedsScopeReview = true;
                     if (consensus) IdeaConsensus.Invalidate(task); else task.State = "proposed";
                     task.Feedback = "Yêu cầu vừa thay đổi: cần rà soát lại phạm vi và tiêu chí trước khi thực hiện.";
+                    task.ImplementationPlan = "";
                 }
                 // Completed tasks remain completed. New user scope is handled explicitly;
                 // a chat interjection alone is not evidence that existing work must be redone.
@@ -51,8 +55,18 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             });
             Save();
         }
+        void ApplyCodingRoles() {
+            if (!coding || team.PendingCoding == null) return;
+            change(() => {
+                if (team.PendingCoding is not { } pending) return;
+                options.Coding = pending.Copy(); team.PendingCoding = null; team.CodingRoleRevision++;
+                foreach (var task in team.Tasks.Where(t => t.State != "done")) task.ImplementationPlan = "";
+                team.Decisions.Add("Đã áp dụng phân công code mới tại ranh giới bước: Đầu não=" + pending.Brain.AgentId + ", Thợ code=" + pending.Implementer.AgentId + ".");
+            }); Save();
+        }
         AgentConfig? Select(string role, string avoid = "", bool writer = false) {
             var candidates = Available().Where(a => !writer || TeamRoles.CanWrite(a)).ToList();
+            if (coding && role is "brain" or "implementer") return candidates.FirstOrDefault(a => a.Id == (role == "brain" ? options.Coding.Brain.AgentId : options.Coding.Implementer.AgentId));
             if (candidates.Count == 0) return null;
             var preferred = options.Roles.FirstOrDefault(r => r.Role == role);
             var other = candidates.Where(a => a.Id != avoid).ToList(); if (other.Count > 0) candidates = other;
@@ -72,6 +86,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 phase == "work" ? "Đây là lượt THỰC HIỆN task. Đọc lại workspace vì agent khác hoặc người dùng có thể đã sửa. Nếu lượt trước lỗi nhưng đã có file/báo cáo, đối chiếu bằng chứng hiện có trước; chỉ làm phần còn thiếu, không mặc định chạy lại phép đo hoặc thao tác đã hoàn tất. Chỉ xử lý task được giao; giữ thay đổi sẵn có. Không commit/push/deploy. Nếu không đủ quyền thì báo blocked." :
                 phase == "review" ? "Đây là lượt REVIEW ngang hàng. Đối chiếu tiêu chí, kết quả thực hiện và bằng chứng; dùng công cụ để xác minh theo quyền CLI đã chọn. Đưa sửa đổi cần thiết thành phản hồi cho task thực hiện, giữ nguyên workspace để bằng chứng review còn đối chiếu được. Không coi lời báo test của model là test đã chạy." :
                 "Đây là BÀN TRÒN ngang hàng. Không có vai trên/dưới. Phát triển điểm hữu ích của đồng đội, hỏi/đáp trực tiếp, giữ bất đồng có lý do, chốt task nhỏ có tiêu chí. Dùng công cụ theo quyền CLI để khảo sát; đưa thay đổi project vào task để Hub điều phối thực hiện. Chọn người tiếp theo theo chuyên môn, không theo chức danh. Có thể phản biện kế hoạch trước và đề xuất thử nghiệm.";
+            if (phase == "design") mode = "Đây là lượt ĐẦU NÃO THUẬT TOÁN: chỉ đọc và hướng dẫn triển khai task đã chốt cho Thợ code, không tự sửa file hoặc mở rộng giải pháp.";
             return $"Bạn là {agent.Name}, ID={agent.Id}. Chuyên môn trong nhóm: {Expertise(agent)}. Vai của lượt này: {TeamRoles.Name(role)}.\n{mode}\n" +
                 WorkspacePolicy.Instructions(job, agent, phase == "work" && task?.RequiresWorkspace == true) +
                 CompletionScope.Contract + "\n" +
@@ -81,7 +96,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 $"TÀI LIỆU GẦN ĐÂY:\n{artifacts}\nGHI NHẬN CHUNG:\n{Clip(string.Join("\n", team.Decisions.TakeLast(30)), 12000)}\nTRAO ĐỔI GẦN ĐÂY:\n{history}\n" +
                 (task == null ? "" : $"TASK ĐANG XỬ LÝ:\n{Clip(JsonSerializer.Serialize(task, Json.Options), 24000)}\n") +
                 (phase == "work" && task?.PreviousAttempt is { Length: > 0 } previousAttempt ? "\nĐẦU RA LƯỢT THỰC HIỆN CHƯA ĐƯỢC HUB XÁC NHẬN (đối chiếu file trước, không mặc định chạy lại phần đã làm):\n" + Clip(previousAttempt, 12000) + "\n" : "") + extra + "\n\n" + TeamProtocol.Contract +
-                (consensus ? "\n\n" + IdeaConsensus.Contract + "\nÝ đang bàn: " + (IdeaConsensus.Active(team)?.Id ?? "Chưa có; chỉ đề xuất MỘT ý kế tiếp hoặc xác nhận kết thúc.") : "") +
+                (consensus ? "\n\n" + IdeaConsensus.Contract + (CodingWorkflow.Planning(job) ? "\n" + CodingWorkflow.PlanningContract : "") + "\nÝ đang bàn: " + (IdeaConsensus.Active(team)?.Id ?? "Chưa có; chỉ đề xuất MỘT ý kế tiếp hoặc xác nhận kết thúc.") : "") +
                 "\n\nYÊU CẦU NGƯỜI DÙNG HIỆN HÀNH:\n" + Clip(job.Prompt, 24000) +
                 "\nBỔ SUNG THEO THỨ TỰ CŨ → MỚI:\n" + Latest(string.Join("\n\n", team.Directives.TakeLast(10)), 18000) +
                 "\nKhi có xung đột về phạm vi, chỉ dẫn mới nhất trực tiếp từ người dùng được ưu tiên hơn kế hoạch, giới hạn và lý do blocked do model ghi ở lượt trước. " +
@@ -94,8 +109,9 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             string correction = "";
             for (int attempt = 0; attempt < 2 && Capacity(); attempt++) {
                 var agent = original.Copy();
+                if (coding && (CodingWorkflow.Planning(job) || phase == "design" || attempt > 0)) agent.Permission = "read-only";
                 if (agent.RuntimeHarness is { } harness) agent.RuntimeHarness = harness with { AllowChanges = phase == "work" && attempt == 0 && task?.RequiresWorkspace == true };
-                var binding = options.Roles.FirstOrDefault(r => r.Role == role && (r.AgentId.Length == 0 || r.AgentId == agent.Id));
+                var binding = coding && role is "brain" or "implementer" ? role == "brain" ? options.Coding.Brain : options.Coding.Implementer : options.Roles.FirstOrDefault(r => r.Role == role && (r.AgentId.Length == 0 || r.AgentId == agent.Id));
                 if (binding?.Model is { Length: > 0 } model) agent.Model = model;
                 if (job.Surface == "chat") agent.Permission = "read-only";
                 var result = job.Results.First(r => r.AgentId == agent.Id);
@@ -131,7 +147,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 }
                 try {
                     var reply = TeamProtocol.Parse(answer, phase);
-                    if (phase == "completion-review") TeamProtocol.ValidateCompletion(reply, job.Prompt + "\n" + string.Join("\n", team.Directives));
+                    if (phase is "completion-review" or "plan-review") TeamProtocol.ValidateCompletion(reply, job.Prompt + "\n" + string.Join("\n", team.Directives));
                     if (blockerReview) TaskBlocker.ValidateReview(reply);
                     if (phase == "roundtable") {
                         if (consensus) IdeaConsensus.Validate(team, reply);
@@ -192,7 +208,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             }
             return Available().Count > 0 && Available().All(a => finished.Contains(a.Id));
         }
-        async Task<string> CompletionReview()
+        async Task<string> CompletionReview(bool planning = false)
         {
             int scopeRevision = team.Directives.Count;
             string gaps = "";
@@ -200,8 +216,8 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             for (int pass = 0; pass < 2 && Capacity(); pass++) {
                 var replies = new List<TeamReply>();
                 foreach (var speaker in Available()) {
-                    var reply = await Call(speaker, "completion-review", "reviewer", extra:
-                        "\nĐỐI CHIẾU KẾT THÚC — các task đã chốt hiện tại đều xong. Đối chiếu kết quả/bằng chứng với CHỈ yêu cầu gốc và bổ sung người dùng. " +
+                    var reply = await Call(speaker, planning ? "plan-review" : "completion-review", "reviewer", extra:
+                        (planning ? "\nREVIEW TOÀN BỘ GIẢI PHÁP TRƯỚC KHI CODE — task planned là kế hoạch đã chốt, CHƯA triển khai. Đối chiếu xem toàn bộ thuật toán/giải pháp/tiêu chí trong kế hoạch đã bao phủ yêu cầu và nhất quán chưa; chưa đòi bằng chứng code/test vì chưa được chạy. finished=true nghĩa đồng ý chuyển sang triển khai, KHÔNG là task hoàn thành. " : "\nĐỐI CHIẾU KẾT THÚC — các task đã chốt hiện tại đều xong. Đối chiếu kết quả/bằng chứng với CHỈ yêu cầu gốc và bổ sung người dùng. ") +
                         "Không tạo task, sửa tiêu chí, đề xuất cải tiến hoặc lặp thao tác đã nghiệm thu. Nếu đã đủ: finished=true, scopeGaps=[]. " +
                         "Nếu thật sự thiếu: finished=false, scopeGaps=[{requestQuote:nguyên văn yêu cầu người dùng,missing:phần bắt buộc còn thiếu và bằng chứng}]. " +
                         "Gợi ý tùy chọn không phải phần còn thiếu. Danh sách tasks/taskReviews/taskAmendments phải rỗng.\n" + gaps);
@@ -212,7 +228,14 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 if (unavailable.Count > 0 || replies.Count != agents.Count) return "unresolved";
                 if (replies.All(r => r.Finished)) {
                     bool committed = false;
-                    change(() => { if (instructions.IsEmpty && team.Directives.Count == scopeRevision) { scopeGoalConfirmed = true; committed = true; } });
+                    change(() => { if (instructions.IsEmpty && team.Directives.Count == scopeRevision) {
+                        if (planning) {
+                            team.ApprovedPlanHash = CodingWorkflow.PlanHash(team); team.CodingStage = "implementing"; team.PlanReadyForReview = false;
+                            foreach (var task in team.Tasks.Where(t => t.State == "planned")) task.State = "ready";
+                            team.Decisions.Add("Tất cả thành viên đã review toàn bộ giải pháp. Chuyển sang Đầu não → Thợ code; kế hoạch chưa phải kết quả thực thi.");
+                        } else scopeGoalConfirmed = true;
+                        committed = true;
+                    } });
                     return committed ? "complete" : "changed";
                 }
                 if (replies.All(r => !r.Finished && r.ScopeGaps.Count > 0)) {
@@ -259,7 +282,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                             RequiredAction = "Điều chỉnh phạm vi hoặc tăng giới hạn vòng sửa trước khi thử tiếp; chưa được nghiệm thu."
                         }, reviewer.Id); else task.State = "blocked";
                     }
-                    else { task.Revisions++; task.State = "ready"; }
+                    else { task.Revisions++; task.State = "ready"; if (coding) task.ImplementationPlan = ""; }
                 }); Save();
                 if (consensus && task.State == "blocked") await ReviewBlocker(task);
                 return true;
@@ -268,20 +291,37 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
         }
         async Task Execute(TeamTask task) {
             while (Capacity()) {
+                ApplyCodingRoles();
                 Directives(); if (task.State != "ready") return;
+                if (coding && CodingWorkflow.Planning(job)) return;
                 if (consensus && failedParticipants.Count > 0) return;
-                var coder = Select("coder", writer: task.RequiresWorkspace);
+                if (coding && (task.ImplementationPlan.Length == 0 || task.DesignVersion != task.ProposalVersion || task.DesignRoleRevision != team.CodingRoleRevision)) {
+                    var brain = Select("brain");
+                    if (brain == null) {
+                        change(() => TaskBlocker.Capture(task, new() { Message = "Vai Đầu não đã cấu hình không còn khả dụng.", BlockedReason = "Không có kết nối khả dụng cho Đầu não.", RequiredAction = "Đổi phân công code sang kết nối khả dụng; Hub không tự đổi model đã chọn." }, "")); Save(); return;
+                    }
+                    int version = task.ProposalVersion, revision = team.CodingRoleRevision;
+                    var design = await Call(brain, "design", "brain", task, "\n" + CodingWorkflow.DesignContract + "\nPhản hồi reviewer cần xử lý:\n" + task.Feedback);
+                    if (design == null) return;
+                    Directives(); ApplyCodingRoles();
+                    if (task.State != "ready" || CodingWorkflow.Planning(job)) return;
+                    if (version != task.ProposalVersion || revision != team.CodingRoleRevision) continue;
+                    if (design.Outcome == "blocked") { change(() => TaskBlocker.Capture(task, design, brain.Id)); Save(); await ReviewBlocker(task); return; }
+                    change(() => { task.ImplementationPlan = design.ImplementationPlan; task.DesignAgentId = brain.Id; task.DesignModel = options.Coding.Brain.Model.Length > 0 ? options.Coding.Brain.Model : brain.Model; task.DesignVersion = version; task.DesignRoleRevision = revision; }); Save();
+                }
+                var coder = Select(coding ? "implementer" : "coder", writer: task.RequiresWorkspace);
                 if (coder == null) {
-                    change(() => TaskBlocker.Capture(task, new() { Message = "Không còn CLI có quyền ghi workspace.", BlockedReason = "Không còn CLI có quyền ghi workspace.", RequiredAction = "Chọn agent CLI có quyền workspace-write/full trong Agent & model hoặc điều chỉnh phạm vi." }, ""));
+                    change(() => TaskBlocker.Capture(task, new() { Message = "Không có Thợ code khả dụng với quyền ghi workspace.", BlockedReason = "Kết nối thực hiện không khả dụng hoặc chưa có quyền ghi.", RequiredAction = "Chọn Thợ code CLI/API harness có quyền workspace-write/full trong Agent & model." }, ""));
                     Save(); if (consensus) await ReviewBlocker(task); return;
                 }
-                change(() => { task.State = "running"; task.AssignedTo = coder.Id;
+                change(() => { task.State = "running"; task.AssignedTo = coder.Id; task.ImplementationModel = coding && options.Coding.Implementer.Model.Length > 0 ? options.Coding.Implementer.Model : coder.Model;
                     if (task.RequiresWorkspace) {
                         foreach (var e in team.Evidence) e.Current = false;
                         foreach (var previous in team.Tasks.Where(t => t.Verification == "passed")) previous.Verification = "stale";
                     }
                 });
-                var reply = await Call(coder, "work", "coder", task, "\nGiữ nguyên các thay đổi đã có. Task có thể có thay đổi một phần từ lượt lỗi/quota trước; phải đọc lại trước khi tiếp nhận.\n");
+                var reply = await Call(coder, "work", coding ? "implementer" : "coder", task, "\nGiữ nguyên các thay đổi đã có. Task có thể có thay đổi một phần từ lượt lỗi/quota trước; phải đọc lại trước khi tiếp nhận.\n" +
+                    (coding ? "\nBÀN GIAO TỪ ĐẦU NÃO: " + task.DesignAgentId + " / " + task.DesignModel + "\n" + task.ImplementationPlan + "\nTriển khai theo hướng dẫn này trong phạm vi task. Nếu phát hiện sai thuật toán/điều kiện, báo rõ blocked hoặc phản hồi cần đổi; không tự làm ý ngoài kế hoạch đã review.\n" : ""));
                 if (reply == null) { change(() => {
                     task.State = "ready"; task.Feedback = "Lượt trước lỗi/quota; kiểm tra thay đổi một phần trước khi tiếp nhận.";
                     if (job.Turns.LastOrDefault(t => t.TaskId == task.Id)?.Text is { Length: > 0 } partial) task.PreviousAttempt = Clip(partial, 12000);
@@ -331,7 +371,22 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
             Save(); int idleRounds = 0; bool agreed = false;
             if (consensus && Available().Count == 1) change(() => team.Decisions.Add("Chỉ có một agent: tự rà soát; chưa có đồng thuận/review độc lập."));
             while (Capacity() && Available().Count > 0 && !team.StopAfterStep && (!consensus || failedParticipants.Count == 0)) {
-                Directives();
+                Directives(); ApplyCodingRoles();
+                if (coding && team.CodingStage == "implementing" && team.ApprovedPlanHash != CodingWorkflow.PlanHash(team)) change(() => { team.CodingStage = "planning"; team.ApprovedPlanHash = ""; team.PlanReadyForReview = false; });
+                if (coding && CodingWorkflow.Planning(job)) {
+                    change(() => { foreach (var planned in team.Tasks.Where(t => t.State == "ready")) planned.State = "planned"; });
+                    Save();
+                    if (IdeaConsensus.Active(team) is { State: "blocked" } planningBlock) { if (!planningBlock.BlockConfirmed) await ReviewBlocker(planningBlock); if (planningBlock.State == "blocked") break; continue; }
+                    if (team.PlanReadyForReview && team.Tasks.Count > 0 && team.Tasks.All(t => t.State is "done" or "planned")) {
+                        string planReview = await CompletionReview(true);
+                        if (planReview == "complete" || planReview == "changed") continue;
+                        if (planReview == "unresolved") { closureUnresolved = true; break; }
+                        change(() => team.PlanReadyForReview = false);
+                    }
+                    bool planReady = await Round();
+                    if (planReady) change(() => team.PlanReadyForReview = true);
+                    continue;
+                }
                 if (consensus && options.ExecuteTasks && job.Surface == "work" && IdeaConsensus.Active(team) is { State: "ready" } ready) { await Execute(ready); continue; }
                 if (consensus && IdeaConsensus.Active(team) is { State: "blocked" } blocked) {
                     if (!blocked.BlockConfirmed) await ReviewBlocker(blocked);
@@ -374,7 +429,7 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
                 job.CompletionConfirmed = scopeGoalConfirmed && job.State is "completed" or "planned";
                 job.StopReason = runToken.IsCancellationRequested ? token.IsCancellationRequested ? "Người dùng dừng phiên." : "Đã đạt giới hạn thời gian." : team.StopAfterStep ? "Đã dừng sau bước hiện tại theo yêu cầu. Có thể tiếp tục từ hội thoại này." : Available().Count == 0 ? "Không còn agent khả dụng." : !options.HasCallCapacity(team.Calls) ? "Đã đạt giới hạn gọi model." :
                     job.CompletionConfirmed ? "Đã đối chiếu độc lập với yêu cầu người dùng và kết thúc; không tự mở rộng công việc." :
-                    closureUnresolved ? "Các task đã chốt đã xong nhưng đánh giá phạm vi chưa thống nhất. Đã dừng; không tự tạo thêm task hoặc giả hoàn tất." :
+                    closureUnresolved ? CodingWorkflow.Planning(job) ? "Giải pháp chưa qua review toàn bộ. Đã dừng, chưa chuyển sang code." : "Các task đã chốt đã xong nhưng đánh giá phạm vi chưa thống nhất. Đã dừng; không tự tạo thêm task hoặc giả hoàn tất." :
                     consensus && failedParticipants.Count > 0 ? FailureReason(job, failedParticipants) :
                     consensus && IdeaConsensus.Active(team) is { State: "blocked" } obstacle ? TaskBlocker.Describe(obstacle) :
                     consensus && IdeaConsensus.Active(team) is { } unresolved ? $"Ý {unresolved.Id} v{unresolved.ProposalVersion} chưa xong; không chuyển sang ý khác." :
@@ -400,6 +455,10 @@ public sealed class TeamEngine(IAgentExecutor executor, Storage storage, Concurr
     {
         if (job.Team is not { } team) return "";
         var report = new StringBuilder($"BẢN GHI NHÓM • {job.State}\n{job.StopReason}\n{team.Options.CallUsage(team.Calls)}\n\n");
+        if (team.Options.Coding.Enabled) {
+            report.AppendLine($"LUỒNG IDE: {team.CodingStage} • review kế hoạch → Đầu não → Thợ code → kiểm tra/review\nHash giải pháp đã duyệt: {team.ApprovedPlanHash}\n");
+            foreach (var task in team.Tasks.Where(t => t.ImplementationPlan.Length > 0)) report.AppendLine($"{task.Id} • Đầu não: {task.DesignAgentId} / {task.DesignModel} • Thợ code: {task.AssignedTo} / {task.ImplementationModel}\n{Clip(task.ImplementationPlan, 4000)}\n");
+        }
         foreach (var task in team.Tasks) report.AppendLine($"{task.Id} • {task.Title} • {task.State}\nTiêu chí: {task.Acceptance}\nKiểm tra: {task.Verification} • {(task.IndependentReview ? "review chéo" : "chưa có review độc lập")}\n{task.Feedback}\n");
         if (job.Mode == "consensus") {
             report.AppendLine("CHỐT TỪNG Ý — XÁC NHẬN THEO PHIÊN BẢN");

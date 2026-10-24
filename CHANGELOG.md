@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.15.0 — 2026-10-24
+
+- Thêm luồng IDE tùy chọn cho Hub Code / Chốt từng ý: chốt kế hoạch từng ý, toàn nhóm review giải pháp đầy đủ trước khi mở bước code. Kế hoạch planned không bị coi là đã triển khai.
+- Phân công riêng Đầu não thuật toán và Thợ code, mỗi vai chọn agent + model độc lập với vai thảo luận. Đầu não bàn giao implementationPlan theo đúng task/version; Thợ code mới thực hiện, rồi qua kiểm tra và peer review. Không gắn sẵn nhà cung cấp/model hoặc đổi vai ngầm khi lỗi.
+- Đổi hai vai code trong phiên đang chạy: xếp hàng, áp dụng tại ranh giới bước, loại bản thiết kế cũ đang chờ nếu phân công đổi; giữ thao tác đã bắt đầu/task đã xong. Bổ sung phạm vi làm hết hiệu lực review kế hoạch trước khi code tiếp.
+- Workspace native có cây file/editor văn bản, lưu với hash chống ghi đè bản mới, giữ BOM/encoding, Git diff chỉ đọc và nhật ký agent/lệnh. Bản nháp không bị bỏ khi đổi project; tạm khóa lưu khi agent chạy.
+- Hiển thị giai đoạn review giải pháp, đầu não thiết kế và thợ code triển khai; bảng task/bản ghi có model thực tế và bàn giao thuật toán.
+- Fixture offline CI kiểm tra thứ tự review → code, bất đồng, đổi vai trong lúc thiết kế, race yêu cầu mới, lỗi đầu não, resume giữ task đã xong và editor/encoding/hash. Build cục bộ; chưa chạy suy luận/UI live.
+
 ## 5.14.0 — 2026-10-24
 
 - Thêm harness native dùng chung cho Hub Chat/Code: model → function calls → thực thi công cụ → trả kết quả về cùng ngữ cảnh → câu trả lời cuối. Nối Chat Completions, Gemini, Anthropic và ChatGPT plan Responses; giữ opaque reasoning/thought signatures và cặp call/result đúng protocol. CLI/extension/gateway giữ transport hiện có.

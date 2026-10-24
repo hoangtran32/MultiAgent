@@ -6,6 +6,8 @@
 
 ## Bắt đầu
 
+**5.15.0 — Hub Code / luồng IDE:** vào **Agent & model → Phân công code • Đầu não / Thợ code** để chọn kết nối và model riêng cho hai vai. Nhóm chốt từng ý, reviewer duyệt toàn bộ giải pháp rồi mới tự chuyển sang thiết kế thuật toán → triển khai → kiểm tra/review. Đổi phân công khi đang chạy được áp dụng ở ranh giới bước. Nút Workspace trên đầu chat có cây file/editor, Git diff, bảng task và nhật ký. Xem [luồng IDE](docs/CODE_IDE_WORKFLOW.md).
+
 **5.14.0 — Harness dùng chung:** Chat/Code có runtime gọi công cụ thật cho API, quản lý ngữ cảnh, bộ nhớ riêng hội thoại, nhật ký có receipt và nhận bổ sung trong lúc chạy. API có thể đọc/tìm/sửa file trong Code theo quyền; Chat dùng tài liệu, web và artifact riêng. Vào **Agent & model → Runtime & công cụ**. Xem [thiết kế và cách dùng](docs/AGENT_HARNESS.md).
 
 **5.13.0:** nhóm kết thúc khi đã đối chiếu và xác nhận đáp ứng yêu cầu; gợi ý tùy chọn không tự thành task. Khung chat hỗ trợ nhiều ảnh/PDF/Word/văn bản, kéo thả và Ctrl+V ảnh. Xem [điểm dừng và đính kèm](docs/COMPLETION_AND_ATTACHMENTS.md).

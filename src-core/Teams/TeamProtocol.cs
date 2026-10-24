@@ -37,6 +37,7 @@ public sealed class TeamReply
     public List<TeamArtifact> Artifacts { get; set; } = [];
     public List<string> Decisions { get; set; } = [];
     public List<string> Files { get; set; } = [];
+    public string ImplementationPlan { get; set; } = "";
 }
 
 public sealed record CompletionGap(string RequestQuote, string Missing);
@@ -66,6 +67,7 @@ public static class TeamProtocol
         Khi toàn bộ yêu cầu đã đủ, finished=true và các danh sách task rỗng; không tự dựng vấn đề mới.
         không đề xuất lại task đã tồn tại. requiresWorkspace=false dành cho phân tích/tài liệu trả về trong artifacts.
         Khi thực hiện task: outcome="done" hoặc "blocked"; mô tả trung thực thay đổi và giới hạn.
+        Riêng lượt ĐẦU NÃO thiết kế: outcome="ready" với implementationPlan, hoặc blocked; chưa thực hiện nên không báo done.
         Khi review: outcome="approve", "revise" hoặc "blocked". Không sửa file trong lượt review.
         Khi kiểm chứng VƯỚNG MẮC: chỉ outcome="revise" (có cách xử lý trong phạm vi) hoặc "blocked" (cần điều kiện bên ngoài).
         blocked phải ghi rõ blockedReason và requiredAction. Không báo approve/done cho một task chưa thực hiện được.
@@ -88,6 +90,7 @@ public static class TeamProtocol
             reply.Tasks == null || reply.TaskAmendments == null || reply.TaskReviews == null || reply.Artifacts == null || reply.Decisions == null || reply.Files == null || reply.ScopeGaps == null)
             throw new InvalidDataException("Thiếu message hoặc trường dữ liệu nhóm không hợp lệ.");
         if (reply.Tasks.Count > 12 || reply.TaskAmendments.Count > 1 || reply.TaskReviews.Count > 50 || reply.Artifacts.Count > 6 || reply.Decisions.Count > 12 || reply.Files.Count > 30) throw new InvalidDataException("Đầu ra nhóm vượt giới hạn.");
+        if (reply.ImplementationPlan == null || reply.ImplementationPlan.Length > 16000 || phase == "design" && (reply.Outcome is not ("ready" or "blocked") || reply.Outcome == "ready" && string.IsNullOrWhiteSpace(reply.ImplementationPlan))) throw new InvalidDataException("Đầu não cần outcome=ready và implementationPlan, hoặc blocked có điều kiện tiếp tục.");
         if (phase == "work" && reply.Outcome is not ("done" or "blocked") || phase == "review" && reply.Outcome is not ("approve" or "revise" or "blocked")) throw new InvalidDataException("Thiếu outcome hợp lệ cho bước đang chạy.");
         if (reply.Tasks.Concat(reply.TaskAmendments).Any(t => t == null || !Regex.IsMatch(t.Id ?? "", "^[a-zA-Z0-9_-]{1,40}$") || string.IsNullOrWhiteSpace(t.Title) || t.Title.Length > 160 ||
             string.IsNullOrWhiteSpace(t.Description) || t.Description.Length > 6000 || string.IsNullOrWhiteSpace(t.Acceptance) || t.Acceptance.Length > 3000 ||

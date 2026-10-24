@@ -21,23 +21,27 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
         bool unfinishedHistory = !active && job.State == "completed" && team?.Tasks.Any(t => t.State is not ("done" or "planned")) == true;
         bool waitingOnly = job.Results.Any(r => r.State == "waiting") && !job.Results.Any(r => r.State == "running") && current == null;
         bool planning = team != null && (job.Surface == "chat" || !team.Options.ExecuteTasks);
+        bool ide = CodingWorkflow.Active(job), idePlanning = CodingWorkflow.Planning(job);
         int total = team?.Tasks.Count ?? (job.Mode == "discussion" ? 0 : job.Results.Count);
         int done = team?.Tasks.Count(t => t.State == "done" || planning && t.State == "planned") ?? job.Results.Count(r => r.State == "success");
         string progress = team != null ? total == 0 ? "Đang xác định các task" : $"{done}/{total} {(planning ? "ý đã chốt kế hoạch" : "task đã review")} · {total - done} chưa xong" :
             job.Mode == "discussion" ? $"{job.Turns.Count(t => t.Kind == "discussion" && t.State == "success")} lượt trao đổi đã xong" : $"{done}/{total} agent đã trả lời";
         string title, tone, detail;
+        if (idePlanning) progress = $"{team!.Tasks.Count(t => t.State is "planned" or "done")}/{total} ý đã chốt · chưa chuyển sang code";
         bool canContinue = unfinishedHistory || !active && job.State is "partial" or "failed" or "cancelled" or "interrupted" or "quota" or "running" or "unverified";
         string reason = "";
         if (active) {
             tone = "active";
             title = job.State != "running" || team?.Phase == "finished" || discussion && job.DiscussionPhase == "finished" ? "Đang lưu kết quả" :
                 waitingOnly ? "Đang chờ bạn dán kết quả" :
-                team?.Phase == "work" ? "Đang thực hiện task" :
+                team?.Phase == "design" ? "Đầu não đang thiết kế thuật toán" :
+                team?.Phase == "plan-review" ? "Review toàn bộ giải pháp" :
+                team?.Phase == "work" ? ide ? "Thợ code đang triển khai" : "Đang thực hiện task" :
                 team?.Phase == "verifying" ? "Đang chạy kiểm tra" :
                 current?.Role == "Kiểm chứng vướng mắc" ? "Đang kiểm chứng vướng mắc" :
                 team?.Phase == "review" ? "Đang phản biện kết quả" :
                 team?.Phase == "completion-review" ? "Đang đối chiếu điểm dừng" :
-                team?.Phase == "roundtable" ? job.Mode == "consensus" ? "Đang thống nhất ý" : "Đang bàn tròn" :
+                team?.Phase == "roundtable" ? idePlanning ? "Đang chốt toàn bộ giải pháp" : job.Mode == "consensus" ? "Đang thống nhất ý" : "Đang bàn tròn" :
                 discussion && job.DiscussionPhase == "summarizing" ? "Đang tổng hợp" :
                 discussion && job.DiscussionFinishRequested ? "Đang kết thúc sau lượt hiện tại" :
                 discussion && job.DiscussionPhase == "awaiting-user" ? "Chờ bạn" :
@@ -46,6 +50,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
             string speaker = current?.Name ?? string.Join(", ", job.Results.Where(r => r.State == "running").Select(r => r.Name));
             detail = task != null ? $"{task.Id} · {task.Title}" : speaker.Length > 0 ? speaker + " đang xử lý yêu cầu" : "Đang chuẩn bị bước tiếp theo";
             if (task != null && speaker.Length > 0) detail = speaker + " — " + detail;
+            if (ide && current is { } codingTurn) detail = codingTurn.Role + " · " + codingTurn.Name + " / " + codingTurn.Model + (task == null ? "" : " · " + task.Id);
             if (job.HarnessRuns.LastOrDefault(r => r.State == "running") is { } harness) detail = harness.AgentName + " · " + harness.Activity + (task == null ? "" : " · " + task.Id);
             if (waitingOnly) detail = "Mở Chi tiết và dán kết quả cho " + string.Join(", ", job.Results.Where(r => r.State == "waiting").Select(r => r.Name));
             if (discussion && job.NextTurnAt is { } next && job.DiscussionPhase == "resting") detail = $"Lượt tiếp theo sau {Math.Max(0, (int)Math.Ceiling((next - now).TotalSeconds))} giây; có thể gửi bổ sung để chạy ngay";
@@ -55,6 +60,7 @@ public sealed record RunProgress(string Title, string Detail, string Reason, str
                 reason = string.Join(" · ", job.Results.Where(r => r.State is "error" or "quota").Select(r => r.Name + ": " + (r.State == "quota" ? "hết quota" : "mất kết nối/lỗi")));
             }
             if (team?.StopAfterStep == true) reason = "Đã nhận yêu cầu dừng sau bước đang làm.";
+            else if (team?.PendingCoding != null) reason = "Phân công Đầu não/Thợ code mới đang chờ áp dụng tại ranh giới bước.";
             else if (team?.PendingDirectives.Count > 0) reason = $"Đã nhận {team.PendingDirectives.Count} bổ sung; áp dụng sau bước đang chạy.";
             else if (!waitingOnly && job.Results.Any(r => r.State == "waiting")) reason = "Một agent vẫn đang làm; mở Chi tiết để dán kết quả cho " + string.Join(", ", job.Results.Where(r => r.State == "waiting").Select(r => r.Name));
         } else {
