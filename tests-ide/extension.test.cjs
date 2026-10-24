@@ -12,7 +12,7 @@ test('extension keeps a new conversation empty across metadata refresh and refus
       createWebviewPanel: () => ({ webview: { cspSource: 'fixture:', asWebviewUri: value => value, postMessage: value => messages.push(value), onDidReceiveMessage: callback => { receive = callback; return disposable; } }, onDidDispose: () => disposable, reveal() {} }) },
     commands: { registerCommand: (name, callback) => { commands.set(name, callback); return disposable; }, executeCommand: async () => {} },
     EventEmitter: Emitter, StatusBarAlignment: { Left: 1 }, ViewColumn: { Beside: 2, One: 1 },
-    Uri: { joinPath: (_root, name) => name }
+    Uri: { joinPath: (_root, name) => name, parse: value => value }
   };
   const file = path.resolve(__dirname, '../ide-extension/extension.cjs'); const exported = {};
   const fakeFs = { ...fs, existsSync: () => true, watch: () => ({ on() {}, close() {} }) };
