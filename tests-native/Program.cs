@@ -620,6 +620,7 @@ try
     await ConsensusTests.Run(Test, root);
     await CodingWorkflowTests.Run(Test, root);
     await IdeTests.Run(Test, root);
+    await HubIdeBundleTests.Run(Test, root);
     await DiscussionBudgetTests.Run(Test, root);
     await GroupConversationTests.Run(Test, root);
     await BrowserChatBridgeTests.Run(Test, root);

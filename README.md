@@ -2,11 +2,11 @@
 
 Ứng dụng Windows native để dùng một hoặc nhiều AI agent: trò chuyện độc lập hoặc cùng làm việc trong project.
 
-**C# · .NET 10 · Code OSS · MIT** — Hub Code dùng editor VSCodium với extension Hub tích hợp; Hub Chat và quản lý tài khoản dùng WinForms. EXE chứa backend/runtime .NET, tải nền editor đã ghim checksum vào lần đầu mở Code; không cần cài Node.js riêng. Gateway HTTP loopback và browser bridge vẫn là các kết nối tùy chọn.
+**C# · .NET 10 · Code OSS · MIT** — Hub Code là sản phẩm Hub riêng, build editor từ source Code OSS đã ghim commit, có tên/icon/ID/profile riêng và Agent tích hợp. EXE standalone chứa cả editor và backend; không tải hoặc mở VSCodium. Hub Chat và quản lý tài khoản dùng WinForms. Gateway HTTP loopback và browser bridge vẫn là các kết nối tùy chọn.
 
 ## Bắt đầu
 
-**6.0.0 — Hub Code chuyển sang Code OSS:** file/editor nhiều tab, tìm kiếm, Git, terminal, debugger và extension của nền editor; khung Agent có phản hồi streaming, trạng thái, task, kế hoạch và kết quả. **Làm ngay** dùng một agent cho yêu cầu thông thường; **Kế hoạch → triển khai** giữ nhóm review và phân công Đầu não/Thợ code. Sửa vòng bàn luận lặp không tiến triển. [Cách dùng, cài lần đầu và phần chưa tương đương Antigravity](docs/CODE_OSS_IDE.md).
+**6.1.0 — Hub Code standalone:** thay launcher VSCodium của 6.0.0 bằng editor Hub build từ source, đóng gói cùng Agent/backend trong EXE. Mở Agent được cả khi project chưa tin cậy; chỉ chạy công cụ sau khi bạn cấp Trust. Có file/editor nhiều tab, tìm kiếm, Git, terminal, debugger và extension. **Làm ngay** dùng một agent; **Kế hoạch → triển khai** giữ review và phân công Đầu não/Thợ code. [Cách dùng và giới hạn](docs/CODE_OSS_IDE.md).
 
 **5.15.0 — Hub Code / luồng IDE:** vào **Agent & model → Phân công code • Đầu não / Thợ code** để chọn kết nối và model riêng cho hai vai. Nhóm chốt từng ý, reviewer duyệt toàn bộ giải pháp rồi mới tự chuyển sang thiết kế thuật toán → triển khai → kiểm tra/review. Đổi phân công khi đang chạy được áp dụng ở ranh giới bước. Nút Workspace trên đầu chat có cây file/editor, Git diff, bảng task và nhật ký. Xem [luồng IDE](docs/CODE_IDE_WORKFLOW.md).
 
@@ -16,7 +16,7 @@
 
 **API chạy ngầm dùng gói ChatGPT (5.12.0):** vào **Agent & model → Tài khoản ChatGPT • API**, đăng nhập chính thức và chọn model do tài khoản trả về. Sau đăng nhập không cần extension/tab/app mở. Model/tính năng API có giới hạn riêng; Gemini cùng quota app chưa có kết nối API được xác minh. Xem [hướng dẫn và giới hạn](docs/CHATGPT_PLAN_API.md).
 
-Tải `MultiAgentHub-<version>-win-x64.exe` từ mục Releases của repository rồi mở trực tiếp. Hub Code tải nền VSCodium khoảng 229 MB lần đầu; các lần sau dùng bản đã lưu. Dùng `--native` cho Hub Chat, `--settings` để thiết lập tài khoản, `--code "đường-dẫn-project"` để mở IDE. Nếu dùng bản ZIP, giải nén toàn bộ rồi mở `MultiAgentHub.exe`.
+Tải EXE **standalone** từ Releases rồi mở trực tiếp. Lần đầu giải nén editor Hub đã tích hợp vào `%LOCALAPPDATA%\MultiAgentHub\hub-code`; không cần cài IDE/Node.js riêng. Dùng `--native` cho Hub Chat, `--settings` để thiết lập tài khoản, `--code "đường-dẫn-project"` để mở IDE. Artifact ZIP của CI thường chỉ chứa bản native/backend; bản IDE đầy đủ được build bằng workflow **Build standalone Hub IDE**.
 
 1. Lần đầu app không có agent được cài sẵn. Bấm **Thêm agent của bạn** hoặc **Agent & model** để dò công cụ đã cài và model.
 2. Chọn kết quả dò, cấu hình rồi lưu agent. Hoặc chọn công cụ AI, kiểu kết nối và số lượng để thêm thủ công. Kết quả dò không tự tạo/bật agent.

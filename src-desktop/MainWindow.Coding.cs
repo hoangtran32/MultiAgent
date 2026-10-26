@@ -12,6 +12,7 @@ internal sealed partial class MainWindow
     private void OpenCodeIde()
     {
         if (runner.Busy) { status.Text = "Phiên hiện tại vẫn đang chạy. Đợi hoặc dừng phiên trước khi chuyển sang IDE."; return; }
+        if (!IdeLauncher.HasEmbeddedEditor) { OpenBoard(); status.Text = "Bản build native: dùng EXE standalone trên Release để mở Hub Code IDE tích hợp."; return; }
         using var launch = new IdeLaunchWindow(storage, config.Project); launch.ShowDialog(this);
         if (launch.Launched) { config.Surface = "work"; Protect(Save); Close(); }
     }

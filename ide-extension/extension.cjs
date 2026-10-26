@@ -21,7 +21,8 @@ function activate(context) {
   };
   const executable = () => {
     const inspected = vscode.workspace.getConfiguration('multiagent').inspect('backendExecutable');
-    const value = process.env.MULTI_AGENT_HUB_EXE || inspected?.globalValue || inspected?.defaultValue;
+    const bundled = path.resolve(context.extensionPath, '..', '..', 'hub-backend', 'MultiAgentHub.exe');
+    const value = process.env.MULTI_AGENT_HUB_EXE || (fs.existsSync(bundled) ? bundled : '') || inspected?.globalValue || inspected?.defaultValue;
     if (!value || !path.isAbsolute(value) || !fs.existsSync(value) || path.extname(value).toLowerCase() !== '.exe') throw new Error('Mở IDE từ MultiAgentHub.exe để nạp đúng backend, hoặc đặt đường dẫn EXE trong User Settings.');
     return value;
   };
@@ -166,6 +167,6 @@ function activate(context) {
     watcher.on('error', e => output.appendLine('Config watcher: ' + e.message));
     context.subscriptions.push({ dispose: () => { clearTimeout(reload); watcher.close(); } });
   }
-  if (process.env.MULTI_AGENT_HUB_IDE === '1') void run(open);
+  if (process.env.MULTI_AGENT_HUB_IDE === '1' || fs.existsSync(path.resolve(context.extensionPath, '..', '..', 'hub-backend', 'MultiAgentHub.exe'))) void run(open);
 }
 module.exports = { activate };

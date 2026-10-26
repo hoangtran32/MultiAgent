@@ -2,7 +2,7 @@
   "name": "code",
   "displayName": "Hub Code",
   "description": "Multi-Agent Hub on Code OSS: agent workspace, plan-first coding and bounded task completion.",
-  "version": "6.0.0",
+  "version": "6.1.0",
   "publisher": "multiagent-hub",
   "license": "MIT",
   "repository": "https://github.com/hoangtran32/MultiAgent",

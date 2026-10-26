@@ -1,6 +1,6 @@
-# Hub Code 6.0.0 • Code OSS
+# Hub Code 6.1.0 • sản phẩm Hub riêng
 
-Hub Code dùng nền Code OSS qua bản phân phối VSCodium. Đây là editor chạy thật, thay cho cửa sổ editor WinForms trước đây. Hub Chat và màn hình quản lý tài khoản vẫn dùng ứng dụng native.
+Hub Code build từ source Code OSS đã ghim commit trong `ide-product/upstream.json`. Đây là sản phẩm có executable **Hub Code.exe**, tên/icon, ID Windows/protocol và profile riêng, đóng gói Agent cùng backend. Bản 6.0.0 trước đó chỉ mở VSCodium; bản standalone này thay luồng đó. Hub Chat và màn hình quản lý tài khoản vẫn thuộc ứng dụng native.
 
 ## Mở và sử dụng
 
@@ -10,9 +10,9 @@ Mở `MultiAgentHub.exe` khi đang ở Làm việc, hoặc chạy:
 MultiAgentHub.exe --code "E:\YourProject"
 ```
 
-Lần đầu tải VSCodium Windows x64 khoảng 229 MB từ kho phát hành chính thức. Launcher kiểm tra kích thước và SHA-256 ghim trong source trước khi giải nén vào `%LOCALAPPDATA%\MultiAgentHub\codeoss`. Các lần sau dùng bản đã cài. Bộ EXE Hub vẫn chỉ một file; cần Internet để tải nền editor lần đầu. Giữ giấy phép và thông tin sản phẩm của VSCodium.
+EXE standalone chứa toàn bộ editor Hub: lần đầu giải nén bundle đã xác minh SHA-256 vào `%LOCALAPPDATA%\MultiAgentHub\hub-code\<version-commit>`. Các lần sau dùng bản đã cài, kiểm tra executable và danh tính sản phẩm/Agent. Không tải editor hoặc mở một IDE cài ngoài. Giữ giấy phép MIT và ThirdPartyNotices của upstream trong bundle. Cache VSCodium cũ được giữ nguyên, không dùng cho khởi động mới.
 
-Editor có cây file, các tab code, IntelliSense cho ngôn ngữ được hỗ trợ, tìm kiếm toàn project, Git/Source Control, terminal tương tác, debug và trình cài extension của VSCodium/Open VSX. Ngôn ngữ hoặc debugger bổ sung có thể cần extension tương ứng. Cửa sổ đầu chia editor và Agent; bạn có thể kéo, đổi kích thước, theme và vị trí các view bằng chức năng Code OSS.
+Editor có cây file, các tab code, IntelliSense cho ngôn ngữ được hỗ trợ, tìm kiếm toàn project, Git/Source Control, terminal tương tác, debug và trình cài extension Open VSX. Ngôn ngữ hoặc debugger bổ sung có thể cần extension tương ứng. Cửa sổ đầu chia editor và Agent; có thể kéo, đổi kích thước, theme và vị trí các view. Agent luôn mở được trong Restricted Mode; backend/công cụ/terminal chỉ chạy khi thư mục đã được bạn Trust.
 
 `Ctrl+Alt+A` mở Agent. Hub Code trên Activity Bar mở Agents & Tasks và lịch sử. Trong editor, chọn code rồi dùng menu chuột phải **Hub Code: Gửi đoạn code đang chọn** để đưa đúng phần đó vào ngữ cảnh lượt tiếp theo.
 
@@ -53,4 +53,8 @@ Backend không cung cấp API riêng của Gemini desktop hay model/quota nội 
 - Shared core giữ JobRunner, TeamEngine, API harness, quota, quyền và lưu trữ. Model metadata chạy riêng để không chặn lệnh Dừng.
 - CI chạy fixture C#, kiểm tra protocol Node và smoke test headless backend với profile rỗng. Không gọi model/tài khoản thật. UI editor chưa được kiểm thử tương tác trong bản này.
 
-Nguồn nền editor: [VSCodium](https://github.com/VSCodium/vscodium), bản [1.140.06880](https://github.com/VSCodium/vscodium/releases/tag/1.140.06880). Đối chiếu luồng tham khảo: [Google Antigravity IDE codelab](https://codelabs.developers.google.com/getting-started-agy-ide).
+## Build sản phẩm
+
+Workflow **Build standalone Hub IDE** checkout đúng commit upstream, tùy biến sản phẩm bằng `ide-product/prepare.cjs`, compile editor bằng toolchain upstream, thêm Agent/backend và nhúng ZIP vào EXE. Không đổi version API của editor thành version Hub. Bản build desktop thông thường không chứa editor; sử dụng workspace native dự phòng. Các bài kiểm tra chức năng chạy trong CI, không gọi tài khoản/model thật. Chưa kiểm thử UI tương tác tại máy người dùng.
+
+Nguồn editor: [microsoft/vscode](https://github.com/microsoft/vscode/tree/07f806f999227108933c2e30515b26eecc1fda74), giấy phép MIT. Đối chiếu luồng tham khảo: [Google Antigravity IDE codelab](https://codelabs.developers.google.com/getting-started-agy-ide).

@@ -13,7 +13,7 @@ internal static class Program
             return;
         }
         ApplicationConfiguration.Initialize();
-        if (!args.Contains("--native") && !args.Contains("--settings")) {
+        if (IdeLauncher.HasEmbeddedEditor && !args.Contains("--native") && !args.Contains("--settings")) {
             try {
                 var profile = new MultiAgentHub.Core.Storage(dataDir);
                 bool firstProfile = !File.Exists(Path.Combine(profile.DataDir, "native-config.json"));

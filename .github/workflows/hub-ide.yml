@@ -1,0 +1,47 @@
+name: Build standalone Hub IDE
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  standalone:
+    runs-on: windows-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read pinned editor source
+        shell: pwsh
+        run: |
+          $pin = Get-Content ide-product/upstream.json -Raw | ConvertFrom-Json
+          "EDITOR_COMMIT=$($pin.commit)" >> $env:GITHUB_ENV
+          "EDITOR_NODE=$($pin.node)" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v4
+        with:
+          repository: microsoft/vscode
+          ref: ${{ env.EDITOR_COMMIT }}
+          path: .build/editor-source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.EDITOR_NODE }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Compile Hub editor from source
+        shell: pwsh
+        run: ./scripts/build-hub-ide.ps1 -EditorSource .build/editor-source
+      - name: Publish single EXE with own editor embedded
+        shell: pwsh
+        run: |
+          $env:MULTI_AGENT_HUB_IDE_BUNDLE = (Resolve-Path release/hub-ide.zip).Path
+          ./scripts/build-release.ps1 -SkipTests
+          $exe = Get-ChildItem release/MultiAgentHub-*-win-x64.exe | Select-Object -First 1
+          node tests-ide/backend.integration.cjs $exe.FullName
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged backend integration failed.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MultiAgentHub-standalone-win-x64
+          compression-level: 0
+          path: |
+            release/MultiAgentHub-*-win-x64.exe
+            release/MultiAgentHub-*-win-x64.exe.sha256
+            release/hub-ide.zip.json
