@@ -37,6 +37,11 @@ jobs:
       - name: Bundle editor Agent and backend
         shell: pwsh
         run: ./scripts/build-hub-ide.ps1 -EditorSource .build/editor-source -Phase Package
+      - name: Verify own editor window and integrated Agent
+        shell: pwsh
+        run: |
+          node tests-ide/desktop.integration.cjs '.build/VSCode-win32-x64/Hub Code.exe' '.build/VSCode-win32-x64/resources/app/hub-backend/MultiAgentHub.exe'
+          if ($LASTEXITCODE -ne 0) { throw 'Own editor/Agent startup failed.' }
       - name: Publish single EXE with own editor embedded
         shell: pwsh
         run: |

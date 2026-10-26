@@ -55,6 +55,6 @@ Backend không cung cấp API riêng của Gemini desktop hay model/quota nội 
 
 ## Build sản phẩm
 
-Workflow **Build standalone Hub IDE** checkout đúng commit upstream, tùy biến sản phẩm bằng `ide-product/prepare.cjs`, compile editor bằng toolchain upstream, thêm Agent/backend và nhúng ZIP vào EXE. Không đổi version API của editor thành version Hub. Bản build desktop thông thường không chứa editor; sử dụng workspace native dự phòng. Các bài kiểm tra chức năng chạy trong CI, không gọi tài khoản/model thật. Chưa kiểm thử UI tương tác tại máy người dùng.
+Workflow **Build standalone Hub IDE** checkout đúng commit upstream, tùy biến sản phẩm bằng `ide-product/prepare.cjs`, compile editor bằng toolchain upstream, thêm Agent/backend và nhúng ZIP vào EXE. Không đổi version API của editor thành version Hub. Bản build desktop thông thường không chứa editor; sử dụng workspace native dự phòng. CI kiểm tra cửa sổ editor và khung Agent bằng profile trống trong project fixture, không gọi tài khoản/model thật. Không chạy kiểm tra UI tại máy người dùng.
 
 Nguồn editor: [microsoft/vscode](https://github.com/microsoft/vscode/tree/07f806f999227108933c2e30515b26eecc1fda74), giấy phép MIT. Đối chiếu luồng tham khảo: [Google Antigravity IDE codelab](https://codelabs.developers.google.com/getting-started-agy-ide).
