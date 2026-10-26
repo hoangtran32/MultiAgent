@@ -10,6 +10,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Source product preparation failed.' }
 $env:ELECTRON_SKIP_BINARY_DOWNLOAD = '1'
 $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 $env:NODE_OPTIONS = '--max-old-space-size=6144'
+if (!(Test-Path -LiteralPath 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC')) { throw 'This pinned editor requires the VS 2022 C++ toolchain; use the windows-2022 CI runner.' }
+$env:vs2022_install = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise'
 Push-Location $EditorSource
 try {
     npm ci

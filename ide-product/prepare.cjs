@@ -43,6 +43,11 @@ const packing = fs.readFileSync(packingFile, 'utf8');
 const shimCall = 'prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);';
 if (!packing.includes(shimCall)) throw Error('Upstream agent packing hook changed');
 fs.writeFileSync(packingFile, packing.replace(shimCall, 'if (fs.existsSync(builtInCopilotExtensionDir)) ' + shimCall));
+const electronFile = path.join(source, 'build/lib/electron.ts');
+const electron = fs.readFileSync(electronFile, 'utf8');
+if (!electron.includes("companyName: 'Microsoft Corporation'")) throw Error('Upstream executable branding hook changed');
+fs.writeFileSync(electronFile, electron.replace("companyName: 'Microsoft Corporation'", "companyName: 'Multi-Agent Hub contributors'")
+  .replace("copyright: 'Copyright (C) 2026 Microsoft. All rights reserved'", "copyright: 'Copyright (C) 2026 Multi-Agent Hub contributors. Includes MIT-licensed Microsoft code.'"));
 fs.copyFileSync(path.join(root, 'app.ico'), path.join(source, 'resources/win32/code.ico'));
 const icon = fs.readFileSync(path.join(root, 'ide-extension/icon.svg'));
 for (const relative of [

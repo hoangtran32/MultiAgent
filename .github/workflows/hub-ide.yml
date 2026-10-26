@@ -5,7 +5,7 @@ permissions:
   contents: read
 jobs:
   standalone:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.EDITOR_NODE }}
+          cache: npm
+          cache-dependency-path: .build/editor-source/package-lock.json
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
