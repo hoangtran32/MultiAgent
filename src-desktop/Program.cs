@@ -7,6 +7,11 @@ internal static class Program
         string? dataDir = null;
         int dataIndex = Array.IndexOf(args, "--data-dir");
         if (dataIndex >= 0 && dataIndex + 1 < args.Length) dataDir = Path.GetFullPath(args[dataIndex + 1]);
+        if (args.FirstOrDefault() == "--prepare-ide") {
+            try { Console.WriteLine(IdeLauncher.Prepare(new(dataDir), Console.WriteLine, CancellationToken.None).GetAwaiter().GetResult()); }
+            catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }
+            return;
+        }
         if (args.FirstOrDefault() == "--ide-backend") {
             try { if (args.Length < 2) throw new ArgumentException("Thiếu project."); Environment.ExitCode = IdeServer.Run(args[1], dataDir).GetAwaiter().GetResult(); }
             catch (Exception error) { Console.Error.WriteLine(error.Message); Environment.ExitCode = 1; }

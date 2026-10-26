@@ -35,6 +35,8 @@ jobs:
           $env:MULTI_AGENT_HUB_IDE_BUNDLE = (Resolve-Path release/hub-ide.zip).Path
           ./scripts/build-release.ps1 -SkipTests
           $exe = Get-ChildItem release/MultiAgentHub-*-win-x64.exe | Select-Object -First 1
+          $prepare = Start-Process -FilePath $exe.FullName -ArgumentList @('--prepare-ide', '--data-dir', (Join-Path $env:RUNNER_TEMP 'hub-bundle-profile')) -Wait -PassThru -WindowStyle Hidden
+          if ($prepare.ExitCode -ne 0) { throw 'Embedded editor extraction/product validation failed.' }
           node tests-ide/backend.integration.cjs $exe.FullName
           if ($LASTEXITCODE -ne 0) { throw 'Packaged backend integration failed.' }
       - uses: actions/upload-artifact@v4

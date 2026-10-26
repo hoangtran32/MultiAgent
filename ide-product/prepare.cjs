@@ -38,6 +38,11 @@ const dirsFile = path.join(source, 'build/npm/dirs.ts');
 const dirs = fs.readFileSync(dirsFile, 'utf8');
 if (!dirs.includes("'extensions/copilot',")) throw Error('Upstream dependency layout changed');
 fs.writeFileSync(dirsFile, dirs.replace(/^.*'extensions\/copilot',.*\r?\n/m, ''));
+const packingFile = path.join(source, 'build/gulpfile.vscode.ts');
+const packing = fs.readFileSync(packingFile, 'utf8');
+const shimCall = 'prepareBuiltInCopilotRipgrepShim(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);';
+if (!packing.includes(shimCall)) throw Error('Upstream agent packing hook changed');
+fs.writeFileSync(packingFile, packing.replace(shimCall, 'if (fs.existsSync(builtInCopilotExtensionDir)) ' + shimCall));
 fs.copyFileSync(path.join(root, 'app.ico'), path.join(source, 'resources/win32/code.ico'));
 const icon = fs.readFileSync(path.join(root, 'ide-extension/icon.svg'));
 for (const relative of [

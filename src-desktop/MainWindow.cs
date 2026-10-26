@@ -105,7 +105,7 @@ internal sealed partial class MainWindow : Form
             if (config.Surface == "chat") config.ChatMode = config.Mode; else config.WorkMode = config.Mode;
             config.Surface = Ui.Value(surface);
             ConfigureModes(config.Surface == "chat" ? config.ChatMode : config.WorkMode);
-            if (config.Surface == "work") { Protect(Save); OpenCodeIde(); return; }
+            if (config.Surface == "work" && IdeLauncher.HasEmbeddedEditor) { Protect(Save); OpenCodeIde(); return; }
             NewConversation(); Populate(); LoadHistory();
         };
         sidebar.ChangeConversation += (id, title, pinned, archived) => Protect(() => {
