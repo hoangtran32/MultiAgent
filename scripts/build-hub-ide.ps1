@@ -1,12 +1,14 @@
-param([Parameter(Mandatory)][string]$EditorSource)
+param([Parameter(Mandatory)][string]$EditorSource, [ValidateSet('All','Install','Compile','Package')][string]$Phase='All')
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $EditorSource = [IO.Path]::GetFullPath($EditorSource)
 $pin = Get-Content -LiteralPath (Join-Path $projectRoot 'ide-product/upstream.json') -Raw | ConvertFrom-Json
 $version = ([xml](Get-Content -LiteralPath (Join-Path $projectRoot 'src-desktop/MultiAgentHub.csproj') -Raw)).Project.PropertyGroup.Version
 $head = (git -C $projectRoot rev-parse HEAD).Trim()
-node (Join-Path $projectRoot 'ide-product/prepare.cjs') $EditorSource
-if ($LASTEXITCODE -ne 0) { throw 'Source product preparation failed.' }
+if ($Phase -in @('All','Install')) {
+    node (Join-Path $projectRoot 'ide-product/prepare.cjs') $EditorSource
+    if ($LASTEXITCODE -ne 0) { throw 'Source product preparation failed.' }
+}
 $env:ELECTRON_SKIP_BINARY_DOWNLOAD = '1'
 $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 $env:NODE_OPTIONS = '--max-old-space-size=6144'
@@ -18,11 +20,16 @@ if (!$signTool) { throw 'The Windows SDK signtool is required by the editor depe
 $env:Path = $signTool.DirectoryName + [IO.Path]::PathSeparator + $env:Path
 Push-Location $EditorSource
 try {
-    npm ci
-    if ($LASTEXITCODE -ne 0) { throw 'Editor dependency build failed.' }
-    npm run gulp vscode-win32-x64-min
-    if ($LASTEXITCODE -ne 0) { throw 'Hub Code source compilation failed.' }
+    if ($Phase -in @('All','Install')) {
+        npm ci
+        if ($LASTEXITCODE -ne 0) { throw 'Editor dependency build failed.' }
+    }
+    if ($Phase -in @('All','Compile')) {
+        npm run gulp vscode-win32-x64-min
+        if ($LASTEXITCODE -ne 0) { throw 'Hub Code source compilation failed.' }
+    }
 } finally { Pop-Location }
+if ($Phase -in @('Install','Compile')) { return }
 $built = Join-Path ([IO.Path]::GetDirectoryName($EditorSource)) 'VSCode-win32-x64'
 $app = Join-Path $built 'resources/app'
 $product = Get-Content -LiteralPath (Join-Path $app 'product.json') -Raw | ConvertFrom-Json

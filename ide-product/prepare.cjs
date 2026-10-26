@@ -18,7 +18,7 @@ Object.assign(product, {
   win32x64AppId: '{{325E441D-6D84-4AC1-9CDE-A75BD59A7F63}',
   win32x64UserAppId: '{{38A1AB30-C83C-440F-BC10-30552B830E48}',
   win32TunnelServiceMutex: 'multiagenthub-tunnelservice', win32TunnelMutex: 'multiagenthub-tunnel',
-  urlProtocol: 'multiagent-hub', quality: 'oss', hubVersion: version,
+  urlProtocol: 'multiagent-hub', hubVersion: version,
   hubSourceCommit: cp.execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
   reportIssueUrl: 'https://github.com/hoangtran32/MultiAgent/issues/new',
   licenseUrl: 'https://github.com/microsoft/vscode/blob/' + pin.commit + '/LICENSE.txt',
@@ -30,6 +30,9 @@ delete product.defaultChatAgent;
 delete product.updateUrl;
 delete product.downloadUrl;
 delete product.configurationSync;
+// Keep upstream's OSS build mode; release-quality builds enable an optional
+// GUI-driven cache prewarm that is unsuitable for the headless build runner.
+delete product.quality;
 fs.writeFileSync(file, JSON.stringify(product, null, 2) + '\n');
 const copilot = path.resolve(source, 'extensions', 'copilot');
 if (!copilot.startsWith(source + path.sep)) throw Error('Unsafe editor customization path');
