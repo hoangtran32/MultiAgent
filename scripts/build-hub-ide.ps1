@@ -12,6 +12,10 @@ $env:PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = '1'
 $env:NODE_OPTIONS = '--max-old-space-size=6144'
 if (!(Test-Path -LiteralPath 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC')) { throw 'This pinned editor requires the VS 2022 C++ toolchain; use the windows-2022 CI runner.' }
 $env:vs2022_install = 'C:\Program Files\Microsoft Visual Studio\2022\Enterprise'
+$sdkBin = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+$signTool = Get-ChildItem -LiteralPath $sdkBin -Filter signtool.exe -Recurse -File | Where-Object {$_.Directory.Name -eq 'x64'} | Sort-Object FullName -Descending | Select-Object -First 1
+if (!$signTool) { throw 'The Windows SDK signtool is required by the editor dependency packaging task.' }
+$env:Path = $signTool.DirectoryName + [IO.Path]::PathSeparator + $env:Path
 Push-Location $EditorSource
 try {
     npm ci
