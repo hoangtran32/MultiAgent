@@ -8,6 +8,7 @@ internal static class HubIdeBundleTests
 {
     public static async Task Run(Func<string, Func<Task>, Task> test, string root)
     {
+        root = Path.Combine(root, "bundle-fixtures"); Directory.CreateDirectory(root);
         (MemoryStream, HubIdeManifest) Bundle(string extra = "", string brand = "Hub Code") {
             var stream = new MemoryStream(); byte[] exe = Encoding.UTF8.GetBytes("own editor fixture");
             var manifest = new HubIdeManifest { Version = "6.1.0", SourceCommit = new('a', 40), EditorCommit = new('b', 40), ExecutableSha256 = Convert.ToHexStringLower(SHA256.HashData(exe)) };
