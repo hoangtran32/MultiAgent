@@ -1,10 +1,11 @@
 # Changelog
 
-## 6.1.0 — 2026-10-26
+## 6.1.0 — 2026-10-27
 
 - Thay launcher VSCodium bằng sản phẩm Hub Code build từ source editor ghim commit; tên/icon, executable, protocol, ID Windows và profile riêng. Không sửa bản VSCodium người dùng đã cài.
 - EXE standalone chứa editor, Agent tích hợp sẵn và backend; cài từ bundle có checksum, không tải nền editor bên ngoài. Giữ LICENSE/ThirdPartyNotices của source và dependency.
 - Agent mở được ở Restricted Mode, hiển thị hướng dẫn Trust trước khi chạy backend/terminal. Mở trực tiếp executable editor vẫn có Agent/backend; không phụ thuộc biến môi trường từ launcher.
+- Thay onboarding Microsoft bằng cửa sổ Agent của Hub; editor khởi động và quản lý extension được khi không có nhà cung cấp/tài khoản mặc định. Profile mới vẫn để trống agent.
 - Workflow build source riêng và fixture kiểm tra checksum, đúng sản phẩm/Agent, executable bị sửa và ZIP traversal. Build native/debug không có editor dùng cửa sổ Hub hiện có.
 
 ## 6.0.0 — 2026-10-24

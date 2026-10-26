@@ -49,6 +49,11 @@ const accountPatches = [
 ];
 for (const [before, after] of accountPatches) { if (!accounts.includes(before)) throw Error('Upstream account integration changed: ' + before); accounts = accounts.replace(before, after); }
 fs.writeFileSync(accountsFile, accounts);
+const extensionsFile = path.join(source, 'src/vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts');
+const extensions = fs.readFileSync(extensionsFile, 'utf8');
+const defaultExtensionCheck = '!areSameExtensions(extension.identifier, { id: this.productService.defaultChatAgent.extensionId })';
+if (!extensions.includes(defaultExtensionCheck)) throw Error('Upstream extension removal integration changed');
+fs.writeFileSync(extensionsFile, extensions.replace(defaultExtensionCheck, '!this.productService.defaultChatAgent || ' + defaultExtensionCheck));
 const copilot = path.resolve(source, 'extensions', 'copilot');
 if (!copilot.startsWith(source + path.sep)) throw Error('Unsafe editor customization path');
 fs.rmSync(copilot, { recursive: true, force: true });
