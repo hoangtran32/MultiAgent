@@ -38,9 +38,11 @@ class Cdp {
   for (const folder of [project, profile]) fs.mkdirSync(folder);
   fs.writeFileSync(path.join(project, 'README.md'), '# Isolated editor fixture\nNo agent requests.\n');
   const server = net.createServer(); await new Promise(resolve => server.listen(0, '127.0.0.1', resolve)); const port = server.address().port; await new Promise(resolve => server.close(resolve));
-  const environment = { ...process.env, MULTI_AGENT_HUB_EXE:backend, MULTI_AGENT_HUB_PROFILE:profile, MULTI_AGENT_HUB_DATA_DIR:profile, MULTI_AGENT_HUB_IDE:'1' };
+  const portable = path.join(temp, 'portable'); fs.mkdirSync(portable);
+  fs.writeFileSync(path.join(portable, 'argv.json'), JSON.stringify({ 'remote-debugging-port':String(port), 'disable-hardware-acceleration':true }));
+  const environment = { ...process.env, MULTI_AGENT_HUB_EXE:backend, MULTI_AGENT_HUB_PROFILE:profile, MULTI_AGENT_HUB_DATA_DIR:profile, MULTI_AGENT_HUB_IDE:'1', VSCODE_PORTABLE:portable };
   delete environment.NODE_OPTIONS; delete environment.ELECTRON_RUN_AS_NODE;
-  const child = spawn(executable, ['--new-window', '--user-data-dir', path.join(temp, 'editor-data'), '--extensions-dir', path.join(temp, 'extensions'), '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', '--remote-debugging-port=' + port, '--enable-logging=file', '--log-file=' + path.join(temp, 'electron.log'), project], { env:environment, shell:false, stdio:'ignore' });
+  const child = spawn(executable, ['--new-window', '--user-data-dir', path.join(temp, 'editor-data'), '--extensions-dir', path.join(temp, 'extensions'), '--skip-welcome', '--skip-sessions-welcome', '--skip-release-notes', '--disable-telemetry', '--disable-experiments', '--enable-smoke-test-driver', '--disable-workspace-trust', '--disable-gpu', '--remote-debugging-port=' + port, '--enable-logging=file', '--log-file=' + path.join(temp, 'electron.log'), project], { env:environment, shell:false, stdio:'ignore' });
   let closed = false, launchError, client;
   child.on('error', error => { launchError = error; }); child.on('close', () => { closed = true; });
   try {

@@ -34,6 +34,21 @@ delete product.configurationSync;
 // GUI-driven cache prewarm that is unsuitable for the headless build runner.
 delete product.quality;
 fs.writeFileSync(file, JSON.stringify(product, null, 2) + '\n');
+const upstreamOnboarding = path.join(source, 'src/vs/workbench/contrib/welcomeOnboarding/browser/onboardingVariationA.ts');
+if (!fs.readFileSync(upstreamOnboarding, 'utf8').includes('Onboarding requires a default chat agent product configuration.')) throw Error('Upstream onboarding integration changed');
+fs.copyFileSync(path.join(__dirname, 'welcomeOnboarding.ts'), path.join(source, 'src/vs/workbench/contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.ts'));
+// The upstream editor now initializes its default-account service unconditionally.
+// Resolve a missing product provider as signed out, without inventing an account or waiting forever.
+const accountsFile = path.join(source, 'src/vs/workbench/services/accounts/browser/defaultAccount.ts');
+let accounts = fs.readFileSync(accountsFile, 'utf8');
+const accountPatches = [
+  ['private readonly defaultAccountConfig: IDefaultAccountConfig;', 'private readonly defaultAccountConfig: IDefaultAccountConfig | undefined;'],
+  ['this.defaultAccountConfig = toDefaultAccountConfig(productService.defaultChatAgent);', 'this.defaultAccountConfig = productService.defaultChatAgent ? toDefaultAccountConfig(productService.defaultChatAgent) : undefined; if (!this.defaultAccountConfig) { this.initBarrier.open(); }'],
+  ['...this.defaultAccountConfig.authenticationProvider.default,', "...(this.defaultAccountConfig?.authenticationProvider.default ?? { id: '', name: '' }),"],
+  ['const defaultAccountProvider = this._register(instantiationService.createInstance(DefaultAccountProvider, toDefaultAccountConfig(productService.defaultChatAgent)));', 'if (!productService.defaultChatAgent) { return; }\n\t\tconst defaultAccountProvider = this._register(instantiationService.createInstance(DefaultAccountProvider, toDefaultAccountConfig(productService.defaultChatAgent)));']
+];
+for (const [before, after] of accountPatches) { if (!accounts.includes(before)) throw Error('Upstream account integration changed: ' + before); accounts = accounts.replace(before, after); }
+fs.writeFileSync(accountsFile, accounts);
 const copilot = path.resolve(source, 'extensions', 'copilot');
 if (!copilot.startsWith(source + path.sep)) throw Error('Unsafe editor customization path');
 fs.rmSync(copilot, { recursive: true, force: true });
