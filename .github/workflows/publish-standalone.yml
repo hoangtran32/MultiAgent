@@ -1,0 +1,96 @@
+name: Publish verified standalone release
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful standalone build run
+        required: true
+        type: string
+      version:
+        description: Release version
+        required: true
+        default: '6.1.0'
+        type: string
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: windows-2022
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - name: Verify producer and core checks
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:BUILD_RUN_ID -notmatch '^\d+$' -or $env:RELEASE_VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release inputs.' }
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:BUILD_RUN_ID" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $run.repository.full_name -ne $env:GITHUB_REPOSITORY -or $run.name -ne 'Build standalone Hub IDE' -or $run.conclusion -ne 'success' -or $run.head_branch -ne 'main' -or $run.head_sha -notmatch '^[a-f0-9]{40}$') { throw 'Producer build is not an approved successful standalone build.' }
+          $checks = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs?head_sha=$($run.head_sha)" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or !($checks.workflow_runs | Where-Object {$_.name -eq 'Test and build Windows app' -and $_.conclusion -eq 'success'})) { throw 'Core checks for the exact producer commit have not passed.' }
+          "PRODUCER_HEAD=$($run.head_sha)" >> $env:GITHUB_ENV
+      - uses: actions/download-artifact@v4
+        with:
+          name: MultiAgentHub-standalone-win-x64
+          run-id: ${{ inputs.build_run_id }}
+          github-token: ${{ github.token }}
+          path: payload
+      - name: Verify payload and publish immutable assets
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $env:RELEASE_VERSION; $tag = 'v' + $version
+          $exe = Get-ChildItem payload -Filter "MultiAgentHub-$version-win-x64.exe" -File -Recurse
+          $manifestFile = Get-ChildItem payload -Filter hub-ide.zip.json -File -Recurse
+          if (@($exe).Count -ne 1 -or @($manifestFile).Count -ne 1) { throw 'Expected one standalone EXE and manifest.' }
+          $manifest = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json
+          if ($exe.VersionInfo.ProductVersion -ne ($version + '+' + $env:PRODUCER_HEAD) -or $manifest.SourceCommit -ne $env:PRODUCER_HEAD -or $manifest.Version -ne $version) { throw 'Payload version/source identity mismatch.' }
+          $hash = (Get-FileHash -LiteralPath $exe.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if (!(Get-Content -LiteralPath ($exe.FullName + '.sha256') -Raw).StartsWith($hash + '  ')) { throw 'Payload checksum mismatch.' }
+          @"
+          Hub Code standalone: editor Hub build từ source đã ghim, có tên/icon/profile riêng và Agent/backend tích hợp trong một EXE. Thay luồng mở VSCodium của 6.0.0.
+
+          - Editor, file, Git, terminal, debugger và extension Open VSX; không cần cài IDE/Node.js riêng.
+          - Profile mới không có agent mặc định. Thêm CLI/API và model của bạn trong Agent & model.
+          - Làm ngay dùng một agent; Kế hoạch → triển khai review toàn bộ giải pháp rồi phân công Đầu não/Thợ code.
+          - CI xác nhận cửa sổ Hub Code/Agent mở, profile trống đúng yêu cầu, giải nén bundle và backend headless. Không gọi model/tài khoản thật. Chưa tương đương toàn bộ tính năng Antigravity.
+          - Dữ liệu/tài khoản Hub hiện có được dùng tiếp. Hub Chat dùng --native; thiết lập dùng --settings.
+
+          Source: $env:PRODUCER_HEAD
+          SHA-256: $hash
+          "@ | Set-Content release-notes.md -Encoding utf8NoBOM
+          $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=50" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect releases.' }
+          $release = $releases | Where-Object {$_.tag_name -eq $tag} | Select-Object -First 1
+          if (!$release) {
+            gh release create $tag --repo $env:GITHUB_REPOSITORY --draft --target $env:PRODUCER_HEAD --title "Multi-Agent Hub $version" --notes-file release-notes.md
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot create release draft.' }
+            $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=50" | ConvertFrom-Json
+            $release = $releases | Where-Object {$_.tag_name -eq $tag} | Select-Object -First 1
+          }
+          if (!$release -or $release.target_commitish -ne $env:PRODUCER_HEAD) { throw 'Existing release targets a different source commit.' }
+          foreach ($file in @($exe.FullName, ($exe.FullName + '.sha256'))) {
+            $name = [IO.Path]::GetFileName($file)
+            $expected = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets" | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect release assets.' }
+            $existing = $assets | Where-Object {$_.name -eq $name} | Select-Object -First 1
+            if ($existing) {
+              if ($existing.digest -ne ('sha256:' + $expected)) { throw 'Existing asset differs; refusing to overwrite it.' }
+              continue
+            }
+            if (!$release.draft) { throw 'Refusing to add assets to an already published release.' }
+            gh release upload $tag $file --repo $env:GITHUB_REPOSITORY
+            if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed.' }
+            $uploaded = gh api "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets" | ConvertFrom-Json | Where-Object {$_.name -eq $name}
+            if ($LASTEXITCODE -ne 0 -or $uploaded.digest -ne ('sha256:' + $expected)) { throw 'Uploaded asset digest mismatch.' }
+          }
+          if ($release.draft) {
+            gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false --latest
+            if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }
+          }
+          gh release view $tag --repo $env:GITHUB_REPOSITORY --json url,isDraft,targetCommitish
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot confirm published release.' }
