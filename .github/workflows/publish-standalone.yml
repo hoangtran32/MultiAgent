@@ -62,20 +62,23 @@ jobs:
           Source: $env:PRODUCER_HEAD
           SHA-256: $hash
           "@ | Set-Content release-notes.md -Encoding utf8NoBOM
-          $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=50" | ConvertFrom-Json
+          $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=50&fresh=$([Guid]::NewGuid().ToString('N'))" | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect releases.' }
           $release = $releases | Where-Object {$_.tag_name -eq $tag} | Select-Object -First 1
           if (!$release) {
             gh release create $tag --repo $env:GITHUB_REPOSITORY --draft --target $env:PRODUCER_HEAD --title "Multi-Agent Hub $version" --notes-file release-notes.md
             if ($LASTEXITCODE -ne 0) { throw 'Cannot create release draft.' }
-            $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=50" | ConvertFrom-Json
-            $release = $releases | Where-Object {$_.tag_name -eq $tag} | Select-Object -First 1
+            for ($attempt=0; $attempt -lt 6 -and !$release; $attempt++) {
+              $releases = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=50&fresh=$([Guid]::NewGuid().ToString('N'))" | ConvertFrom-Json
+              $release = $releases | Where-Object {$_.tag_name -eq $tag} | Select-Object -First 1
+              if (!$release) { Start-Sleep -Seconds 1 }
+            }
           }
           if (!$release -or $release.target_commitish -ne $env:PRODUCER_HEAD) { throw 'Existing release targets a different source commit.' }
           foreach ($file in @($exe.FullName, ($exe.FullName + '.sha256'))) {
             $name = [IO.Path]::GetFileName($file)
             $expected = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
-            $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets" | ConvertFrom-Json
+            $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets?fresh=$([Guid]::NewGuid().ToString('N'))" | ConvertFrom-Json
             if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect release assets.' }
             $existing = $assets | Where-Object {$_.name -eq $name} | Select-Object -First 1
             if ($existing) {
@@ -85,7 +88,7 @@ jobs:
             if (!$release.draft) { throw 'Refusing to add assets to an already published release.' }
             gh release upload $tag $file --repo $env:GITHUB_REPOSITORY
             if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed.' }
-            $uploaded = gh api "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets" | ConvertFrom-Json | Where-Object {$_.name -eq $name}
+            $uploaded = gh api "repos/$env:GITHUB_REPOSITORY/releases/$($release.id)/assets?fresh=$([Guid]::NewGuid().ToString('N'))" | ConvertFrom-Json | Where-Object {$_.name -eq $name}
             if ($LASTEXITCODE -ne 0 -or $uploaded.digest -ne ('sha256:' + $expected)) { throw 'Uploaded asset digest mismatch.' }
           }
           if ($release.draft) {
