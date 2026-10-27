@@ -5,6 +5,7 @@
 <body>
   <header><div><strong>Hub Code</strong><span class="subtle">Agent workspace</span></div><nav><button id="new" title="Cuộc trò chuyện mới">＋</button><button id="refresh" title="Nạp lại agent và lịch sử">↻</button><button id="settings" title="Agent & model">⚙</button></nav></header>
   <section id="trustNotice" hidden><p>Project đang ở Restricted Mode. Khung Agent đã mở; chạy công cụ cần project được tin cậy.</p><button id="trust">Quản lý quyền project</button></section>
+  <section id="setupNotice" role="status" hidden>Chưa có agent. Mở ⚙ Agent &amp; model ở trên để thêm kết nối của bạn.</section>
   <section id="session" aria-live="polite"><div class="status-line"><span id="dot"></span><strong id="status">Sẵn sàng</strong><button id="stop" hidden>Dừng</button></div><div id="activity" class="subtle">Mở project, chọn agent rồi nhập yêu cầu.</div><div class="progress-track" id="progress" hidden><span></span></div><div id="counts" class="subtle"></div></section>
   <section class="artifacts"><button id="plan">Kế hoạch & task</button><button id="changes">Thay đổi</button><button id="walkthrough">Kết quả</button><button id="terminal">Terminal</button><button id="logs">Nhật ký agent</button></section>
   <main id="feed" aria-label="Cuộc trò chuyện"><section id="empty"><h2>Bắt đầu từ việc cần làm.</h2><p>Editor và file ở bên trái. Agent cùng kết quả ở đây.</p><p class="subtle">Làm ngay cho yêu cầu thông thường. Kế hoạch để nhóm review giải pháp rồi Đầu não + Thợ code triển khai.</p></section></main>

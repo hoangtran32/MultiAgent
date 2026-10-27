@@ -96,7 +96,7 @@ window.addEventListener('message', event => {
     options($('brain'), catalog.agents, rolesDirty ? $('brain').value : catalog.coding?.brain?.agentId); options($('worker'), catalog.agents, rolesDirty ? $('worker').value : catalog.coding?.implementer?.agentId);
     if (!rolesDirty) { $('brainModel').value = catalog.coding?.brain?.model || ''; $('workerModel').value = catalog.coding?.implementer?.model || ''; }
     modelOptions('brainModels', $('brain').value); modelOptions('workerModels', $('worker').value); text($('workspace'), catalog.project);
-    if (!catalog.agents.length) { $('error').hidden = false; text($('error'), 'Chưa có agent CLI/API. Mở ⚙ Agent & model để thêm kết nối của bạn.'); }
+    $('setupNotice').hidden = catalog.agents.length > 0;
     controls();
   } else if (message.type === 'state' || message.type === 'accepted') {
     if (message.type === 'accepted') { submitting = false; if ($('prompt').value.trim() === lastPrompt) $('prompt').value = ''; $('attachments').replaceChildren(); $('context').hidden = true; persist(); }

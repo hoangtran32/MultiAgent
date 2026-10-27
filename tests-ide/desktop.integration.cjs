@@ -60,7 +60,7 @@ class Cdp {
               function find(w) {
                 try {
                   const d = w.document;
-                  if (d.getElementById('prompt') && d.getElementById('mode') && d.getElementById('workspace')) return { workspace:d.getElementById('workspace').textContent, mode:d.getElementById('mode').value, agents:Array.from(d.getElementById('agent').options).map(o => o.value), error:d.getElementById('error').hidden ? '' : d.getElementById('error').textContent };
+                  if (d.getElementById('prompt') && d.getElementById('mode') && d.getElementById('workspace')) return { workspace:d.getElementById('workspace').textContent, mode:d.getElementById('mode').value, agents:Array.from(d.getElementById('agent').options).map(o => o.value), setup:!d.getElementById('setupNotice').hidden, sendDisabled:d.getElementById('send').disabled, error:d.getElementById('error').hidden ? '' : d.getElementById('error').textContent };
                   for (let i=0; i<w.frames.length; i++) { const result=find(w.frames[i]); if (result) return result; }
                 } catch (_) {} return null;
               }
@@ -74,6 +74,7 @@ class Cdp {
         if (workbench && agent) {
           assert.equal(fs.realpathSync.native(agent.workspace).toLowerCase(), fs.realpathSync.native(project).toLowerCase());
           assert.equal(agent.mode, 'fast'); assert.equal(agent.error, ''); assert.ok(agent.agents.every(id => id === ''), 'Empty profiles must not invent agents');
+          assert.equal(agent.setup, true); assert.equal(agent.sendDisabled, true);
           ready = true; break;
         }
       } catch (error) { lastError = error.message; }

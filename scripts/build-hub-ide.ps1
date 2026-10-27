@@ -33,7 +33,13 @@ if ($Phase -in @('Install','Compile')) { return }
 $built = Join-Path ([IO.Path]::GetDirectoryName($EditorSource)) 'VSCode-win32-x64'
 $app = Join-Path $built 'resources/app'
 $product = Get-Content -LiteralPath (Join-Path $app 'product.json') -Raw | ConvertFrom-Json
-if ($product.nameShort -ne 'Hub Code' -or $product.hubSourceCommit -ne $head -or !(Test-Path -LiteralPath (Join-Path $built 'Hub Code.exe'))) { throw 'Output is not our Hub Code product.' }
+if ($product.nameShort -ne 'Hub Code' -or $product.commit -ne $pin.commit -or !(Test-Path -LiteralPath (Join-Path $built 'Hub Code.exe'))) { throw 'Output is not our Hub Code product.' }
+# The editor layer is keyed by all source-customization/compiler inputs. Extension/backend
+# are assembled from the current revision below, so their changes do not rebuild the editor.
+$product | Add-Member -NotePropertyName hubEditorBuildCommit -NotePropertyValue $product.hubSourceCommit -Force
+$product.hubSourceCommit = $head
+$product.hubVersion = $version
+$product | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath (Join-Path $app 'product.json') -Encoding utf8NoBOM
 $extension = Join-Path $app 'extensions/multiagent-hub'
 New-Item -ItemType Directory -Path $extension -Force | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $projectRoot 'ide-extension') -File | Copy-Item -Destination $extension

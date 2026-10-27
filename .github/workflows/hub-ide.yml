@@ -28,12 +28,26 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Restore compiled Hub editor layer
+        id: editor-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/VSCode-win32-x64
+          key: hub-editor-win2022-x64-${{ hashFiles('ide-product/**', 'app.ico', 'scripts/build-hub-ide.ps1') }}
       - name: Install editor build dependencies
+        if: steps.editor-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: ./scripts/build-hub-ide.ps1 -EditorSource .build/editor-source -Phase Install
       - name: Compile Hub editor from source
+        if: steps.editor-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: ./scripts/build-hub-ide.ps1 -EditorSource .build/editor-source -Phase Compile
+      - name: Cache compiled Hub editor layer
+        if: steps.editor-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .build/VSCode-win32-x64
+          key: ${{ steps.editor-cache.outputs.cache-primary-key }}
       - name: Bundle editor Agent and backend
         shell: pwsh
         run: ./scripts/build-hub-ide.ps1 -EditorSource .build/editor-source -Phase Package
